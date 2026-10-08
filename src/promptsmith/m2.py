@@ -15,7 +15,9 @@ from .session import SessionState, SessionStateError
 
 
 class M2ValidationError(ValueError):
-    pass
+    def __init__(self, message: str, *, stage: str = "semantic"):
+        super().__init__(message)
+        self.stage = stage
 
 
 @dataclass(frozen=True)
@@ -23,19 +25,19 @@ class M2Assets:
     system_prompt: str
     input_schema: dict[str, Any]
     output_schema: dict[str, Any]
-    prompt_version: str = "M2_system_v0.2"
+    prompt_version: str = "M2_system_v0.3"
     contract_version: str = "m2.v0.1"
 
     @classmethod
     def load(cls, directory: str | Path | None = None) -> "M2Assets":
         root = Path(directory) if directory else m2_asset_dir()
         return cls(
-            system_prompt=(root / "M2_system_v0.2.txt").read_text(encoding="utf-8-sig"),
+            system_prompt=(root / "M2_system_v0.3.txt").read_text(encoding="utf-8-sig"),
             input_schema=json.loads(
                 (root / "M2_input_v0.1.schema.json").read_text(encoding="utf-8-sig")
             ),
             output_schema=json.loads(
-                (root / "M2_output_v0.1.schema.json").read_text(encoding="utf-8-sig")
+                (root / "M2_output_v0.2.schema.json").read_text(encoding="utf-8-sig")
             ),
         )
 
@@ -55,7 +57,7 @@ def _schema_error(value: dict[str, Any], schema: dict[str, Any], label: str) -> 
     errors = sorted(Draft202012Validator(schema).iter_errors(value), key=lambda e: list(e.path))
     if errors:
         path = ".".join(str(part) for part in errors[0].path) or "$"
-        raise M2ValidationError(f"{label}不符合契约（{path}）：{errors[0].message}")
+        raise M2ValidationError(f"{label}不符合契约（{path}）：{errors[0].message}", stage="schema")
 
 
 def _strict_json_loads(raw: str) -> dict[str, Any]:
@@ -63,21 +65,21 @@ def _strict_json_loads(raw: str) -> dict[str, Any]:
         result: dict[str, Any] = {}
         for key, value in pairs:
             if key in result:
-                raise M2ValidationError(f"模型JSON包含重复键：{key}")
+                raise M2ValidationError(f"模型JSON包含重复键：{key}", stage="json")
             result[key] = value
         return result
 
     def invalid_constant(value: str) -> Any:
-        raise M2ValidationError(f"模型JSON包含非法数值：{value}")
+        raise M2ValidationError(f"模型JSON包含非法数值：{value}", stage="json")
 
     try:
         parsed = json.loads(raw, object_pairs_hook=unique_object, parse_constant=invalid_constant)
     except M2ValidationError:
         raise
     except json.JSONDecodeError as exc:
-        raise M2ValidationError(f"模型未返回有效JSON：第{exc.lineno}行第{exc.colno}列") from None
+        raise M2ValidationError(f"模型未返回有效JSON：第{exc.lineno}行第{exc.colno}列", stage="json") from None
     if not isinstance(parsed, dict):
-        raise M2ValidationError("模型JSON根节点必须是对象。")
+        raise M2ValidationError("模型JSON根节点必须是对象。", stage="json")
     return parsed
 
 
@@ -234,6 +236,78 @@ def _check_acyclic(rows: list[dict[str, Any]], id_key: str, deps_key: str, label
         visit(node)
 
 
+def merge_plan_unknowns(
+    rows: list[dict[str, Any]],
+    payload: dict[str, Any],
+    *,
+    report: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    """Conserve source unknowns; normalize model suggestions without inventing facts.
+
+    Only call at the model ingestion boundary or on a delivery copy. Saved
+    plans are validated, not silently rewritten after confirmation.
+    """
+    events = report if report is not None else []
+    gap_ids = {row["unresolved_id"] for row in payload["unresolved_items"]}
+    requirement_ids = {row["item_id"] for row in payload["requirements"]}
+    reserved = {row["unresolved_id"] for row in rows}
+    used: set[str] = set()
+    fingerprints: set[str] = set()
+    merged: list[dict[str, Any]] = []
+
+    def next_id() -> str:
+        index = 1
+        while f"u-recovered-{index}" in reserved | used:
+            index += 1
+        return f"u-recovered-{index}"
+
+    for original in rows:
+        row = deepcopy(original)
+        source = row["source_gap_id"]
+        related = list(dict.fromkeys(row.get("related_requirement_ids", [])))
+        if source is not None and source not in gap_ids:
+            if source in requirement_ids:
+                related = list(dict.fromkeys([*related, source]))
+            row["source_gap_id"] = None
+            events.append({"action": "classify_new_unknown", "unresolved_id": row["unresolved_id"],
+                           "original_source_gap_id": source})
+        valid_related = [value for value in related if value in requirement_ids]
+        if valid_related != related:
+            events.append({"action": "remove_unverified_requirement_refs", "unresolved_id": row["unresolved_id"],
+                           "removed_ids": [value for value in related if value not in requirement_ids]})
+        if valid_related or "related_requirement_ids" in row:
+            row["related_requirement_ids"] = valid_related
+        fingerprint = json.dumps({key: value for key, value in row.items() if key != "unresolved_id"},
+                                 sort_keys=True, ensure_ascii=False)
+        if fingerprint in fingerprints:
+            events.append({"action": "merge_exact_duplicate", "unresolved_id": row["unresolved_id"]})
+            continue
+        fingerprints.add(fingerprint)
+        if row["unresolved_id"] in used:
+            replacement = next_id()
+            events.append({"action": "assign_unique_id", "original_id": row["unresolved_id"], "new_id": replacement})
+            row["unresolved_id"] = replacement
+        used.add(row["unresolved_id"])
+        merged.append(row)
+
+    covered = {row["source_gap_id"] for row in merged}
+    for source in payload["unresolved_items"]:
+        gap_id = source["unresolved_id"]
+        if gap_id in covered:
+            continue
+        identifier = next_id()
+        used.add(identifier)
+        merged.append({
+            "unresolved_id": identifier, "source_gap_id": gap_id,
+            "description": source["description"],
+            "impact": "该事项仍未确定，依赖它的具体内容需补充后再落实。",
+            "continuable_work": "先完成不依赖该信息的部分；使用最终提示时继续向用户确认，不自行填入答案。",
+            "confirm_by": "开始依赖该信息的工作前",
+        })
+        events.append({"action": "restore_source_unknown", "source_gap_id": gap_id, "unresolved_id": identifier})
+    return merged
+
+
 def validate_plan_content(plan: dict[str, Any], payload: dict[str, Any]) -> None:
     requirement_ids = {row["item_id"] for row in payload["requirements"]}
     gap_ids = {row["unresolved_id"] for row in payload["unresolved_items"]}
@@ -280,9 +354,12 @@ def validate_plan_content(plan: dict[str, Any], payload: dict[str, Any]) -> None
     _check_acyclic(steps, "step_id", "depends_on_step_ids", "方案步骤")
     _check_acyclic(key_work, "key_work_id", "depends_on_key_work_ids", "关键工作")
 
-    returned_gap_ids = [row["source_gap_id"] for row in plan["unresolved_items"]]
-    if len(returned_gap_ids) != len(set(returned_gap_ids)) or set(returned_gap_ids) != gap_ids:
-        raise M2ValidationError("方案必须逐项保留输入中的全部可延后未知。")
+    returned_gap_ids = {row["source_gap_id"] for row in plan["unresolved_items"] if row["source_gap_id"] is not None}
+    if not gap_ids.issubset(returned_gap_ids):
+        raise M2ValidationError("方案遗漏了来源快照中的未决事项。")
+    _check_subset(list(returned_gap_ids), gap_ids, "未决事项来源")
+    for row in plan["unresolved_items"]:
+        _check_subset(row.get("related_requirement_ids", []), requirement_ids, "未决事项关联需求")
     for row in plan["suggestions"]:
         if row["kind"] in {"scope_change", "cost_or_permission"} and not row[
             "requires_user_confirmation"
@@ -337,6 +414,8 @@ def parse_m2_response(
     raw: str,
     payload: dict[str, Any],
     output_schema: dict[str, Any],
+    *,
+    normalization_report: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     parsed = _strict_json_loads(raw)
     _schema_error(parsed, output_schema, "M2输出")
@@ -346,6 +425,9 @@ def parse_m2_response(
     if parsed["status"] == "ok":
         if parsed["plan"] is None or parsed["error"] is not None:
             raise M2ValidationError("正常分支必须只包含方案。")
+        parsed["plan"]["unresolved_items"] = merge_plan_unknowns(
+            parsed["plan"]["unresolved_items"], payload, report=normalization_report
+        )
         validate_plan_content(parsed["plan"], payload)
     else:
         if parsed["plan"] is not None or parsed["error"] is None:
@@ -363,7 +445,7 @@ def apply_m2_response(
     payload: dict[str, Any],
     parsed: dict[str, Any],
     *,
-    prompt_version: str = "M2_system_v0.2",
+    prompt_version: str = "M2_system_v0.3",
     contract_version: str = "m2.v0.1",
 ) -> None:
     if parsed["status"] != "ok":

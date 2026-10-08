@@ -1177,9 +1177,26 @@ class SessionState:
         return {
             "requirements": source.get("requirements", []),
             "unresolved_items": [
-                {"unresolved_id": row["gap_id"]} for row in source.get("unresolved_items", [])
+                {**deepcopy(row), "unresolved_id": row["gap_id"]}
+                for row in source.get("unresolved_items", [])
             ],
         }
+
+    def plan_delivery_unknowns(self) -> list[dict[str, Any]]:
+        """Union source and planning unknowns without changing the confirmed plan."""
+        from .m2 import merge_plan_unknowns
+
+        rows = deepcopy((self.plan.get("content") or {}).get("unresolved_items", []))
+        # Older delivery snapshots used unknown_id and had no M2 source link.
+        for index, row in enumerate(rows, 1):
+            row.setdefault("unresolved_id", row.get("unknown_id") or f"legacy-unknown-{index}")
+            row.setdefault("source_gap_id", None)
+        payload = self._plan_source_payload()
+        if not self.plan.get("source_snapshot"):
+            payload = {"requirements": self.requirements, "unresolved_items": [
+                {**deepcopy(row), "unresolved_id": row["gap_id"]} for row in self.plan_unresolved_items()
+            ]}
+        return merge_plan_unknowns(rows, payload)
 
     def edit_plan_step(
         self,

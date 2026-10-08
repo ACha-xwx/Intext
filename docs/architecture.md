@@ -2,6 +2,8 @@
 
 本文件描述 2026-10-08 功能基线及仓库资源迁移后的结构。启动入口为 `run_promptsmith.py`，将 `src/` 加入导入路径后调用 `promptsmith.main.main()`。
 
+M2 后续兼容修复：`parse_m2_response` 在合法 JSON/Schema 及请求身份检查后，对未决事项执行确定性归并，再校验方案引用。缺失的来源未知补回，新增项使用空缺口来源与可选关联需求；模型原响应和归并动作分别留存。`SessionState.plan_delivery_unknowns()` 为 M3/M4 和最终组装提供并集，不修改已确认方案。新最终基线的 `unknown_handling=ask_then_defer` 控制使用时继续追问的说明；旧最终基线继续按原格式核对。
+
 ## 1. 分层关系
 
 ```mermaid

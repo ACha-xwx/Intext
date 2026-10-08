@@ -25,6 +25,7 @@ coverage.xml
 !/verification/README.md
 !/verification/baseline/
 !/verification/repository_handoff_20261008/
+!/verification/m2_recovery_20261008/
 
 # Secrets / machine-specific settings
 .env

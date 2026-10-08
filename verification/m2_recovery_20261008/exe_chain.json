@@ -1,0 +1,27 @@
+{
+  "exit_code": 0,
+  "http_purposes": [
+    "m1",
+    "m2"
+  ],
+  "isolated_dir_contents": [
+    "PromptSmith.exe"
+  ],
+  "exe_sha256": "da1bda406954936f71d729d75dc79db5abdbce9ffea8e35320c5ae084c9b02af",
+  "stderr_tail": "",
+  "verification_kind": "offline_http_stub_ui_commands",
+  "task_input_only_before_click": true,
+  "task_input_label": "开始整理",
+  "primary_button_started_m1": true,
+  "m5_entry_reachable": true,
+  "m5_validation_failure_recoverable": true,
+  "requirements_confirmed": true,
+  "plan_confirmed": true,
+  "skill_status": "skipped",
+  "final_status": "confirmed",
+  "trial_entry_reachable": true,
+  "trial_validation_failure_recoverable": true,
+  "reopened_consistent": true,
+  "markdown_contains_final_prompt": true,
+  "success": true
+}

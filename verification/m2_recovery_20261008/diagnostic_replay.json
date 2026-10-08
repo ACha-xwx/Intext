@@ -1,0 +1,29 @@
+{
+  "zip_sha256": "541bccd513ccf837216442be351130e29244608cdc5d58d7cca47af56f741960",
+  "real_model_call": false,
+  "results": [
+    {
+      "case": 1,
+      "output_unknown_count": 3,
+      "all_unknowns_in_prompt": true,
+      "edit_confirm_save_reopen_export": "passed",
+      "normalization_actions": [
+        "classify_new_unknown",
+        "classify_new_unknown",
+        "classify_new_unknown"
+      ]
+    },
+    {
+      "case": 2,
+      "output_unknown_count": 4,
+      "all_unknowns_in_prompt": true,
+      "edit_confirm_save_reopen_export": "passed",
+      "normalization_actions": [
+        "classify_new_unknown",
+        "classify_new_unknown",
+        "classify_new_unknown",
+        "classify_new_unknown"
+      ]
+    }
+  ]
+}

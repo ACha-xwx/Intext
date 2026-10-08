@@ -1,0 +1,52 @@
+from copy import deepcopy
+
+from tests.test_ui_delivery_interactions import delivery_app, _configure_delivery_client, _pump_until
+from tests.test_m2 import valid_result
+from tests.test_m2_workflow import Client
+from tests.test_m2_unknown_recovery import unknown
+
+
+def test_new_unknown_generates_plan_without_error_and_explains_defer(delivery_app, monkeypatch):
+    app, window = delivery_app
+
+    def response(payload):
+        result = valid_result(payload)
+        result["plan"]["unresolved_items"] = [unknown(source="r2")]
+        return result
+
+    _configure_delivery_client(app, monkeypatch, Client(response))
+    app.widgets["generate_plan_button"].invoke()
+    _pump_until(window, lambda: not app.busy)
+    assert not app.test_dialogs
+    assert app.session.plan["status"] == "draft"
+    assert len(app.session.plan["content"]["unresolved_items"]) == 1
+    assert "使用时再补充" in app.status_var.get()
+    assert "未决事项可在使用时补充" in app._primary_action().reason
+    # The separately confirmed settings remain intact after generating a plan.
+    assert app._model_settings_confirmed()
+    app.show_workspace(1)
+    app.show_settings()
+    assert app.notebook.index(app.notebook.select()) == 4
+    app.return_from_settings()
+    assert app.notebook.index(app.notebook.select()) == 1
+
+
+def test_invalid_model_response_explains_retry_preserves_inputs(delivery_app, monkeypatch):
+    app, window = delivery_app
+    app.session.plan["status"] = "stale"
+    previous = deepcopy(app.session.plan)
+    requirements = deepcopy(app.session.requirements)
+
+    def response(payload):
+        result = valid_result(payload)
+        result["plan"]["steps"][0]["depends_on_step_ids"] = ["bad"]
+        return result
+
+    _configure_delivery_client(app, monkeypatch, Client(response))
+    app.widgets["generate_plan_button"].invoke()
+    _pump_until(window, lambda: not app.busy)
+    assert app.session.plan == previous and app.session.requirements == requirements
+    assert len(app.test_dialogs) == 1 and app.test_dialogs[0][0] == "warning"
+    message = app.test_dialogs[0][1][1]
+    assert "不用重新回答" in message and "重新生成方案" in message and "诊断记录" in message
+    assert app._primary_action().label == "重新生成方案"

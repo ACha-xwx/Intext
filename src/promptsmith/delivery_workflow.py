@@ -222,7 +222,7 @@ class DeliveryWorkflow:
         if not candidates:
             raise DeliveryWorkflowError("当前批次没有候选，无需调用 M3。")
         plan_content = self.session.plan["content"]
-        unknowns = plan_content.get("unresolved_items", [])
+        unknowns = self.session.plan_delivery_unknowns()
         payload = build_m3_input(
             request_id,
             self.session.task_id,
@@ -250,10 +250,7 @@ class DeliveryWorkflow:
         if state.get("status") != "selected" or not state.get("bindings"):
             raise DeliveryWorkflowError("当前没有已选用的 Agent Skill。")
         plan_content = deepcopy(self.session.plan["content"])
-        unknowns = deepcopy(
-            plan_content.get("unresolved_items", [])
-            or [row for row in self.session.gaps if row.get("importance") == "can_defer"]
-        )
+        unknowns = self.session.plan_delivery_unknowns()
         baseline_plan = {
             "plan_id": self.session.plan["plan_id"],
             "plan_version": self.session.plan["plan_version"],

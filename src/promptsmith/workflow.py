@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, Protocol
@@ -64,11 +64,17 @@ class M2CallFailure(RuntimeError):
         *,
         kind: str,
         api_result: ApiResult,
+        recovery_action: str = "",
+        validation_stage: str | None = None,
+        status_code: int | None = None,
     ):
         super().__init__(message)
         self.evidence_dir = evidence_dir
         self.kind = kind
         self.api_result = api_result
+        self.recovery_action = recovery_action
+        self.validation_stage = validation_stage
+        self.status_code = status_code
 
 
 @dataclass(frozen=True)
@@ -78,6 +84,7 @@ class M2CallOutcome:
     api_result: ApiResult
     evidence_dir: Path
     request_mode: str = "full"
+    normalization_report: list[dict[str, Any]] = field(default_factory=list)
 
 
 class M5CallFailure(RuntimeError):
@@ -882,7 +889,7 @@ class Phase12Workflow:
                 return False
             if run.get("status") == "accepted_as_plan_draft":
                 return False
-            return run.get("status") == "truncated" or run.get("request_mode") == "compact_retry"
+            return bool(run.get("status"))
         return False
 
     def invoke_m2(
@@ -919,11 +926,14 @@ class Phase12Workflow:
             )
             self._record_m2_failure(payload, exc.kind, str(exc), evidence_dir, api_result, request_mode=mode)
             raise M2CallFailure(
-                str(exc), evidence_dir, kind=exc.kind, api_result=api_result
+                str(exc), evidence_dir, kind=exc.kind, api_result=api_result,
+                status_code=exc.status_code,
             ) from exc
+        normalization_report: list[dict[str, Any]] = []
         try:
             parsed = parse_m2_response(
-                api_result.content, payload, self.m2_assets.output_schema
+                api_result.content, payload, self.m2_assets.output_schema,
+                normalization_report=normalization_report,
             )
             check = {
                 "valid": True,
@@ -931,12 +941,16 @@ class Phase12Workflow:
                 "semantic": "passed",
                 "business_status": parsed["status"],
                 "error": None,
+                "normalization": normalization_report,
             }
         except Exception as exc:
+            stage = getattr(exc, "stage", "internal")
             check = {
                 "valid": False,
-                "schema": "failed_or_not_reached",
-                "semantic": "failed_or_not_reached",
+                "schema": "passed" if stage == "semantic" else "failed" if stage == "schema" else "not_reached",
+                "semantic": "failed" if stage == "semantic" else "not_reached",
+                "failure_stage": stage,
+                "normalization": normalization_report,
                 "business_status": None,
                 "failure_kind": "validation_error",
                 "error": str(exc),
@@ -949,7 +963,8 @@ class Phase12Workflow:
                 payload, "validation_error", message, evidence_dir, api_result, request_mode=mode
             )
             raise M2CallFailure(
-                message, evidence_dir, kind="validation_error", api_result=api_result
+                message, evidence_dir, kind="validation_error", api_result=api_result,
+                validation_stage=stage,
             ) from exc
         evidence_dir = self._write_m2_evidence(
             payload, api_result, protocol, configured_model, check, request_parameters, **evidence_options
@@ -962,8 +977,9 @@ class Phase12Workflow:
                 evidence_dir,
                 kind="content_error",
                 api_result=api_result,
+                recovery_action=parsed["error"]["recovery_action"],
             )
-        return M2CallOutcome(api_result.content, parsed, api_result, evidence_dir, mode)
+        return M2CallOutcome(api_result.content, parsed, api_result, evidence_dir, mode, normalization_report)
 
     def _write_m2_evidence(
         self,
@@ -1047,6 +1063,7 @@ class Phase12Workflow:
                 "finish_reason": outcome.api_result.finish_reason,
                 "request_mode": outcome.request_mode,
                 "status": "accepted_as_plan_draft",
+                "normalization": deepcopy(outcome.normalization_report),
                 "evidence_dir": str(outcome.evidence_dir),
             }
         )

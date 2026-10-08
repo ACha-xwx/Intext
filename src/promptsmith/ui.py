@@ -162,6 +162,27 @@ def json_request_parameters(config: ApiConfig) -> dict[str, Any]:
 def generation_failure_message(purpose: str, exc: Exception, timeout_seconds: float | None) -> str:
     if purpose == "m2" and getattr(exc, "kind", None) == "truncated":
         return "AI 这次没有生成完整方案，你的需求和已有方案已保留。点击“重新生成方案”再试一次，程序会减少重复说明。"
+    if purpose == "m2":
+        kind = getattr(exc, "kind", None)
+        retained = "你的回答、已确认需求和已有方案已保留，不用重新回答。"
+        if kind in {"validation_error", "invalid_response"}:
+            stage = getattr(exc, "validation_stage", None)
+            reason = "AI 返回的方案结构或关联信息不完整" if stage == "semantic" else "AI 返回的内容格式暂时无法读取"
+            return (f"{reason}。{retained}点击“重新生成方案”再试；若重复出现，可更换模型后重试。"
+                    "暂未确定的任务细节可以留在最终提示中补充。")
+        if kind == "content_error":
+            return (f"{exc}\n{retained}\n建议：{getattr(exc, 'recovery_action', '') or '核对任务目标和希望得到的成果。'}"
+                    "\n可返回“当前需求”补充说明后继续；细节暂时不知道时，可注明“使用提示时再确认”。")
+        if kind in {"network_error", "network"}:
+            return f"暂时无法连接模型服务。{retained}检查网络和模型地址，再点击“重新生成方案”。"
+        result = getattr(exc, "api_result", None)
+        status = getattr(exc, "status_code", None) or getattr(result, "status_code", None)
+        if status in {401, 403} or kind == "authentication":
+            return f"模型服务未接受当前访问凭据或权限。{retained}请在设置页核对密钥及模型访问权限，测试连接并点击“确认”后重新生成。"
+        if status == 429 or kind == "rate_limit":
+            return f"模型服务暂时限流或额度不足。{retained}稍后重试，或检查服务额度、切换可用模型。"
+        if kind in {"http_error", "http"}:
+            return f"模型服务拒绝了本次生成请求。{retained}请在设置页核对连接地址、接口类型和模型名称，测试连接并点击“确认”后重新生成；反复失败时可提供诊断记录排查。"
     if getattr(exc, "kind", None) != "timeout":
         return str(exc)
     label = {"m1": "需求分析", "m2": "初始方案生成", "m3": "候选分析",
@@ -2325,7 +2346,12 @@ class PromptSmithApp(GuidedFlowMixin):
         except Exception as exc:
             self._plan_failed(payload, exc, connection_snapshot)
             return
-        self._set_busy(False, f"方案草稿已通过本地校验 · {outcome.api_result.latency_ms} ms")
+        unknown_count = len(self.session.plan["content"].get("unresolved_items", []))
+        guidance = (
+            f"已保留 {unknown_count} 项待确认细节；可先继续生成提示，使用时再补充。"
+            if unknown_count else "请核对方案，确认后即可生成提示。"
+        )
+        self._set_busy(False, f"方案草稿已生成。{guidance}")
         draft_ready = self.session.current_draft_authorization() is not None
         if draft_ready:
             try:
@@ -2339,7 +2365,7 @@ class PromptSmithApp(GuidedFlowMixin):
         if origin is None or origin == (self._navigation_revision, self.notebook.select()):
             self.show_workspace(3 if draft_ready else 1)
         else:
-            self.status_var.set("方案已生成，可以点击上方“方案”查看；当前编辑位置已保留。")
+            self.status_var.set(f"方案已生成，可以点击上方“方案”查看；当前编辑位置已保留。{guidance}")
 
     def _plan_failed(
         self,
@@ -2360,12 +2386,12 @@ class PromptSmithApp(GuidedFlowMixin):
                 {"request_id": payload["request_id"], "kind": f"m2_{kind}", "message": str(exc)}
             )
             self.session.touch()
-        evidence = "\n详细记录已保存。" if isinstance(exc, M2CallFailure) else ""
+        evidence = f"\n诊断记录：{exc.evidence_dir}" if isinstance(exc, M2CallFailure) else ""
         message = generation_failure_message("m2", exc, timeout_seconds)
-        self._set_busy(False, f"方案生成失败：{message}")
+        self._set_busy(False, message)
         self.refresh()
-        messagebox.showerror(
-            "方案生成失败", f"{message}{evidence}", parent=self.root
+        messagebox.showwarning(
+            "本次方案尚未生成", f"{message}{evidence}", parent=self.root
         )
 
     def save_plan_goal(self) -> None:
@@ -3027,8 +3053,10 @@ class PromptSmithApp(GuidedFlowMixin):
         lines.extend(f"• {row['text']}" for row in content["completion_criteria"])
         lines.append("\n未决事项：")
         if content["unresolved_items"]:
+            lines.append("这些细节会保留到最终提示，当前可以继续；使用提示时再补充即可。")
             lines.extend(
-                f"• {row['description']}；影响：{row['impact']}；确认时点：{row['confirm_by']}"
+                f"• {'AI 规划时提出，待确认：' if row.get('source_gap_id') is None else ''}"
+                f"{row['description']}；影响：{row['impact']}；确认时点：{row['confirm_by']}"
                 for row in content["unresolved_items"]
             )
         else:

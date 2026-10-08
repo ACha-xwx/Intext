@@ -1,0 +1,17 @@
+{
+  "exe": "dist/PromptSmith.exe",
+  "size_bytes": 14277324,
+  "sha256": "da1bda406954936f71d729d75dc79db5abdbce9ffea8e35320c5ae084c9b02af",
+  "built_at": "2026-10-08T17:09:42.370911+08:00",
+  "matched_resource_count": 61,
+  "smoke": [
+    {
+      "location": "repository",
+      "exit_code": 0
+    },
+    {
+      "location": "isolated",
+      "exit_code": 0
+    }
+  ]
+}

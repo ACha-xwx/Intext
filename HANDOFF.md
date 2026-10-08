@@ -51,13 +51,17 @@ Skill 特指 AI Agent 使用的指令资源，常以 `SKILL.md` 为入口。产�
 
 ## 5. 最新功能基线与本次整理
 
+2026-10-08 后续修复：已整合 `153d7ea` 的独立设置页、16:9 窗口与模型确认。M2 接受规划中新增的未决事项，遗漏的来源未知由程序补回；新项明确为 AI 提出的待确认内容，随最终提示保留。界面提供具体补充/重试/连接调整指引，详见 [M2 修复及验证](verification/m2_recovery_20261008/results.md)。此次 EXE 指纹以该报告为准。
+
+M2 当前使用 `M2_system_v0.3.txt` 和 `M2_output_v0.2.schema.json`；输出是 `m2.v0.1` 信封的兼容扩展，保留旧资源供历史核对。`source_gap_id=null` 表示规划新发现，`related_requirement_ids` 可关联真实需求。不要恢复“输出未决编号集合必须与输入完全相等”的旧规则；新增未知不能自动成为用户事实。
+
 最新功能修复解决了 M3/M4 来源状态契约与搜索器输出不一致的问题，并补齐下游 Skill 使用说明。已有 155 项相关离线检查分批通过、编译和两项 EXE 启动烟测通过；详见 [功能基线证据](verification/baseline/skill_handoff_20261008/results.md)。
 
 本次整理在该基线上迁移资源路径、归档文档、补齐交接和 Git 忽略规则；模型逻辑和业务语义不作为本次修改目标。运行资源当前统一在 `resources/prompts/`，源代码、测试、验证脚本和 PyInstaller spec 已同步路径。
 
 内置目录原文与许可证同步迁到 `resources/skill_catalog/sources/` 并随 EXE 打包；原文字节与内容哈希不变。目录元数据升级为 `0.1.2`，路径变化导致记录哈希更新，旧会话中选用的内置 Skill 可能要求重新选用；历史绑定快照保留。本地/网络搜索到的其他 Skill 不因本次目录迁移改变内容。
 
-原功能版 EXE 被保留在本地 `dist/PromptSmith_20261008_skill_handoff/`。本次整理后构建的 `dist/PromptSmith.exe` 及其指纹以 [交接验证](verification/repository_handoff_20261008/results.md) 为准，避免启动旧包后判断新代码。
+原功能版 EXE 被保留在本地 `dist/PromptSmith_20261008_skill_handoff/`。整理时构建的指纹见 [交接验证](verification/repository_handoff_20261008/results.md)；该记录是历史包，最新 `dist/PromptSmith.exe` 见上方 M2 修复报告。
 
 ## 6. 已知缺口与验证边界
 

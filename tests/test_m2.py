@@ -222,7 +222,7 @@ def test_m2_input_adapts_unspecified_strength_without_mutating_requirement() -> 
     assert session.requirements[0]["strength"] == "unspecified"
 
 
-@pytest.mark.parametrize("tamper", ["missing_coverage", "bad_reference", "cycle", "missing_unknown"])
+@pytest.mark.parametrize("tamper", ["missing_coverage", "bad_reference", "cycle"])
 def test_m2_semantic_validation_rejects_invalid_plan(tamper: str) -> None:
     session = confirmed_session()
     payload = build_m2_input(session, f"invalid-{tamper}", current_date="2026-09-23")
@@ -236,11 +236,19 @@ def test_m2_semantic_validation_rejects_invalid_plan(tamper: str) -> None:
         step.update(step_id="s2", order=2, depends_on_step_ids=["s1"])
         result["plan"]["steps"][0]["depends_on_step_ids"] = ["s2"]
         result["plan"]["steps"].append(step)
-    else:
-        result["plan"]["unresolved_items"] = []
 
     with pytest.raises(M2ValidationError):
         parse_m2_response(json.dumps(result, ensure_ascii=False), payload, ASSETS.output_schema)
+
+
+def test_m2_missing_unknown_is_restored_from_input():
+    session = confirmed_session()
+    payload = build_m2_input(session, "missing-unknown")
+    result = valid_result(payload)
+    result["plan"]["unresolved_items"] = []
+    parsed = parse_m2_response(json.dumps(result), payload, ASSETS.output_schema)
+    assert parsed["plan"]["unresolved_items"][0]["source_gap_id"] == "g1"
+    assert parsed["plan"]["unresolved_items"][0]["description"] == payload["unresolved_items"][0]["description"]
 
 
 def test_structured_error_branch_is_valid_but_cannot_be_applied() -> None:

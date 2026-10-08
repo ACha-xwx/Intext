@@ -115,7 +115,7 @@ def test_module_timeout_preserves_business_state_and_releases_ui(
         assert not app.test_dialogs
     else:
         assert len(app.test_dialogs) == 1
-        assert app.test_dialogs[0][0] == "error"
+        assert app.test_dialogs[0][0] == ("warning" if purpose == "m2" else "error")
         assert expected_message in app.test_dialogs[0][1][1]
         assert "已有回答、需求和结果已保留" in app.test_dialogs[0][1][1]
 

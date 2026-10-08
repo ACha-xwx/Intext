@@ -63,6 +63,7 @@ def run_release_chain(directory: str | Path) -> int:
             app.api_base_var.set(base_url)
             app.api_model_var.set("release-stub")
             app.api_key_var.set("local-verification-only")
+            app.confirm_model_settings()
             app.widgets["task_text"].insert("1.0", DEMO_TASK)
 
             # Exercise the first click before M5 or any other action can sync
@@ -234,6 +235,7 @@ def _run_m1_truncation_chain(directory: str | Path) -> int:
             app.api_base_var.set(base_url)
             app.api_model_var.set("release-stub")
             app.api_key_var.set("local-verification-only")
+            app.confirm_model_settings()
             app.widgets["task_text"].insert("1.0", "讲解JGS")
             root.update()
             if app.session.task_text or app.primary_action_var.get() != "开始整理":

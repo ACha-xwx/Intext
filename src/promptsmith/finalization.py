@@ -85,11 +85,13 @@ def validate_delivery_entry(session: SessionState, *, allow_unconfirmed_plan: bo
             raise DeliveryValidationError("方案需求覆盖包含已失效需求。")
 
 
-def _baseline(session: SessionState) -> dict[str, Any]:
+def _baseline(session: SessionState, *, legacy: bool = False) -> dict[str, Any]:
     plan = deepcopy(session.plan["content"])
-    unknown = deepcopy(
-        plan.get("unresolved_items", [])
-        or session.plan_unresolved_items()
+    # Reconstruct old baselines exactly when validating an already saved final.
+    # New drafts always use the conservative union and explicit guidance.
+    unknown = (
+        deepcopy(plan.get("unresolved_items", []) or session.plan_unresolved_items())
+        if legacy else session.plan_delivery_unknowns()
     )
     # M2 keeps the unresolved item contract intentionally small.  The source
     # snapshot still has the user's origin and wording, so carry that audit
@@ -103,7 +105,12 @@ def _baseline(session: SessionState) -> dict[str, Any]:
     enriched_unknown: list[dict[str, Any]] = []
     for row in unknown:
         item = deepcopy(row)
-        source = source_by_gap.get(str(item.get("source_gap_id") or item.get("unresolved_id") or ""), {})
+        source_id = item.get("source_gap_id") or (item.get("unresolved_id") if legacy else "")
+        source = source_by_gap.get(str(source_id or ""), {})
+        if not legacy and item.get("source_gap_id") is None:
+            item["origin"] = "m2_inferred"
+        elif not legacy and source.get("description") and source["description"] != item.get("description"):
+            item["source_description"] = source["description"]
         for key in ("origin", "source_refs", "field", "scope", "importance"):
             if key not in item and key in source:
                 item[key] = deepcopy(source[key])
@@ -115,6 +122,8 @@ def _baseline(session: SessionState) -> dict[str, Any]:
         "plan": plan,
         "unknown": enriched_unknown,
     }
+    if not legacy:
+        baseline["unknown_handling"] = "ask_then_defer"
     authorization = session.current_draft_authorization()
     if authorization:
         baseline["draft_authorization"] = authorization
@@ -316,6 +325,7 @@ def _origin_label(origin: Any) -> str:
         "missing": "原始任务未提供",
         "ambiguous": "信息仍有歧义",
         "system_suggestion": "系统建议",
+        "m2_inferred": "AI 规划时提出，待确认；不代表用户已作出决定",
     }.get(str(origin), "需求分析中的未决项")
 
 
@@ -426,7 +436,9 @@ def validate_current_final(
     if not isinstance(basis, dict) or basis != _current_basis(session):
         raise DeliveryValidationError("最终结果来源版本已变化，请重新生成草稿。")
     content = result.get("content")
-    if not isinstance(content, dict) or content.get("baseline") != _baseline(session):
+    baseline = content.get("baseline") if isinstance(content, dict) else None
+    legacy = isinstance(baseline, dict) and "unknown_handling" not in baseline
+    if not isinstance(baseline, dict) or baseline != _baseline(session, legacy=legacy):
         raise DeliveryValidationError("最终结果没有完整承接当前已确认基线。")
     bindings = _validate_skill_bindings(session)
     binding_by_id = {
@@ -1139,9 +1151,13 @@ def render_canonical_body(content: dict[str, Any], *, _legacy_v01: bool = False)
     lines.extend(["", "未决事项"])
     unknown = baseline.get("unknown", [])
     if unknown:
+        if baseline.get("unknown_handling") == "ask_then_defer":
+            lines.append("使用本提示时，优先询问影响当前工作的缺失信息；用户暂不回答或含义仍不清楚时，保留未决标记，先推进不依赖它的部分，不自行编造答案。")
         for row in unknown:
             lines.append(f"- {row.get('description', row.get('text', ''))}")
             lines.append(f"  来源：{_origin_label(row.get('origin'))}")
+            if row.get("source_description"):
+                lines.append(f"  原始未决事项：{row['source_description']}")
             refs = [
                 ref.get("quote", "").strip()
                 for ref in row.get("source_refs", [])

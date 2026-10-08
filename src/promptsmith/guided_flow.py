@@ -513,7 +513,7 @@ class GuidedFlowMixin:
             if plan.get("status") == "draft":
                 if page == 3 and (self.session.final_result.get("content") or {}).get("plan_review_pending"):
                     return PrimaryAction("focus_final", "查看草稿", "这是保留未知的草稿，可以直接保存或导出；以后说明含义再完善。")
-                return PrimaryAction("confirm_plan_generate" if page == 1 else "view_plan", "确认方案并生成提示" if page == 1 else "查看方案", "核对方案后，直接生成可复制、保存和导出的提示；Skill 可选。")
+                return PrimaryAction("confirm_plan_generate" if page == 1 else "view_plan", "确认方案并生成提示" if page == 1 else "查看方案", "核对方案后即可生成可复制、保存和导出的提示；未决事项可在使用时补充，Skill 可选。")
             if plan.get("status") == "confirmed":
                 final = self.session.final_result
                 if final.get("status") in {"draft", "confirmed"}:
@@ -524,7 +524,7 @@ class GuidedFlowMixin:
             if self._missing_generation_config():
                 return PrimaryAction("focus_connection", "补全模型连接", "需求已保存；补全连接后可生成方案。")
             if self.workflow.m2_retry_recommended():
-                return PrimaryAction("generate_plan", "重新生成方案", "刚才的方案没有完整生成，你的需求已保留。点击这里重新生成，程序会减少重复说明。")
+                return PrimaryAction("generate_plan", "重新生成方案", "上次未得到可用方案，你的回答和需求已保留。可直接重试；重复失败时查看状态提示，按提示调整连接或补充任务说明。")
             return PrimaryAction("generate_plan", "生成方案", "基于当前需求生成方案，未知内容仍会注明。")
         if self.session.open_conflicts:
             return PrimaryAction("focus_conflict", "处理互相矛盾的要求", "下面的需求有冲突；请编辑或移除矛盾内容，再继续。")
