@@ -22,6 +22,7 @@ def app(tk_root, tmp_path, monkeypatch):
     application.api_base_var.set("https://example.invalid/v1")
     application.api_model_var.set("test-model")
     application.api_key_var.set("test-only-key")
+    application.confirm_model_settings()
     # Capture submissions; none of these UI checks may access a real service.
     application.test_submissions = []
     monkeypatch.setattr(application, "_submit", lambda *args: application.test_submissions.append(args))
@@ -107,6 +108,7 @@ def test_typing_updates_label_and_connection_changes_without_sync(app):
     assert text.get("1.0", "end-1c") == "j"
     assert app.primary_action_var.get() == "补全模型连接"
     app.api_key_var.set("test-only-key")
+    app.confirm_model_settings()
     assert app.primary_action_var.get() == "开始整理"
     text.event_generate("<KeyPress-g>")
     app.root.update()
@@ -203,6 +205,10 @@ def test_edit_opened_task_invalidates_once_and_new_session_clears_label(app, tmp
     assert app.session.pending_review_item_ids
     assert app.session.plan["status"] == "stale"
     assert app.session.final_result["status"] == "stale"
+    assert app.notebook.index(app.notebook.select()) == 4
+    assert app.primary_action_var.get() == "返回工作区"
+    app.run_primary_action()
+    assert app.notebook.index(app.notebook.select()) == 0
     assert app.primary_action_var.get() == "补全模型连接"
     after = deepcopy(app.session.to_dict())
     app.run_primary_action()

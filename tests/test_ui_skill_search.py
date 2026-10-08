@@ -35,6 +35,7 @@ def skill_app(tk_root, tmp_path, monkeypatch):
     window.withdraw()
     app = PromptSmithApp(window, session=confirmed_plan_session(), evidence_root=tmp_path)
     app.api_key_var.set("offline-test-key")
+    app.confirm_model_settings()
     monkeypatch.setattr(app, "_client", lambda _config: object())
 
     def catalog_discovery(works, **kwargs):

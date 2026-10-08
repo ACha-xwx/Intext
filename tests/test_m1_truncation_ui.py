@@ -116,6 +116,7 @@ def test_second_round_truncation_preserves_answers_and_requires_explicit_compact
     monkeypatch.setattr("promptsmith.ui.messagebox.showerror", lambda *args, **_kwargs: messages.append(args))
     app.api_base_var.set(f"http://127.0.0.1:{server.server_port}")
     app.api_key_var.set("test-only-key")
+    app.confirm_model_settings()
     try:
         _start_and_answer(app)
         assert not messages
@@ -279,6 +280,7 @@ def test_nontruncation_failures_keep_distinct_kinds_and_do_not_offer_compact_ret
     monkeypatch.setattr("promptsmith.ui.messagebox.showerror", lambda *args, **_kwargs: messages.append(args))
     app.api_base_var.set(f"http://127.0.0.1:{server.server_port}")
     app.api_key_var.set("test-only-key")
+    app.confirm_model_settings()
     try:
         _start_and_answer(app)
         before = deepcopy(app.session.to_dict())

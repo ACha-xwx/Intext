@@ -221,6 +221,7 @@ class PromptSmithApp(GuidedFlowMixin):
         self.busy_kind: str | None = None
         self.connection_version = 0
         self._connection_state: tuple[str, str, str, str, str] | None = None
+        self._confirmed_connection_state: tuple[str, str, str, str, str] | None = None
         self.model_directory_version = 0
         self._model_directory_state: tuple[str, str, str, str] | None = None
         self._last_provider = "DeepSeek"
@@ -235,6 +236,7 @@ class PromptSmithApp(GuidedFlowMixin):
         self.api_base_var = tk.StringVar(value=os.environ.get("PROMPTSMITH_API_BASE_URL", "https://api.deepseek.com"))
         self.api_model_var = tk.StringVar(value=os.environ.get("PROMPTSMITH_MODEL", "deepseek-flash"))
         self.api_key_var = tk.StringVar(value="")
+        self.model_confirmation_var = tk.StringVar(value="尚未确认模型设置。测试连接只检查接口；点击“确认”后用于任务。")
         self.category_var = tk.StringVar(value=CATEGORY_LABELS.get(self.session.selected_category, "自动判断"))
         # The interview depth is a user preference for coverage, not a hard
         # question/round budget.  Keep it in the session so it survives a
@@ -303,8 +305,11 @@ class PromptSmithApp(GuidedFlowMixin):
         # Keep the fixed next-step bar on-screen and let page content scroll.
         available_width = max(320, self.root.winfo_screenwidth() - 40)
         available_height = max(240, self.root.winfo_screenheight() - 100)
-        self.root.geometry(f"{min(1120, available_width)}x{min(780, available_height)}")
-        self.root.minsize(min(920, available_width), min(640, available_height))
+        # Target 1440×810, fitting both dimensions together to keep 16:9.
+        size_units = min(90, available_width // 16, available_height // 9)
+        width, height = size_units * 16, size_units * 9
+        self.root.geometry(f"{width}x{height}")
+        self.root.minsize(min(960, width), min(540, height))
         self.root.protocol("WM_DELETE_WINDOW", self.close)
         style = ttk.Style(self.root)
         if "vista" in style.theme_names():
@@ -1181,6 +1186,11 @@ class PromptSmithApp(GuidedFlowMixin):
         return tree
 
     def _api_config(self, *, timeout_seconds: float = DEFAULT_GENERATION_TIMEOUT_SECONDS) -> ApiConfig:
+        if not self._model_settings_confirmed():
+            raise ValueError("请在设置页面点击“确认”，确认当前模型设置后再继续。")
+        return self._draft_api_config(timeout_seconds=timeout_seconds)
+
+    def _draft_api_config(self, *, timeout_seconds: float = DEFAULT_GENERATION_TIMEOUT_SECONDS) -> ApiConfig:
         return ApiConfig(
             base_url=self.api_base_var.get().strip(),
             model=self.api_model_var.get().strip(),
@@ -1189,6 +1199,33 @@ class PromptSmithApp(GuidedFlowMixin):
             provider=self.provider_var.get().strip(),
             protocol=PROTOCOL_LABELS[self.protocol_var.get()],
         )
+
+    def _model_settings_confirmed(self) -> bool:
+        return self._confirmed_connection_state == self._generation_snapshot()
+
+    def _refresh_model_confirmation(self) -> None:
+        confirmed = self._model_settings_confirmed()
+        self.model_confirmation_var.set(
+            "模型设置已确认，可以返回工作区继续。"
+            if confirmed else "模型设置待确认。测试连接只检查接口；点击“确认”后用于任务。"
+        )
+        self.widgets["confirm_model_settings_button"].configure(
+            state="disabled" if confirmed or self.busy else "normal"
+        )
+
+    def confirm_model_settings(self) -> None:
+        if self.busy:
+            return
+        try:
+            self._draft_api_config()
+        except ValueError as exc:
+            self.status_var.set(f"模型设置未确认：{exc}")
+            messagebox.showerror("无法确认模型设置", str(exc), parent=self.root)
+            return
+        self._confirmed_connection_state = self._generation_snapshot()
+        self._refresh_model_confirmation()
+        self.status_var.set("模型设置已确认；可以返回工作区继续。")
+        self._refresh_primary_action()
 
     def _client(self, config: ApiConfig):
         return client_for_config(config)
@@ -1237,6 +1274,7 @@ class PromptSmithApp(GuidedFlowMixin):
         if current != self._connection_state:
             self.connection_version += 1
             self._connection_state = current
+            self._confirmed_connection_state = None
         previous_directory = self._model_directory_state
         if directory_current != previous_directory:
             self.model_directory_version += 1
@@ -1247,6 +1285,7 @@ class PromptSmithApp(GuidedFlowMixin):
             host_changed = previous_directory[2] != directory_current[2]
             if (service_changed or host_changed) and self.api_key_var.get():
                 self.api_key_var.set("")
+        self._refresh_model_confirmation()
         self._refresh_primary_action()
 
     def _model_directory_config(self) -> ApiConfig:
@@ -1287,6 +1326,7 @@ class PromptSmithApp(GuidedFlowMixin):
             )
         if text:
             self.status_var.set(text)
+        self._refresh_model_confirmation()
         self._refresh_primary_action()
 
     def fetch_models(self) -> None:
@@ -1540,6 +1580,8 @@ class PromptSmithApp(GuidedFlowMixin):
             missing.append("模型 ID")
         if not self.api_key_var.get().strip():
             missing.append("API Key")
+        if not missing and not self._model_settings_confirmed():
+            missing.append("确认模型设置")
         return missing
 
     def _delivery_primary_action(self) -> PrimaryAction:
@@ -1833,7 +1875,7 @@ class PromptSmithApp(GuidedFlowMixin):
         if self.busy:
             return
         try:
-            config = self._api_config(timeout_seconds=CONNECTION_TIMEOUT_SECONDS)
+            config = self._draft_api_config(timeout_seconds=CONNECTION_TIMEOUT_SECONDS)
         except ValueError as exc:
             messagebox.showerror("配置不完整", str(exc), parent=self.root)
             return
@@ -1843,14 +1885,14 @@ class PromptSmithApp(GuidedFlowMixin):
         self._submit(client.test_connection, self._connection_ok, self._connection_failed)
 
     def _connection_ok(self, result: Any) -> None:
-        self.widgets["connection_panel"]._show(False)
+        confirmation = "模型设置已确认" if self._model_settings_confirmed() else "模型设置尚未确认，请点击“确认”"
         if result.probe_truncated:
             self._set_busy(
                 False,
-                f"接口已响应：{result.model or self.api_model_var.get()} · {result.latency_ms} ms；探针输出被截断，生成未验证",
+                f"接口已响应：{result.model or self.api_model_var.get()} · {result.latency_ms} ms；探针输出被截断，生成未验证；{confirmation}",
             )
         else:
-            self._set_busy(False, f"连接成功：{result.model or self.api_model_var.get()} · {result.latency_ms} ms")
+            self._set_busy(False, f"连接成功：{result.model or self.api_model_var.get()} · {result.latency_ms} ms；{confirmation}")
 
     def _connection_failed(self, exc: Exception) -> None:
         self._set_busy(False, f"连接失败：{exc}")

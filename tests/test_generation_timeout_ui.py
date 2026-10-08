@@ -22,6 +22,7 @@ def app(tk_root, tmp_path):
     application.api_base_var.set("https://example.invalid/v1")
     application.api_model_var.set("timeout-fixture")
     application.api_key_var.set("test-only-key")
+    application.confirm_model_settings()
     yield application
     application.shutdown(wait=True)
     window.destroy()
@@ -107,6 +108,7 @@ def test_second_round_timeout_preserves_answers_then_explicit_retry_succeeds(app
     monkeypatch.setattr("promptsmith.ui.messagebox.showerror", lambda *args, **_kwargs: messages.append(args))
     app.api_base_var.set(f"http://127.0.0.1:{server.server_port}")
     app.api_key_var.set("test-only-key")
+    app.confirm_model_settings()
     default_config = app._api_config
     try:
         app.widgets["task_text"].insert("1.0", "讲解JGS")

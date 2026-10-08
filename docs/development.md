@@ -17,7 +17,7 @@ python -m venv .venv
 
 ## 模型与数据
 
-在界面选择协议、填写 Base URL/模型 ID/API Key。普通启动不自动调用付费 API，真实分析、搜索查询/筛选、生成和试运行需要模型配置。GitHub Token 是搜索增强项，使用者自行配置；不要把账号密码或 Token 写入代码。
+通过右上角“设置”选择协议、填写 Base URL/模型 ID/API Key，再点击模型设置中的“确认”。“测试连接”只探测接口，成功也不自动确认；修改配置后需重新确认。普通启动和确认配置不自动调用付费 API，真实分析、搜索查询/筛选、生成和试运行需要已确认的模型配置。GitHub Token 是搜索增强项，使用者自行配置；不要把账号密码或 Token 写入代码。
 
 环境选项以代码实际读取为准，如 `PROMPTSMITH_GITHUB_TOKEN`、`PROMPTSMITH_RESOURCE_ROOT`；后一项用于资源目录定位，不需要普通用户设置。会话 JSON 和运行记录位于 `%LOCALAPPDATA%/PromptSmith/` 或用户选定位置，可能含用户输入，不作为默认 Git 素材。
 

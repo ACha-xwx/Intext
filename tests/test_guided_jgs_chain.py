@@ -158,6 +158,7 @@ def scenario_app(tk_root, tmp_path, monkeypatch):
         app.api_base_var.set(f"http://127.0.0.1:{server.server_port}")
         app.api_model_var.set("synthetic-guided-fixture")
         app.api_key_var.set("offline-test-value")
+        app.confirm_model_settings()
         app.probe_errors = []
         monkeypatch.setattr("tkinter.messagebox.showerror", lambda title, message, **_kwargs: app.probe_errors.append({"title": title, "message": message}))
         active.append((app, server, thread))

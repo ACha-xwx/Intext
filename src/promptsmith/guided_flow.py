@@ -103,6 +103,8 @@ class GuidedFlowMixin:
         self._answer_target_id = None
         self._navigation_revision = 0
         self._plan_navigation_at_start = None
+        self._settings_page_index = 4
+        self._settings_return_index = 0
         self.guidance_var = tk.StringVar(value="先告诉我你想完成什么。")
         self.question_context_var = tk.StringVar()
         self.draft_explanation_var = tk.StringVar()
@@ -115,19 +117,51 @@ class GuidedFlowMixin:
         shell.rowconfigure(1, weight=1)
         header = ttk.Frame(shell)
         header.grid(row=0, column=0, sticky="ew", pady=(0, 8))
-        ttk.Label(header, text="PromptSmith", style="Title.TLabel").pack(side="left")
-        ttk.Label(header, textvariable=self._flow_progress, style="Muted.TLabel").pack(side="left", padx=18)
+        header.columnconfigure(1, weight=1)
+        identity = ttk.Frame(header)
+        identity.grid(row=0, column=0, sticky="w")
+        brand = ttk.Label(identity, text="PromptSmith", style="Title.TLabel")
+        brand.pack(side="left")
+        flow = ttk.Label(identity, textvariable=self._flow_progress, style="Muted.TLabel")
+        flow.pack(side="left", padx=18)
+        navigation = ttk.Frame(header)
+        navigation.grid(row=0, column=1, sticky="w")
         for label, index in (("当前需求", 0), ("方案", 1), ("结果", 3)):
-            ttk.Button(header, text=label, command=lambda i=index: self.show_workspace(i)).pack(side="left", padx=3)
-        ttk.Button(header, text="保存", command=self.save).pack(side="right")
+            ttk.Button(navigation, text=label, command=lambda i=index: self.show_workspace(i)).pack(side="left", padx=3)
+        actions = ttk.Frame(header)
+        actions.grid(row=0, column=2, sticky="e")
+        save = ttk.Button(actions, text="保存", command=self.save)
+        save.pack(side="right")
+        settings = ttk.Button(actions, text="设置", command=self.show_settings)
+        settings.pack(side="right", padx=(0, 8))
+        self.widgets.update(save_button=save, settings_button=settings)
+
+        def fit_header(event):
+            identity_width = brand.winfo_reqwidth()
+            flow_width = flow.winfo_reqwidth() + 36
+            show_flow = event.width >= identity_width + flow_width + actions.winfo_reqwidth()
+            if show_flow:
+                if not flow.winfo_manager():
+                    flow.pack(side="left", padx=18)
+                identity_width += flow_width
+            else:
+                flow.pack_forget()
+            required_width = identity_width + navigation.winfo_reqwidth() + actions.winfo_reqwidth()
+            row = 1 if event.width < required_width else 0
+            if int(navigation.grid_info()["row"]) != row:
+                navigation.grid_configure(row=row, column=0 if row else 1,
+                                          columnspan=3 if row else 1, pady=(6, 0) if row else 0)
+
+        header.bind("<Configure>", fit_header, add="+")
         style = ttk.Style(self.root)
         style.layout("Flow.TNotebook.Tab", [])
         self.notebook = ttk.Notebook(shell, style="Flow.TNotebook")
         self.notebook.grid(row=1, column=0, sticky="nsew")
         self.widgets["notebook"] = self.notebook
-        builders = (self._build_requirements_page, self._build_plan_page, self._build_skills_page, self._build_export_page)
-        for key, title, builder in zip(("requirements", "plan", "skills", "export"),
-                                       ("当前需求", "方案", "Skill（可选）", "结果"), builders):
+        builders = (self._build_requirements_page, self._build_plan_page, self._build_skills_page,
+                    self._build_export_page, self._build_settings_page)
+        for key, title, builder in zip(("requirements", "plan", "skills", "export", "settings"),
+                                       ("当前需求", "方案", "Skill（可选）", "结果", "设置"), builders):
             page, content = self._scrollable_page(key)
             self.notebook.add(page, text=title)
             builder(content)
@@ -146,10 +180,21 @@ class GuidedFlowMixin:
         self.answer_var.trace_add("write", lambda *_: self._refresh_primary_action())
         self._register_page_wheel_routing()
 
-    def _build_requirements_page(self, page):
-        from .ui import CATEGORY_LABELS, PROTOCOL_LABELS, PROVIDER_PRESETS
+    def _build_settings_page(self, page):
+        from .ui import PROTOCOL_LABELS, PROVIDER_PRESETS
         page.columnconfigure(0, weight=1)
-        api = self._fold(page, "模型设置", 0, opened=True)
+        heading = ttk.Frame(page)
+        heading.grid(row=0, column=0, sticky="ew", pady=(0, 12))
+        ttk.Label(heading, text="设置", style="Section.TLabel").pack(side="left")
+        back = ttk.Button(heading, text="返回工作区", command=self.return_from_settings)
+        back.pack(side="right")
+        self.widgets["settings_return_button"] = back
+        note = ttk.Label(page, text="配置需求分析、方案生成和 Skill 整合使用的模型。完成后返回工作区继续。",
+                         style="Muted.TLabel", wraplength=800)
+        note.grid(row=1, column=0, sticky="ew", pady=(0, 16))
+        page.bind("<Configure>", lambda e: note.configure(wraplength=max(240, e.width-24)), add="+")
+        api = ttk.LabelFrame(page, text="模型设置", padding=(16, 12))
+        api.grid(row=2, column=0, sticky="ew")
         self.widgets["connection_panel"] = api
         api.columnconfigure(1, weight=1)
         api.columnconfigure(3, weight=1)
@@ -178,8 +223,22 @@ class GuidedFlowMixin:
                             model_list_button=fetch, test_connection_button=test)
         for widget in (base, model, key):
             self._bind_context_menu(widget)
+        confirmation = ttk.Frame(api)
+        confirmation.grid(row=3, column=0, columnspan=4, sticky="ew", pady=(16, 0))
+        confirmation.columnconfigure(0, weight=1)
+        label = ttk.Label(confirmation, textvariable=self.model_confirmation_var,
+                          style="Muted.TLabel", wraplength=800)
+        label.grid(row=0, column=0, sticky="ew", padx=(0, 12))
+        confirm = ttk.Button(confirmation, text="确认", command=self.confirm_model_settings)
+        confirm.grid(row=0, column=1, sticky="e")
+        self.widgets["confirm_model_settings_button"] = confirm
+        confirmation.bind("<Configure>", lambda e: label.configure(wraplength=max(200, e.width-120)), add="+")
+
+    def _build_requirements_page(self, page):
+        from .ui import CATEGORY_LABELS
+        page.columnconfigure(0, weight=1)
         task = ttk.Frame(page, padding=(8, 8))
-        task.grid(row=1, column=0, sticky="ew")
+        task.grid(row=0, column=0, sticky="ew")
         task.columnconfigure(0, weight=1)
         ttk.Label(task, text="你想完成什么？", style="Section.TLabel").grid(row=0, column=0, sticky="w", pady=(0, 6))
         task_text = tk.Text(task, height=3, wrap="word", undo=True, font=("Microsoft YaHei UI", 12))
@@ -361,9 +420,22 @@ class GuidedFlowMixin:
         self._refresh_guided_visibility()
 
     def show_workspace(self, index):
+        if index == self._settings_page_index:
+            current = self.notebook.index(self.notebook.select())
+            if current != self._settings_page_index:
+                self._settings_return_index = current
         self.notebook.select(index)
         self._navigation_revision += 1
         self._refresh_primary_action()
+
+    def show_settings(self):
+        self.show_workspace(self._settings_page_index)
+
+    def return_from_settings(self):
+        index = self._settings_return_index
+        if self.notebook.tab(index, "state") != "normal":
+            index = 0
+        self.show_workspace(index)
 
     def _workspace_changed(self, _event=None):
         self._navigation_revision += 1
@@ -423,6 +495,10 @@ class GuidedFlowMixin:
 
     def _primary_action(self):
         from .ui import PrimaryAction
+        page = self.notebook.index(self.notebook.select()) if self.notebook.select() else 0
+        if page == self._settings_page_index:
+            reason = "模型设置已确认；返回工作区继续当前任务。" if self._model_settings_confirmed() else "测试连接只检查接口；请点击模型设置中的“确认”后继续。"
+            return PrimaryAction("return_from_settings", "返回工作区", reason)
         if self.busy:
             return PrimaryAction("busy", "正在整理…", "正在处理，你可以查看已有内容。", False)
         if not self._visible_task_text():
@@ -430,7 +506,6 @@ class GuidedFlowMixin:
         if self.session.task_text and self._visible_task_text() != self.session.task_text.strip():
             missing = self._missing_generation_config()
             return PrimaryAction("focus_connection", "补全模型连接", "先填写模型连接，就可以开始整理。") if missing else PrimaryAction("analyze", "开始整理", "先整理你提供的信息，必要时只问关键问题。")
-        page = self.notebook.index(self.notebook.select()) if self.notebook.select() else 0
         if page == 0 and self.answer_var.get().strip():
             return PrimaryAction("submit_answer", "提交回答", "这次提交会记录你的补充并继续整理，不用重复填写。")
         if self.session.confirmed_requirements_version == self.session.requirement_version:
@@ -526,6 +601,9 @@ class GuidedFlowMixin:
         self.widgets["analyze_button"].configure(state="normal" if action.enabled else "disabled")
 
     def run_primary_action(self):
+        if self.notebook.index(self.notebook.select()) == self._settings_page_index:
+            self.return_from_settings()
+            return
         if self.busy:
             return
         if self._visible_task_text():
@@ -556,12 +634,13 @@ class GuidedFlowMixin:
             self.show_workspace(0)
             self._reveal_guided(self.widgets["requirements_preview_tree"])
         elif action.kind == "focus_connection":
-            self.show_workspace(0)
-            self.widgets["connection_panel"]._show(True)
+            self.show_settings()
             for key in ("api_base_entry", "api_model_entry", "api_key_entry"):
                 if not self.widgets[key].get().strip():
                     self._reveal_guided(self.widgets[key])
                     break
+            else:
+                self._reveal_guided(self.widgets["confirm_model_settings_button"])
         elif action.kind == "focus_final":
             self.show_workspace(3)
         else:

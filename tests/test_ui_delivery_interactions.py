@@ -179,6 +179,7 @@ def _configure_delivery_client(app: PromptSmithApp, monkeypatch, client: _Delive
     app.api_base_var.set("https://api.example.test")
     app.api_model_var.set("fixture-model")
     app.api_key_var.set("fixture-key")
+    app.confirm_model_settings()
     monkeypatch.setattr(app, "_client", lambda _config: client)
 
 

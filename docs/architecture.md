@@ -108,6 +108,7 @@ flowchart LR
 - 默认会话及运行证据分别位于 `%LOCALAPPDATA%/PromptSmith/sessions`、`runs`；无该环境变量时使用用户目录下 `.promptsmith`。
 - `storage.py` 管理会话读取写入，业务迁移和有效性逻辑在 `session.py`。
 - API Key 为运行时配置，不随会话序列化。仓库不带团队共享密钥。
+- 模型配置在独立设置页由用户显式确认；确认快照同样只保留在运行时。连接测试只探测，获取模型只填充候选，均不确认配置。任意连接字段变更清除确认，并继续更新连接版本以隔离迟到响应。
 - 源码启动通过 `paths.py` 找到仓库 `resources/prompts`；冻结 EXE 使用 PyInstaller 的 `_MEIPASS` 资源目录。
 - 打包配置显式列出兼容提示与 Schema。移动或修改资源时，同时核对加载器、测试和 `PromptSmith.spec`。
 

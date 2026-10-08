@@ -50,6 +50,7 @@ def test_local_then_optional_network_candidates_are_visible_and_selectable(tk_ro
     app = PromptSmithApp(window, session=confirmed_plan_session(), evidence_root=tmp_path)
     try:
         app.api_key_var.set("offline-test-key")
+        app.confirm_model_settings()
         monkeypatch.setattr(app, "_client", lambda config: Client())
         window.deiconify()
         app.notebook.select(2)

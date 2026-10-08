@@ -42,6 +42,7 @@ def main() -> int:
         app.api_base_var.set("https://api.deepseek.com")
         app.api_model_var.set("deepseek-chat")
         app.api_key_var.set(api_key)
+        app.confirm_model_settings()
         app.widgets["task_text"].insert("1.0", "帮我做一个活动报名网站，不做付款。")
 
         app.start_analysis()

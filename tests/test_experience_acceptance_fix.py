@@ -156,6 +156,7 @@ def test_primary_button_routes_pending_answer_to_analysis(tk_window, monkeypatch
         app.api_base_var.set("http://127.0.0.1:9000")
         app.api_model_var.set("fixture-model")
         app.api_key_var.set("fixture-key")
+        app.confirm_model_settings()
         app.widgets["task_text"].insert("1.0", session.task_text)
         monkeypatch.setattr(app, "start_analysis", lambda: calls.__setitem__("analysis", calls["analysis"] + 1))
         monkeypatch.setattr(app, "confirm_requirements", lambda: calls.__setitem__("confirm", calls["confirm"] + 1))
@@ -464,6 +465,7 @@ def test_ui_exposes_service_and_protocol_selectors_and_uses_selected_adapter(tk_
         app.api_base_var.set("http://127.0.0.1:9000/v1")
         app.api_model_var.set("unlisted-custom-model")
         app.api_key_var.set("custom-key")
+        app.confirm_model_settings()
         config = app._api_config()
         client = app._client(config)
 

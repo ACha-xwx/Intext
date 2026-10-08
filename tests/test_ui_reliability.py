@@ -125,6 +125,7 @@ def configure_local_api(app: PromptSmithApp, server: ThreadingHTTPServer) -> Non
     app.api_base_var.set(f"http://127.0.0.1:{server.server_port}")
     app.api_model_var.set("fixture-model")
     app.api_key_var.set("fixture-key")
+    app.confirm_model_settings()
 
 
 def test_input_error_reaches_ui_as_failure_without_erasing_state(tmp_path, tk_window, monkeypatch) -> None:

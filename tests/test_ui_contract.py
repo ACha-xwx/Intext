@@ -100,6 +100,7 @@ def test_ui_current_custom_service_and_protocol_select_real_m1_adapter(tmp_path,
         app.api_base_var.set(f"http://127.0.0.1:{server.server_port}/v1")
         app.api_model_var.set("not-in-preset-model-47")
         app.api_key_var.set("service-responses-key")
+        app.confirm_model_settings()
         app.widgets["task_text"].insert("1.0", "帮我做一个活动报名网站，不做付款。")
 
         app.start_analysis()
@@ -224,6 +225,7 @@ def test_ui_current_custom_service_and_protocol_select_real_m2_adapter(tmp_path,
         app.api_base_var.set(f"http://127.0.0.1:{server.server_port}/v1")
         app.api_model_var.set("custom-plan-model-abc")
         app.api_key_var.set("custom-messages-key")
+        app.confirm_model_settings()
 
         app.start_plan_generation()
         deadline = time.time() + 5
@@ -260,10 +262,12 @@ def test_ui_current_custom_service_and_protocol_select_real_m2_adapter(tmp_path,
 def test_application_constructs_required_delivery_controls(tk_window) -> None:
     app = PromptSmithApp(tk_window)
     try:
-        assert len(app.notebook.tabs()) == 4
+        assert len(app.notebook.tabs()) == 5
         assert app.notebook.tab(1, "state") == "normal"
         assert app.notebook.tab(2, "state") == "disabled"
         assert app.notebook.tab(3, "state") == "disabled"
+        assert app.notebook.tab(4, "state") == "normal"
+        assert app.notebook.tab(4, "text") == "设置"
         for name in (
             "task_text",
             "category_combo",
@@ -362,6 +366,7 @@ def test_ui_local_skill_can_be_selected_cancelled_and_integrated(tk_window, monk
         app.api_base_var.set("https://api.example.test")
         app.api_model_var.set("fixture-model")
         app.api_key_var.set("fixture-key")
+        app.confirm_model_settings()
         monkeypatch.setattr(app, "_client", lambda _config: _DeliveryUiClient())
         app.integrate_selected_skills()
         _pump_until(tk_window, lambda: not app.delivery_busy)
@@ -498,6 +503,7 @@ def test_ui_runs_m1_over_background_http_and_stages_candidates(tmp_path, tk_wind
         app.api_base_var.set(f"http://127.0.0.1:{server.server_port}")
         app.api_model_var.set("fixture-model")
         app.api_key_var.set("fixture-key")
+        app.confirm_model_settings()
         app.widgets["task_text"].insert("1.0", "帮我做一个活动报名网站，不做付款。")
 
         app.start_analysis()

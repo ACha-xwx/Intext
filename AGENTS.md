@@ -8,6 +8,7 @@
 - The product hands Agent Skill references and task-specific usage to another AI. It does not install or execute discovered Skills. Ordinary webpages are not automatically Skill candidates.
 - General late-stage unknowns belong in the final prompt; preserve the current ability to copy/export without reintroducing obsolete review gates.
 - Before changes, state the root cause or objective, scope and completion criteria. Record progress under `docs/maintenance/` for multi-step work. Continue from recorded progress after compaction.
+- Use the `planning-with-files` skill for project progress tracking. Maintain `docs/maintenance/task_plan.md`, `findings.md`, and `progress.md`; preserve completed work and append new phases when scope grows.
 - Run checks appropriate to the change. Repeat passing checks only after new changes, failures or uncovered requirements. Keep unrelated historical failures separate; see `verification/baseline/agent_skill_target_20261007/results.md`.
 - Distinguish offline tests, simulated API responses, genuine model calls, EXE smoke checks and user testing. Do not claim full-suite success or live-model quality without matching evidence.
 - Do not commit secrets, personal sessions, build outputs or `local_artifacts/`. Do not call paid APIs just to restyle the UI. Follow the user's authorization for any real requests and remote actions.

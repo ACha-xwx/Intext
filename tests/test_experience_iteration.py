@@ -559,7 +559,7 @@ def test_primary_action_label_reflects_program_state(tk_window, mutate, expected
         ("no_skill", "生成提示", 3, None),
         ("selected_skill", "整合所选 Agent Skill", 2, "skill_integrate_button"),
         ("final_review", "查看方案和提示", 3, None),
-        ("upstream_stale", "补全模型连接", 0, "api_key_entry"),
+        ("upstream_stale", "补全模型连接", 4, "api_key_entry"),
     ],
 )
 def test_primary_action_navigates_to_current_delivery_work_without_model_call(
@@ -639,7 +639,8 @@ def test_primary_action_navigates_to_current_delivery_work_without_model_call(
         tk_window.update_idletasks()
         tk_window.update()
 
-        assert app.notebook.tabs().index(app.notebook.select()) == tab_index
+        expected_return_tab = 0 if case == "upstream_stale" else tab_index
+        assert app.notebook.tabs().index(app.notebook.select()) == expected_return_tab
         assert calls == []
         assert app.busy is False
         assert session.pending_requests == {}

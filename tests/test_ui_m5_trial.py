@@ -85,6 +85,7 @@ def _app(tk_root: tk.Tk, tmp_path, *, session: SessionState | None = None,
     app.api_base_var.set("https://api.example.test")
     app.api_model_var.set("fixture-model")
     app.api_key_var.set("fixture-key")
+    app.confirm_model_settings()
     stub = client or _Client()
     if monkeypatch is not None:
         monkeypatch.setattr(app, "_client", lambda _config: stub)

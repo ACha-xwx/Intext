@@ -19,6 +19,7 @@ def app(tk_root, tmp_path, monkeypatch):
     app.api_base_var.set('https://example.invalid/v1')
     app.api_model_var.set('fixture-model')
     app.api_key_var.set('test-key')
+    app.confirm_model_settings()
     app.errors = []
     monkeypatch.setattr('promptsmith.ui.messagebox.showerror', lambda *a, **k: app.errors.append(a))
     yield app
