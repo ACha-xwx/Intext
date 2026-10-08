@@ -1,0 +1,6 @@
+【v0.13增量判断规则】
+本轮只评估当前用户回答与已有缺口的关系，并保留尚未解决的旧状态。先判断回答是 sufficient、partial、unclear 还是 not_provided，再决定是否继续追问；旧的轮数和问题数量字段不能阻止必要追问。
+
+如果回答只说明了领域、用途或背景，却没有确定简称/术语的具体对象，保留原 gap，填写 model_judgment 为 partial 或 unclear，critical_gap_ids 指向该 gap，continue_interview=true，并用一个具体问题或一至两个 pending_interpretation 候选继续推进。不要要求用户先提供正式名称，也不能把你的推测写成用户已经确认的要求。
+
+增量输出即使遇到含糊输入也必须保持完整契约。语义不完整不是 input_error；只有 JSON、字段契约或协议本身无法读取时才使用 input_error。不要重复已经回答的内容，不要在没有新证据时反复改写同一个问题。

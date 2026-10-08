@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "m3.input.v0.1",
+  "title": "M3 input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "request_id", "task_id", "source_basis", "key_work", "candidates", "target_environment"],
+  "properties": {
+    "schema_version": {"const": "m3.v0.1"},
+    "request_id": {"type": "string", "minLength": 1},
+    "task_id": {"type": "string", "minLength": 1},
+    "source_basis": {"$ref": "#/$defs/sourceBasis"},
+    "key_work": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/keyWork"}},
+    "candidates": {"type": "array", "maxItems": 8, "items": {"$ref": "#/$defs/candidate"}},
+    "target_environment": {"$ref": "#/$defs/environment"}
+  },
+  "$defs": {
+    "sourceBasis": {
+      "type": "object", "additionalProperties": false,
+      "required": ["plan_id", "plan_version", "requirement_version"],
+      "properties": {
+        "plan_id": {"type": "string", "minLength": 1},
+        "plan_version": {"type": "integer", "minimum": 1},
+        "requirement_version": {"type": "integer", "minimum": 0},
+        "task_id": {"type": "string", "minLength": 1},
+        "confirmed_plan_version": {"type": "integer", "minimum": 1},
+        "confirmed_requirements_version": {"type": "integer", "minimum": 0}
+      }
+    },
+    "stringList": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+    "keyWork": {
+      "type": "object", "additionalProperties": false,
+      "required": ["key_work_id", "title", "goal", "inputs", "outputs", "checkpoints", "step_ids"],
+      "properties": {
+        "key_work_id": {"type": "string", "minLength": 1},
+        "title": {"type": "string", "minLength": 1},
+        "goal": {"type": "string", "minLength": 1},
+        "inputs": {"$ref": "#/$defs/stringList"},
+        "outputs": {"$ref": "#/$defs/stringList"},
+        "checkpoints": {"$ref": "#/$defs/stringList"},
+        "step_ids": {"$ref": "#/$defs/stringList"}
+      }
+    },
+    "prerequisite": {
+      "type": "object", "additionalProperties": false,
+      "required": ["prerequisite_id", "description", "status"],
+      "properties": {
+        "prerequisite_id": {"type": "string", "minLength": 1},
+        "description": {"type": "string", "minLength": 1},
+        "status": {"enum": ["satisfied", "unknown", "incompatible"]}
+      }
+    },
+    "capability": {
+      "type": "object", "additionalProperties": false,
+      "required": ["capability_id", "summary", "inputs", "outputs", "limitations"],
+      "properties": {
+        "capability_id": {"type": "string", "minLength": 1},
+        "summary": {"type": "string", "minLength": 1},
+        "inputs": {"$ref": "#/$defs/stringList"},
+        "outputs": {"$ref": "#/$defs/stringList"},
+        "limitations": {"$ref": "#/$defs/stringList"},
+        "evidence": {"type": "string"}
+      }
+    },
+    "remoteProvenance": {
+      "type": "object", "additionalProperties": false,
+      "required": ["origin", "source_url", "fixed_commit", "content_hash_kind", "content_sha256", "verification_status", "source_read", "installed", "execution_tested"],
+      "properties": {
+        "origin": {"const": "remote"},
+        "source_url": {"type": "string", "minLength": 1, "pattern": "^https://"},
+        "fixed_commit": {"type": "string", "minLength": 1},
+        "content_hash_kind": {"enum": ["api_metadata", "search_metadata", "source_content"]},
+        "content_sha256": {"type": "string", "pattern": "^[0-9a-fA-F]{64}$"},
+        "verification_status": {"enum": ["remote_recorded", "network_unverified", "metadata_only", "search_result_only", "source_read", "source_verified"]},
+        "source_read": {"type": "boolean"},
+        "installed": {"type": "boolean"},
+        "execution_tested": {"type": "boolean"}
+      }
+    },
+    "candidate": {
+      "type": "object", "additionalProperties": false,
+      "required": ["candidate_id", "skill_id", "key_work_id", "record_hash", "usage_mode", "method_adaptation_allowed", "step_ids", "capabilities", "original_prerequisites", "adaptation_prerequisites", "limitations"],
+      "properties": {
+        "candidate_id": {"type": "string", "minLength": 1},
+        "skill_id": {"type": "string", "minLength": 1},
+        "key_work_id": {"type": "string", "minLength": 1},
+        "record_hash": {"type": "string", "pattern": "^[0-9a-fA-F]{64}$"},
+        "usage_mode": {"const": "method_adaptation"},
+        "method_adaptation_allowed": {"type": "boolean"},
+        "step_ids": {"$ref": "#/$defs/stringList"},
+        "capabilities": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/capability"}},
+        "original_prerequisites": {"type": "array", "items": {"$ref": "#/$defs/prerequisite"}},
+        "adaptation_prerequisites": {"type": "array", "items": {"$ref": "#/$defs/prerequisite"}},
+        "limitations": {"$ref": "#/$defs/stringList"},
+        "provenance": {"$ref": "#/$defs/remoteProvenance"}
+      }
+    },
+    "environment": {
+      "type": "object", "additionalProperties": false,
+      "required": ["known", "unknown", "forbidden_actions"],
+      "properties": {
+        "known": {"$ref": "#/$defs/stringList"},
+        "unknown": {"$ref": "#/$defs/stringList"},
+        "forbidden_actions": {"$ref": "#/$defs/stringList"}
+      }
+    }
+  }
+}

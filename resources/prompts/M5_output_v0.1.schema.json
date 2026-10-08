@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "request_id", "task_id", "base_version", "status", "error", "example"],
+  "properties": {
+    "schema_version": {"const": "m5.v0.1"},
+    "request_id": {"type": "string", "minLength": 1},
+    "task_id": {"type": "string", "minLength": 1},
+    "base_version": {"type": "integer", "minimum": 0},
+    "status": {"enum": ["ok", "error"]},
+    "error": {"type": ["object", "null"]},
+    "example": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["dimension", "shared_assumptions", "option_a", "option_b", "difference_summary", "unsupported_assumptions"],
+      "properties": {
+        "dimension": {"type": "string", "minLength": 1, "maxLength": 180},
+        "shared_assumptions": {"type": "array", "items": {"type": "string", "minLength": 1}, "maxItems": 12},
+        "option_a": {"type": "string", "minLength": 1, "maxLength": 600},
+        "option_b": {"type": "string", "minLength": 1, "maxLength": 600},
+        "difference_summary": {"type": "string", "minLength": 1, "maxLength": 300},
+        "unsupported_assumptions": {"type": "array", "items": {"type": "string", "minLength": 1}, "maxItems": 12}
+      }
+    }
+  },
+  "allOf": [
+    {"if": {"properties": {"status": {"const": "ok"}}}, "then": {"required": ["example"]}},
+    {"if": {"properties": {"status": {"const": "error"}}}, "then": {"properties": {"example": {"type": "null"}}}}
+  ]
+}

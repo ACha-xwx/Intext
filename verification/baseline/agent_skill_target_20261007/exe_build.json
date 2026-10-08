@@ -1,0 +1,25 @@
+{
+  "built_at": "2026-10-07T23:55:43.738431+08:00",
+  "path": "C:\\Users\\yph\\Documents\\ChatGPT\\aicomp\\dist\\PromptSmith.exe",
+  "size_bytes": 14232246,
+  "sha256": "01533448af9e5323d56b06ee1b2d62bf5f69b312988bcde185276efd7802702d",
+  "isolated_sha256": "01533448af9e5323d56b06ee1b2d62bf5f69b312988bcde185276efd7802702d",
+  "isolated_files": [
+    "PromptSmith.exe"
+  ],
+  "smoke_tests": [
+    {
+      "name": "project",
+      "path": "C:\\Users\\yph\\Documents\\ChatGPT\\aicomp\\dist\\PromptSmith.exe",
+      "exit_code": 0,
+      "stderr": ""
+    },
+    {
+      "name": "isolated",
+      "path": "C:\\Users\\yph\\AppData\\Local\\Temp\\PromptSmith_agent_skill_20261007_ymdciyzr\\PromptSmith.exe",
+      "exit_code": 0,
+      "stderr": ""
+    }
+  ],
+  "passed": true
+}

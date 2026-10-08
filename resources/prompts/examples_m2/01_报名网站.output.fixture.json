@@ -1,0 +1,22 @@
+{
+  "schema_version": "m2.v0.1",
+  "request_id": "fixture-m2-normal",
+  "task_id": "task-fixture-m2",
+  "source_requirements_version": 3,
+  "status": "ok",
+  "error": null,
+  "plan": {
+    "goal": {"summary": "完成一个能展示活动浏览和报名提交的网站。", "audience": "课堂同学与老师", "scope": "活动浏览、报名提交和结果确认；不含付款。"},
+    "requirement_coverage": [
+      {"requirement_id": "r1", "summary": "交付可演示网站", "step_ids": ["s1"], "deliverable_ids": ["d1"], "criterion_ids": ["c1"]},
+      {"requirement_id": "r2", "summary": "排除付款功能", "step_ids": ["s1"], "deliverable_ids": ["d1"], "criterion_ids": ["c1"]},
+      {"requirement_id": "r3", "summary": "按课堂演示场景控制深度", "step_ids": ["s1"], "deliverable_ids": ["d1"], "criterion_ids": ["c1"]}
+    ],
+    "steps": [{"step_id": "s1", "order": 1, "title": "实现并检查报名主流程", "purpose": "形成课堂可演示的完整链路。", "inputs": ["已确认需求"], "actions": ["实现活动列表", "实现报名表单", "检查不存在付款入口"], "outputs": ["可运行网站"], "completion_criteria": ["能够完成一次报名演示"], "depends_on_step_ids": [], "requirement_ids": ["r1", "r2", "r3"]}],
+    "deliverables": [{"deliverable_id": "d1", "name": "活动报名网站", "description": "覆盖课堂演示所需的活动浏览和报名。", "step_ids": ["s1"], "requirement_ids": ["r1", "r2", "r3"]}],
+    "completion_criteria": [{"criterion_id": "c1", "text": "网站能演示报名流程，且没有付款功能。", "requirement_ids": ["r1", "r2", "r3"]}],
+    "unresolved_items": [{"unresolved_id": "u1", "source_gap_id": "g1", "description": "最终部署位置尚未决定。", "impact": "不影响本地演示，但影响最终发布步骤。", "continuable_work": "先完成本地可运行版本。", "confirm_by": "准备发布前"}],
+    "suggestions": [],
+    "key_work": [{"key_work_id": "k1", "title": "报名主流程实现", "step_ids": ["s1"], "goal": "确保核心演示链路可用。", "inputs": ["已确认需求"], "outputs": ["可演示网站"], "requirement_ids": ["r1", "r2", "r3"], "depends_on_key_work_ids": [], "checkpoints": ["报名提交成功", "页面中没有付款入口"]}]
+  }
+}

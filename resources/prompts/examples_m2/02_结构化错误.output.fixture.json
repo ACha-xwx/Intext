@@ -1,0 +1,14 @@
+{
+  "schema_version": "m2.v0.1",
+  "request_id": "fixture-m2-error",
+  "task_id": "task-fixture-m2",
+  "source_requirements_version": 3,
+  "status": "error",
+  "plan": null,
+  "error": {
+    "code": "insufficient_input",
+    "message": "现有输入缺少可识别的交付范围，无法形成完整方案。",
+    "related_input_ids": ["r1"],
+    "recovery_action": "返回需求页补充交付范围并重新确认。"
+  }
+}

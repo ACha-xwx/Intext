@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "m4.input.v0.1",
+  "title": "M4 input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "request_id", "task_id", "source_basis", "baseline", "bindings", "key_work", "steps", "suggestion_decisions", "target_environment"],
+  "properties": {
+    "schema_version": {"const": "m4.v0.1"},
+    "request_id": {"type": "string", "minLength": 1},
+    "task_id": {"type": "string", "minLength": 1},
+    "source_basis": {"$ref": "#/$defs/sourceBasis"},
+    "baseline": {"$ref": "#/$defs/baseline"},
+    "bindings": {"type": "array", "items": {"$ref": "#/$defs/binding"}},
+    "key_work": {"type": "array", "items": {"$ref": "#/$defs/keyWork"}},
+    "steps": {"type": "array", "items": {"$ref": "#/$defs/step"}},
+    "suggestion_decisions": {"type": "array", "items": {"$ref": "#/$defs/suggestionDecision"}},
+    "target_environment": {"$ref": "#/$defs/environment"}
+  },
+  "$defs": {
+    "stringList": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+    "sourceBasis": {
+      "type": "object", "additionalProperties": false,
+      "required": ["plan_id", "plan_version", "requirement_version"],
+      "properties": {
+        "plan_id": {"type": "string", "minLength": 1}, "plan_version": {"type": "integer", "minimum": 1},
+        "requirement_version": {"type": "integer", "minimum": 0}, "task_id": {"type": "string", "minLength": 1},
+        "confirmed_plan_version": {"type": "integer", "minimum": 1}, "confirmed_requirements_version": {"type": "integer", "minimum": 0}
+      }
+    },
+    "environment": {
+      "type": "object", "additionalProperties": false,
+      "required": ["known", "unknown", "forbidden_actions"],
+      "properties": {"known": {"$ref": "#/$defs/stringList"}, "unknown": {"$ref": "#/$defs/stringList"}, "forbidden_actions": {"$ref": "#/$defs/stringList"}}
+    },
+    "baseline": {
+      "type": "object", "additionalProperties": false,
+      "required": ["task_text", "requirements", "plan", "unknowns"],
+      "properties": {
+        "task_text": {"type": "string", "minLength": 1},
+        "requirements": {"type": "array", "items": {"type": "object", "required": ["item_id", "text"], "properties": {"item_id": {"type": "string", "minLength": 1}, "text": {"type": "string", "minLength": 1}}, "additionalProperties": true}},
+        "plan": {"type": "object", "required": ["plan_id", "plan_version"], "properties": {"plan_id": {"type": "string", "minLength": 1}, "plan_version": {"type": "integer", "minimum": 1}}, "additionalProperties": true},
+        "unknowns": {"type": "array", "items": {"type": "object", "required": ["unknown_id", "description"], "properties": {"unknown_id": {"type": "string", "minLength": 1}, "description": {"type": "string", "minLength": 1}}, "additionalProperties": true}}
+      }
+    },
+    "prerequisiteAssessment": {
+      "type": "object", "additionalProperties": false,
+      "required": ["prerequisite_id", "description", "status", "source", "blocking"],
+      "properties": {
+        "prerequisite_id": {"type": "string", "minLength": 1},
+        "description": {"type": "string", "minLength": 1},
+        "status": {"enum": ["satisfied", "unknown", "incompatible"]},
+        "source": {"enum": ["user_reported", "catalog_evidence", "program_check", "remote_source_review"]},
+        "blocking": {"type": "boolean"}
+      }
+    },
+    "remoteProvenance": {
+      "type": "object", "additionalProperties": false,
+      "required": ["origin", "source_url", "fixed_commit", "content_hash_kind", "content_sha256", "verification_status", "source_read", "installed", "execution_tested"],
+      "properties": {
+        "origin": {"const": "remote"},
+        "source_url": {"type": "string", "minLength": 1, "pattern": "^https://"},
+        "fixed_commit": {"type": "string", "minLength": 1},
+        "content_hash_kind": {"enum": ["api_metadata", "search_metadata", "source_content"]},
+        "content_sha256": {"type": "string", "pattern": "^[0-9a-fA-F]{64}$"},
+        "verification_status": {"enum": ["remote_recorded", "network_unverified", "metadata_only", "search_result_only", "source_read", "source_verified"]},
+        "source_read": {"type": "boolean"},
+        "installed": {"type": "boolean"},
+        "execution_tested": {"type": "boolean"}
+      }
+    },
+    "binding": {
+      "type": "object", "additionalProperties": false,
+      "required": ["binding_id", "skill_id", "key_work_id", "record_hash", "usage_mode", "step_ids", "capability_ids", "prerequisite_assessments", "method_adaptation_allowed"],
+      "properties": {
+        "binding_id": {"type": "string", "minLength": 1},
+        "skill_id": {"type": "string", "minLength": 1},
+        "key_work_id": {"type": "string", "minLength": 1},
+        "record_hash": {"type": "string", "pattern": "^[0-9a-fA-F]{64}$"},
+        "usage_mode": {"const": "method_adaptation"},
+        "step_ids": {"$ref": "#/$defs/stringList"},
+        "capability_ids": {"$ref": "#/$defs/stringList"},
+        "prerequisite_assessments": {"type": "array", "items": {"$ref": "#/$defs/prerequisiteAssessment"}},
+        "method_adaptation_allowed": {"type": "boolean"},
+        "adaptation_summary": {"type": "string"},
+        "provenance": {"$ref": "#/$defs/remoteProvenance"}
+      }
+    },
+    "keyWork": {
+      "type": "object", "additionalProperties": false,
+      "required": ["key_work_id", "title", "goal", "inputs", "outputs", "checkpoints", "step_ids"],
+      "properties": {
+        "key_work_id": {"type": "string", "minLength": 1}, "title": {"type": "string", "minLength": 1}, "goal": {"type": "string", "minLength": 1},
+        "inputs": {"$ref": "#/$defs/stringList"}, "outputs": {"$ref": "#/$defs/stringList"}, "checkpoints": {"$ref": "#/$defs/stringList"}, "step_ids": {"$ref": "#/$defs/stringList"}
+      }
+    },
+    "step": {
+      "type": "object", "additionalProperties": false,
+      "required": ["step_id", "title", "purpose", "inputs", "actions", "outputs", "completion_criteria"],
+      "properties": {
+        "step_id": {"type": "string", "minLength": 1}, "title": {"type": "string", "minLength": 1}, "purpose": {"type": "string", "minLength": 1},
+        "inputs": {"$ref": "#/$defs/stringList"}, "actions": {"$ref": "#/$defs/stringList"}, "outputs": {"$ref": "#/$defs/stringList"}, "completion_criteria": {"$ref": "#/$defs/stringList"}
+      }
+    },
+    "suggestionDecision": {
+      "type": "object", "additionalProperties": false,
+      "required": ["suggestion_id", "status", "description"],
+      "properties": {"suggestion_id": {"type": "string", "minLength": 1}, "status": {"enum": ["pending", "accepted", "rejected"]}, "description": {"type": "string", "minLength": 1}}
+    }
+  }
+}

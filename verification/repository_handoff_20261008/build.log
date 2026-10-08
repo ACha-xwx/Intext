@@ -1,0 +1,81 @@
+212 INFO: PyInstaller: 6.22.3, contrib hooks: 2026.8
+212 INFO: Python: 3.11.9
+223 INFO: Platform: Windows-10-10.0.26200-SP0
+225 INFO: Python environment: C:\Users\yph\Documents\GitHub\PromptSmith\.venv
+232 INFO: Removing temporary files and cleaning cache in C:\Users\yph\AppData\Local\pyinstaller
+234 INFO: Module search paths (PYTHONPATH):
+['C:\\Users\\yph\\Documents\\GitHub\\PromptSmith',
+ 'C:\\Users\\yph\\AppData\\Local\\Programs\\Python\\Python311\\python311.zip',
+ 'C:\\Users\\yph\\AppData\\Local\\Programs\\Python\\Python311\\DLLs',
+ 'C:\\Users\\yph\\AppData\\Local\\Programs\\Python\\Python311\\Lib',
+ 'C:\\Users\\yph\\AppData\\Local\\Programs\\Python\\Python311',
+ 'C:\\Users\\yph\\Documents\\GitHub\\PromptSmith\\.venv',
+ 'C:\\Users\\yph\\Documents\\GitHub\\PromptSmith\\.venv\\Lib\\site-packages',
+ 'C:\\Users\\yph\\Documents\\GitHub\\PromptSmith',
+ 'C:\\Users\\yph\\Documents\\GitHub\\PromptSmith\\src']
+687 INFO: Appending 'datas' from .spec
+696 INFO: checking Analysis
+696 INFO: Building Analysis because Analysis-00.toc is non existent
+696 INFO: Looking for Python shared library...
+696 INFO: Using Python shared library: C:\Users\yph\AppData\Local\Programs\Python\Python311\python311.dll
+696 INFO: Running Analysis Analysis-00.toc
+696 INFO: Target bytecode optimization level: 0
+696 INFO: Initializing module dependency graph...
+701 INFO: Initializing module graph hook caches...
+724 INFO: Analyzing modules for base_library.zip ...
+2292 INFO: Processing standard module hook 'hook-heapq.py' from 'C:\\Users\\yph\\Documents\\GitHub\\PromptSmith\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+2385 INFO: Processing standard module hook 'hook-encodings.py' from 'C:\\Users\\yph\\Documents\\GitHub\\PromptSmith\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+3620 INFO: Processing standard module hook 'hook-math.py' from 'C:\\Users\\yph\\Documents\\GitHub\\PromptSmith\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+4002 INFO: Processing standard module hook 'hook-pickle.py' from 'C:\\Users\\yph\\Documents\\GitHub\\PromptSmith\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+6363 INFO: Caching module dependency graph...
+6388 INFO: Analyzing C:\Users\yph\Documents\GitHub\PromptSmith\run_promptsmith.py
+6399 INFO: Processing pre-find-module-path hook 'hook-tkinter.py' from 'C:\\Users\\yph\\Documents\\GitHub\\PromptSmith\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_find_module_path'
+6403 INFO: TclTkInfo: initializing cached Tcl/Tk info...
+6973 INFO: Processing standard module hook 'hook-_tkinter.py' from 'C:\\Users\\yph\\Documents\\GitHub\\PromptSmith\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+7192 INFO: Processing standard module hook 'hook-multiprocessing.util.py' from 'C:\\Users\\yph\\Documents\\GitHub\\PromptSmith\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+7332 INFO: Processing standard module hook 'hook-xml.py' from 'C:\\Users\\yph\\Documents\\GitHub\\PromptSmith\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+7589 INFO: Processing standard module hook 'hook-_ctypes.py' from 'C:\\Users\\yph\\Documents\\GitHub\\PromptSmith\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+7752 INFO: Processing standard module hook 'hook-platform.py' from 'C:\\Users\\yph\\Documents\\GitHub\\PromptSmith\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+8042 INFO: Processing standard module hook 'hook-jsonschema.py' from 'C:\\Users\\yph\\Documents\\GitHub\\PromptSmith\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+8232 INFO: Processing pre-safe-import-module hook 'hook-typing_extensions.py' from 'C:\\Users\\yph\\Documents\\GitHub\\PromptSmith\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+8233 INFO: SetuptoolsInfo: initializing cached setuptools info...
+9353 INFO: Processing standard module hook 'hook-jsonschema_specifications.py' from 'C:\\Users\\yph\\Documents\\GitHub\\PromptSmith\\.venv\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+9418 INFO: Processing pre-safe-import-module hook 'hook-importlib_resources.py' from 'C:\\Users\\yph\\Documents\\GitHub\\PromptSmith\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+9824 INFO: Processing standard module hook 'hook-xml.etree.cElementTree.py' from 'C:\\Users\\yph\\Documents\\GitHub\\PromptSmith\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+10011 INFO: Processing standard module hook 'hook-difflib.py' from 'C:\\Users\\yph\\Documents\\GitHub\\PromptSmith\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+10128 INFO: Processing module hooks (post-graph stage)...
+10157 INFO: Processing standard module hook 'hook-_tkinter.py' from 'C:\\Users\\yph\\Documents\\GitHub\\PromptSmith\\.venv\\Lib\\site-packages\\PyInstaller\\hooks'
+10166 INFO: Performing binary vs. data reclassification (1010 entries)
+11493 INFO: Looking for ctypes DLLs
+11506 INFO: Analyzing run-time hooks ...
+11507 INFO: Including run-time hook 'pyi_rth_inspect.py' from 'C:\\Users\\yph\\Documents\\GitHub\\PromptSmith\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks'
+11509 INFO: Including run-time hook 'pyi_rth_pkgutil.py' from 'C:\\Users\\yph\\Documents\\GitHub\\PromptSmith\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks'
+11512 INFO: Including run-time hook 'pyi_rth_multiprocessing.py' from 'C:\\Users\\yph\\Documents\\GitHub\\PromptSmith\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks'
+11513 INFO: Including run-time hook 'pyi_rth__tkinter.py' from 'C:\\Users\\yph\\Documents\\GitHub\\PromptSmith\\.venv\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks'
+11531 INFO: Creating base_library.zip...
+11547 INFO: Looking for dynamic libraries
+12130 INFO: Extra DLL search directories (AddDllDirectory): []
+12131 INFO: Extra DLL search directories (PATH): []
+12898 INFO: Warnings written to C:\Users\yph\Documents\GitHub\PromptSmith\build\PromptSmith\warn-PromptSmith.txt
+12920 INFO: Graph cross-reference written to C:\Users\yph\Documents\GitHub\PromptSmith\build\PromptSmith\xref-PromptSmith.html
+12946 INFO: checking PYZ
+12946 INFO: Building PYZ because PYZ-00.toc is non existent
+12946 INFO: Building PYZ (ZlibArchive) C:\Users\yph\Documents\GitHub\PromptSmith\build\PromptSmith\PYZ-00.pyz
+13163 INFO: Building PYZ (ZlibArchive) C:\Users\yph\Documents\GitHub\PromptSmith\build\PromptSmith\PYZ-00.pyz completed successfully.
+13185 INFO: checking PKG
+13185 INFO: Building PKG because PKG-00.toc is non existent
+13185 INFO: Building PKG (CArchive) PromptSmith.pkg
+16794 INFO: Building PKG (CArchive) PromptSmith.pkg completed successfully.
+16806 INFO: Bootloader C:\Users\yph\Documents\GitHub\PromptSmith\.venv\Lib\site-packages\PyInstaller\bootloader\Windows-64bit-intel\runw.exe
+16806 INFO: checking EXE
+16806 INFO: Building EXE because EXE-00.toc is non existent
+16806 INFO: Building EXE from EXE-00.toc
+16806 INFO: Copying bootloader EXE to C:\Users\yph\Documents\GitHub\PromptSmith\dist\PromptSmith.exe
+16870 INFO: Copying icon to EXE
+16903 INFO: Copying 0 resources to EXE
+16903 INFO: Embedding manifest in EXE
+16933 INFO: Appending PKG archive to EXE
+16999 INFO: Fixing EXE headers
+17181 INFO: Building EXE from EXE-00.toc completed successfully.
+17192 INFO: Build complete! The results are available in: C:\Users\yph\Documents\GitHub\PromptSmith\dist
+Single-file build: C:\Users\yph\Documents\GitHub\PromptSmith\dist\PromptSmith.exe

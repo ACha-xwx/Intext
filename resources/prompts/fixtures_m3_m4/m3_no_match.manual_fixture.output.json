@@ -1,0 +1,5 @@
+{
+  "schema_version": "m3.v0.1", "request_id": "fixture-m3-nomatch-001", "task_id": "fixture-task-001", "status": "ok",
+  "assessments": [{"candidate_id": "candidate-to-spec-kw-notice-01", "decision": "no_match", "capability_ids": [], "reason": "软件规格整理与摄影社活动通知起草没有直接工作对应。", "planned_inputs": [], "expected_outputs": [], "prerequisite_ids": [], "limitations": ["不因都涉及文字而强行推荐"]}],
+  "unmatched_key_work_ids": ["kw-notice-01"], "error": null
+}

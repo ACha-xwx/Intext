@@ -1,0 +1,15 @@
+{
+  "schema_version": "m3.v0.1",
+  "request_id": "fixture-m3-001",
+  "task_id": "fixture-task-001",
+  "source_basis": {"plan_id": "fixture-plan-01", "plan_version": 1, "requirement_version": 1, "task_id": "fixture-task-001"},
+  "key_work": [{"key_work_id": "kw-spec-01", "title": "整理开发规格", "goal": "把已确认需求整理成开发规格", "inputs": ["已确认需求"], "outputs": ["本地规格文档"], "checkpoints": ["测试策略覆盖需求"], "step_ids": ["s-spec-01"]}],
+  "candidates": [{
+    "candidate_id": "candidate-fixture-spec-01", "skill_id": "to-spec", "key_work_id": "kw-spec-01",
+    "record_hash": "c1257134105bcd9a66bb893f6e3beb725ae45b5a6926bfa77e129a548acbf980", "usage_mode": "method_adaptation", "method_adaptation_allowed": true,
+    "step_ids": ["s-spec-01"], "capabilities": [{"capability_id": "cap-spec-structure", "summary": "组织用户故事、实现决定、测试决定和范围边界。", "inputs": ["已确认需求"], "outputs": ["本地规格文档"], "limitations": ["不发布 issue"], "evidence": "local source summary"}],
+    "original_prerequisites": [{"prerequisite_id": "orig-issue-tracker", "description": "原版发布需要 issue tracker。", "status": "unknown"}],
+    "adaptation_prerequisites": [{"prerequisite_id": "adapt-confirmed-requirements", "description": "已有确认需求。", "status": "satisfied"}], "limitations": ["仅借鉴规格整理方法"]
+  }],
+  "target_environment": {"known": ["只交付本地文档"], "unknown": ["仓库实现细节"], "forbidden_actions": ["发布 issue"]}
+}

@@ -1,0 +1,5 @@
+{
+  "schema_version": "m4.v0.1", "request_id": "fixture-m4-001", "task_id": "fixture-task-001", "status": "ok",
+  "contributions": [{"binding_id": "binding-fixture-spec-01", "step_id": "s-spec-01", "capability_ids": ["cap-spec-structure"], "method_actions": ["按已确认需求整理问题、用户故事、实现决定、测试决定和范围边界。", "将未确定实现信息列入待决定事项，不补造仓库事实。"], "planned_inputs": ["当前已确认需求与初始方案", "现有未决事项清单"], "expected_outputs": ["当前步骤所要求的软件开发规格草稿"], "checkpoints": ["每条已确认要求在规格中有着落", "未决事项未被写成既定决定", "未执行外部 issue 发布"], "prerequisite_ids": ["adapt-confirmed-requirements"], "fallback_actions": ["若缺少仓库资料，先整理需求和范围，代码事实保留待补充标记。"], "proposed_change_ids": []}],
+  "proposed_changes": [], "error": null
+}

@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "request_id", "task_id", "base_version", "task", "criterion", "known_requirements", "unknowns", "hard_constraints", "max_chars"],
+  "properties": {
+    "schema_version": {"const": "m5.v0.1"},
+    "request_id": {"type": "string", "minLength": 1},
+    "task_id": {"type": "string", "minLength": 1},
+    "base_version": {"type": "integer", "minimum": 0},
+    "task": {"type": "object", "additionalProperties": false, "required": ["text", "category"], "properties": {"text": {"type": "string", "minLength": 1}, "category": {"type": ["string", "null"]}}},
+    "criterion": {"type": "object", "additionalProperties": false, "required": ["criterion_id", "description"], "properties": {"criterion_id": {"type": ["string", "null"]}, "description": {"type": "string", "minLength": 1}}},
+    "known_requirements": {"type": "array"},
+    "unknowns": {"type": "array"},
+    "hard_constraints": {"type": "array", "items": {"type": "string"}},
+    "max_chars": {"type": "integer", "minimum": 40, "maximum": 600}
+  }
+}

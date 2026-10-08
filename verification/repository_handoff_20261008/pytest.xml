@@ -1,0 +1,1138 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="35" skipped="1" tests="746" time="108.995" timestamp="2026-10-08T08:53:49.142182+08:00" hostname="LAPTOP-3BGGO7DQ"><testcase classname="tests.test_api" name="test_generation_defaults_to_120_seconds_for_each_protocol[openai_chat_completions]" time="0.001" /><testcase classname="tests.test_api" name="test_generation_defaults_to_120_seconds_for_each_protocol[openai_responses]" time="0.001" /><testcase classname="tests.test_api" name="test_generation_defaults_to_120_seconds_for_each_protocol[anthropic_messages]" time="0.001" /><testcase classname="tests.test_api" name="test_api_error_timeout_metadata_is_optional" time="0.001" /><testcase classname="tests.test_api" name="test_delayed_local_http_timeout_records_actual_limit_without_retry[complete_json-openai_chat_completions]" time="0.084" /><testcase classname="tests.test_api" name="test_delayed_local_http_timeout_records_actual_limit_without_retry[complete_json-openai_responses]" time="0.082" /><testcase classname="tests.test_api" name="test_delayed_local_http_timeout_records_actual_limit_without_retry[complete_json-anthropic_messages]" time="0.068" /><testcase classname="tests.test_api" name="test_delayed_local_http_timeout_records_actual_limit_without_retry[list_models-openai_chat_completions]" time="0.074" /><testcase classname="tests.test_api" name="test_delayed_local_http_timeout_records_actual_limit_without_retry[list_models-openai_responses]" time="0.067" /><testcase classname="tests.test_api" name="test_delayed_local_http_timeout_records_actual_limit_without_retry[list_models-anthropic_messages]" time="0.078" /><testcase classname="tests.test_api" name="test_direct_and_wrapped_timeouts_preserve_configured_limit[complete_json-False]" time="0.001" /><testcase classname="tests.test_api" name="test_direct_and_wrapped_timeouts_preserve_configured_limit[complete_json-True]" time="0.001" /><testcase classname="tests.test_api" name="test_direct_and_wrapped_timeouts_preserve_configured_limit[list_models-False]" time="0.001" /><testcase classname="tests.test_api" name="test_direct_and_wrapped_timeouts_preserve_configured_limit[list_models-True]" time="0.001" /><testcase classname="tests.test_api" name="test_complete_json_sends_deepseek_json_object_protocol" time="0.509" /><testcase classname="tests.test_api" name="test_verified_deepseek_m2_budget_is_larger_and_provider_specific" time="0.509" /><testcase classname="tests.test_api" name="test_deepseek_specific_parameters_are_not_used_for_unverified_configs[config0]" time="0.001" /><testcase classname="tests.test_api" name="test_deepseek_specific_parameters_are_not_used_for_unverified_configs[config1]" time="0.001" /><testcase classname="tests.test_api" name="test_deepseek_specific_parameters_are_not_used_for_unverified_configs[config2]" time="0.001" /><testcase classname="tests.test_api" name="test_deepseek_specific_parameters_are_not_used_for_unverified_configs[config3]" time="0.001" /><testcase classname="tests.test_api" name="test_structured_output_limits_keep_protocol_specific_fields[openai_chat_completions-expected0]" time="0.001" /><testcase classname="tests.test_api" name="test_structured_output_limits_keep_protocol_specific_fields[openai_responses-expected1]" time="0.001" /><testcase classname="tests.test_api" name="test_structured_output_limits_keep_protocol_specific_fields[anthropic_messages-expected2]" time="0.001" /><testcase classname="tests.test_api" name="test_complete_text_uses_protocol_specific_plain_text_request[openai_chat_completions-/chat/completions-response0-&lt;lambda&gt;]" time="0.508" /><testcase classname="tests.test_api" name="test_complete_text_uses_protocol_specific_plain_text_request[openai_responses-/v1/responses-response1-&lt;lambda&gt;]" time="0.505" /><testcase classname="tests.test_api" name="test_complete_text_uses_protocol_specific_plain_text_request[anthropic_messages-/v1/messages-response2-&lt;lambda&gt;]" time="0.510" /><testcase classname="tests.test_api" name="test_complete_text_rejects_unbounded_output_limit" time="0.504" /><testcase classname="tests.test_api" name="test_full_chat_completions_endpoint_is_not_duplicated" time="0.507" /><testcase classname="tests.test_api" name="test_truncated_connection_probe_is_partial_success_but_generation_still_fails[openai_chat_completions-response0-max_tokens]" time="0.520" /><testcase classname="tests.test_api" name="test_truncated_connection_probe_is_partial_success_but_generation_still_fails[openai_responses-response1-max_output_tokens]" time="0.507" /><testcase classname="tests.test_api" name="test_truncated_connection_probe_is_partial_success_but_generation_still_fails[anthropic_messages-response2-max_tokens]" time="0.504" /><testcase classname="tests.test_api" name="test_malformed_truncated_probe_is_not_accepted[openai_chat_completions-response0]" time="0.515" /><testcase classname="tests.test_api" name="test_malformed_truncated_probe_is_not_accepted[openai_responses-response1]" time="0.504" /><testcase classname="tests.test_api" name="test_malformed_truncated_probe_is_not_accepted[anthropic_messages-response2]" time="0.507" /><testcase classname="tests.test_api" name="test_http_error_is_classified_without_exposing_key" time="0.512" /><testcase classname="tests.test_api" name="test_api_config_repr_never_exposes_key" time="0.002" /><testcase classname="tests.test_api" name="test_provider_protocol_are_separate_and_legacy_protocol_is_normalized" time="0.001" /><testcase classname="tests.test_api" name="test_list_models_uses_provider_directory_endpoint_and_bearer_auth[-/models]" time="0.503" /><testcase classname="tests.test_api" name="test_list_models_uses_provider_directory_endpoint_and_bearer_auth[/v1-/v1/models]" time="0.504" /><testcase classname="tests.test_api" name="test_list_models_uses_provider_directory_endpoint_and_bearer_auth[/chat/completions-/models]" time="0.504" /><testcase classname="tests.test_api" name="test_list_models_uses_provider_directory_endpoint_and_bearer_auth[/v1/chat/completions-/v1/models]" time="0.503" /><testcase classname="tests.test_api" name="test_list_models_uses_provider_directory_endpoint_and_bearer_auth[/models-/models]" time="0.508" /><testcase classname="tests.test_api" name="test_list_models_allows_an_empty_service_result" time="0.504" /><testcase classname="tests.test_api" name="test_list_models_classifies_expected_http_failures[401-authentication]" time="0.516" /><testcase classname="tests.test_api" name="test_list_models_classifies_expected_http_failures[403-authentication]" time="0.507" /><testcase classname="tests.test_api" name="test_list_models_classifies_expected_http_failures[404-unsupported_endpoint]" time="0.504" /><testcase classname="tests.test_api" name="test_list_models_rejects_unexpected_response_shapes[response0]" time="0.507" /><testcase classname="tests.test_api" name="test_list_models_rejects_unexpected_response_shapes[response1]" time="0.505" /><testcase classname="tests.test_api" name="test_list_models_rejects_unexpected_response_shapes[response2]" time="0.505" /><testcase classname="tests.test_api" name="test_malformed_provider_response_is_rejected" time="0.512" /><testcase classname="tests.test_api" name="test_required_configuration_is_checked[base_url]" time="0.001" /><testcase classname="tests.test_api" name="test_required_configuration_is_checked[model]" time="0.001" /><testcase classname="tests.test_api" name="test_required_configuration_is_checked[api_key]" time="0.001" /><testcase classname="tests.test_api" name="test_custom_provider_and_all_supported_protocols_are_accepted" time="0.001" /><testcase classname="tests.test_api" name="test_client_factory_selects_real_protocol_adapter" time="0.000" /><testcase classname="tests.test_api" name="test_openai_responses_uses_its_endpoint_body_and_output_shape" time="0.505" /><testcase classname="tests.test_api" name="test_openai_responses_retries_json_completion_without_schema_after_http_400" time="0.524" /><testcase classname="tests.test_api" name="test_openai_responses_does_not_retry_non_400_json_completion_error" time="0.508" /><testcase classname="tests.test_api" name="test_openai_responses_rejects_incomplete_and_refusal[response0-truncated]" time="0.504" /><testcase classname="tests.test_api" name="test_openai_responses_rejects_incomplete_and_refusal[response1-refusal]" time="0.503" /><testcase classname="tests.test_api" name="test_anthropic_messages_uses_protocol_headers_body_and_text_blocks" time="0.504" /><testcase classname="tests.test_api" name="test_anthropic_messages_rejects_truncation_and_lists_models_with_own_headers" time="0.503" /><testcase classname="tests.test_api" name="test_anthropic_model_directory_follows_bounded_after_id_pages" time="0.504" /><testcase classname="tests.test_api_truncation_diagnostics" name="test_truncated_generation_preserves_partial_response_diagnostics[openai_chat_completions-envelope0-{&quot;partial&quot;:-length]" time="0.001" /><testcase classname="tests.test_api_truncation_diagnostics" name="test_truncated_generation_preserves_partial_response_diagnostics[openai_responses-envelope1-{&quot;partial&quot;:-max_output_tokens]" time="0.001" /><testcase classname="tests.test_api_truncation_diagnostics" name="test_truncated_generation_preserves_partial_response_diagnostics[anthropic_messages-envelope2-{&quot;partial&quot;:-max_tokens]" time="0.001" /><testcase classname="tests.test_api_truncation_diagnostics" name="test_truncated_response_is_still_rejected_even_when_partial_text_is_complete_json[openai_chat_completions]" time="0.001" /><testcase classname="tests.test_api_truncation_diagnostics" name="test_truncated_response_is_still_rejected_even_when_partial_text_is_complete_json[openai_responses]" time="0.001" /><testcase classname="tests.test_api_truncation_diagnostics" name="test_truncated_response_is_still_rejected_even_when_partial_text_is_complete_json[anthropic_messages]" time="0.001" /><testcase classname="tests.test_api_truncation_diagnostics" name="test_transport_error_keeps_diagnostic_fields_empty" time="0.001" /><testcase classname="tests.test_api_truncation_diagnostics" name="test_truncated_response_keeps_missing_metadata_missing[openai_chat_completions-envelope0-length]" time="0.001" /><testcase classname="tests.test_api_truncation_diagnostics" name="test_truncated_response_keeps_missing_metadata_missing[openai_responses-envelope1-incomplete]" time="0.001" /><testcase classname="tests.test_api_truncation_diagnostics" name="test_truncated_response_keeps_missing_metadata_missing[anthropic_messages-envelope2-model_context_window_exceeded]" time="0.001" /><testcase classname="tests.test_conflict_participant_integrity" name="test_existing_conflict_cannot_omit_or_replace_a_live_participant[participant-omitted]" time="0.025" /><testcase classname="tests.test_conflict_participant_integrity" name="test_existing_conflict_cannot_omit_or_replace_a_live_participant[participant-replaced]" time="0.014" /><testcase classname="tests.test_conflict_participant_integrity" name="test_state_application_rejects_reduced_conflict_before_business_state_changes" time="0.001" /><testcase classname="tests.test_conflict_participant_integrity" name="test_complete_existing_conflict_is_applied_and_still_blocks_confirmation" time="0.004" /><testcase classname="tests.test_conflict_participant_integrity" name="test_omitting_the_entire_existing_conflict_remains_rejected" time="0.003" /><testcase classname="tests.test_conflict_participant_integrity" name="test_user_withdrawal_closes_conflict_and_can_confirm_after_reanalysis" time="0.013" /><testcase classname="tests.test_conflict_participant_integrity" name="test_user_can_mark_a_false_conflict_compatible_without_model_restoring_it" time="0.013" /><testcase classname="tests.test_conflict_participant_integrity" name="test_compatibility_decision_expires_when_requirement_text_changes" time="0.003" /><testcase classname="tests.test_delivery_session_migration" name="test_v02_selected_skill_mirror_does_not_become_legacy_selection" time="0.001" /><testcase classname="tests.test_delivery_session_migration" name="test_v02_skipped_reopens_without_legacy_warning" time="0.001" /><testcase classname="tests.test_delivery_session_migration" name="test_v02_mirror_mismatch_requires_review_without_creating_legacy_selection" time="0.001" /><testcase classname="tests.test_delivery_session_migration" name="test_v02_corrupt_bindings_are_rejected" time="0.001" /><testcase classname="tests.test_delivery_workflow" name="test_m3_prepare_invoke_apply_uses_each_protocol_and_records_candidate_analysis[openai_chat_completions]" time="0.536" /><testcase classname="tests.test_delivery_workflow" name="test_m3_prepare_invoke_apply_uses_each_protocol_and_records_candidate_analysis[openai_responses]" time="0.516" /><testcase classname="tests.test_delivery_workflow" name="test_m3_prepare_invoke_apply_uses_each_protocol_and_records_candidate_analysis[anthropic_messages]" time="0.525" /><testcase classname="tests.test_delivery_workflow" name="test_m4_prepare_invoke_apply_builds_a_final_draft_over_each_protocol[openai_chat_completions]" time="0.519" /><testcase classname="tests.test_delivery_workflow" name="test_m4_prepare_invoke_apply_builds_a_final_draft_over_each_protocol[openai_responses]" time="0.533" /><testcase classname="tests.test_delivery_workflow" name="test_m4_prepare_invoke_apply_builds_a_final_draft_over_each_protocol[anthropic_messages]" time="0.515" /><testcase classname="tests.test_delivery_workflow" name="test_delivery_payloads_keep_remote_source_provenance_and_review_source" time="0.021" /><testcase classname="tests.test_delivery_workflow" name="test_m4_receives_bounded_method_text_from_selected_local_skill" time="0.018" /><testcase classname="tests.test_delivery_workflow" name="test_m4_receives_selected_verified_online_method_text" time="0.011" /><testcase classname="tests.test_delivery_workflow" name="test_m3_rejects_a_response_when_candidate_batch_changes_before_apply" time="0.017" /><testcase classname="tests.test_delivery_workflow" name="test_m4_rejects_response_if_delivery_revision_changes_during_invoke" time="0.522" /><testcase classname="tests.test_delivery_workflow" name="test_connection_aba_and_cancelled_response_cannot_apply" time="0.036" /><testcase classname="tests.test_delivery_workflow" name="test_m4_validation_failure_preserves_previous_final_result" time="0.018" /><testcase classname="tests.test_delivery_workflow" name="test_m3_delayed_response_after_task_change_is_discarded_without_apply_writes" time="0.523" /><testcase classname="tests.test_delivery_workflow" name="test_cancelled_delayed_m4_response_is_discarded" time="0.516" /><testcase classname="tests.test_delivery_workflow" name="test_duplicate_apply_is_rejected_after_the_first_atomic_commit" time="0.031" /><testcase classname="tests.test_delivery_workflow" name="test_request_ids_cannot_be_reused_after_apply" time="0.020" /><testcase classname="tests.test_delivery_workflow" name="test_m4_proposed_change_is_deferred_to_final_prompt" time="0.020" /><testcase classname="tests.test_delivery_workflow" name="test_m4_same_change_id_is_a_fresh_decision_in_each_generation" time="0.033" /><testcase classname="tests.test_delivery_workflow" name="test_repeated_prepare_m4_is_blocked_until_cancel_or_completion" time="0.014" /><testcase classname="tests.test_delivery_workflow" name="test_new_m3_request_supersedes_an_older_in_flight_request" time="0.019" /><testcase classname="tests.test_experience_acceptance_fix" name="test_primary_button_routes_pending_answer_to_analysis" time="0.592" /><testcase classname="tests.test_experience_acceptance_fix" name="test_resolved_question_cannot_be_reasked_with_new_ids_without_new_evidence" time="0.014" /><testcase classname="tests.test_experience_acceptance_fix" name="test_incomplete_new_plan_step_blocks_confirmation" time="0.003" /><testcase classname="tests.test_experience_acceptance_fix" name="test_full_step_edit_persists_actions_outputs_criteria_and_links" time="0.016" /><testcase classname="tests.test_experience_acceptance_fix" name="test_step_editor_is_one_multifield_dialog_with_context_menu" time="0.427" /><testcase classname="tests.test_experience_acceptance_fix" name="test_full_key_work_edit_persists_links_and_checkpoints" time="0.017" /><testcase classname="tests.test_experience_acceptance_fix" name="test_selecting_step_shows_complete_step_details" time="0.255" /><testcase classname="tests.test_experience_acceptance_fix" name="test_main_page_scroll_keeps_details_reachable_at_150_percent_scaling" time="0.390" /><testcase classname="tests.test_experience_acceptance_fix" name="test_model_list_a_to_b_to_a_rejects_old_generation" time="0.698" /><testcase classname="tests.test_experience_acceptance_fix" name="test_ui_exposes_service_and_protocol_selectors_and_uses_selected_adapter" time="0.186" /><testcase classname="tests.test_experience_acceptance_fix" name="test_switching_service_clears_key_and_model_directory_values" time="0.235" /><testcase classname="tests.test_experience_iteration" name="test_connection_panel_separates_provider_protocol_and_keeps_manual_model_entry" time="0.179" /><testcase classname="tests.test_experience_iteration" name="test_connection_probe_truncation_is_reported_as_unverified_generation" time="0.177" /><testcase classname="tests.test_experience_iteration" name="test_model_list_fetch_populates_choices_without_overwriting_manual_model" time="0.690" /><testcase classname="tests.test_experience_iteration" name="test_stale_model_list_result_does_not_update_changed_connection" time="0.678" /><testcase classname="tests.test_experience_iteration" name="test_stale_model_list_result_is_rejected_after_a_to_b_to_a" time="0.694" /><testcase classname="tests.test_experience_iteration" name="test_model_list_result_survives_manual_model_id_edit" time="0.689" /><testcase classname="tests.test_experience_iteration" name="test_changing_api_host_clears_key_and_model_directory" time="0.172" /><testcase classname="tests.test_experience_iteration" name="test_model_list_ui_reports_empty_and_invalid_format[response0-\u7a7a\u6a21\u578b\u5217\u8868]" time="0.676" /><testcase classname="tests.test_experience_iteration" name="test_model_list_ui_reports_empty_and_invalid_format[response1-\u54cd\u5e94\u683c\u5f0f]" time="0.699" /><testcase classname="tests.test_experience_iteration" name="test_model_list_ui_reports_http_failures[401-\u9274\u6743\u5931\u8d25]" time="0.683" /><testcase classname="tests.test_experience_iteration" name="test_model_list_ui_reports_http_failures[403-\u9274\u6743\u5931\u8d25]" time="0.688" /><testcase classname="tests.test_experience_iteration" name="test_model_list_ui_reports_http_failures[404-\u4e0d\u652f\u6301\u6a21\u578b\u76ee\u5f55]" time="0.676" /><testcase classname="tests.test_experience_iteration" name="test_model_list_ui_reports_timeout_and_network_failure" time="0.313" /><testcase classname="tests.test_experience_iteration" name="test_context_menu_capabilities_cover_editable_and_read_only_text" time="0.177" /><testcase classname="tests.test_experience_iteration" name="test_read_only_requirement_list_context_menu_copies_complete_selected_text" time="0.222" /><testcase classname="tests.test_experience_iteration" name="test_requirement_table_scrollbars_scroll_both_axes_with_long_content" time="0.471" /><testcase classname="tests.test_experience_iteration" name="test_requirement_editor_is_multiline_and_context_menu_paste_works" time="0.291" /><testcase classname="tests.test_experience_iteration" name="test_primary_action_label_reflects_program_state[&lt;lambda&gt;-\u5148\u8f93\u5165\u4efb\u52a1]" time="0.203" /><testcase classname="tests.test_experience_iteration" name="test_primary_action_label_reflects_program_state[&lt;lambda&gt;-\u56de\u7b54\u95ee\u9898]" time="0.204" /><testcase classname="tests.test_experience_iteration" name="test_primary_action_label_reflects_program_state[&lt;lambda&gt;-\u6838\u5bf9\u5f53\u524d\u9700\u6c42_0]" time="0.192" /><testcase classname="tests.test_experience_iteration" name="test_primary_action_label_reflects_program_state[&lt;lambda&gt;-\u5904\u7406\u4e92\u76f8\u77db\u76fe\u7684\u8981\u6c42]" time="0.188" /><testcase classname="tests.test_experience_iteration" name="test_primary_action_label_reflects_program_state[&lt;lambda&gt;-\u6838\u5bf9\u5f53\u524d\u9700\u6c42_1]" time="0.188" /><testcase classname="tests.test_experience_iteration" name="test_primary_action_navigates_to_current_delivery_work_without_model_call[no_skill-\u751f\u6210\u63d0\u793a-3-None]" time="0.654" /><testcase classname="tests.test_experience_iteration" name="test_primary_action_navigates_to_current_delivery_work_without_model_call[selected_skill-\u6574\u5408\u6240\u9009 Agent Skill-2-skill_integrate_button]" time="0.448"><failure message="AssertionError: assert '整合所选 Agent Skill' in '生成方案'&#10; +  where '生成方案' = PrimaryAction(kind='integrate_skills', label='生成方案', reason='将已选 Skill 用于最终方案。', enabled=True).label">case = 'selected_skill', expected_action = '整合所选 Agent Skill', tab_index = 2
+focus_widget = 'skill_integrate_button'
+tk_window = &lt;tkinter.Toplevel object .!toplevel31&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000025E53C33790&gt;
+
+    @pytest.mark.parametrize(
+        ("case", "expected_action", "tab_index", "focus_widget"),
+        [
+            ("no_skill", "生成提示", 3, None),
+            ("selected_skill", "整合所选 Agent Skill", 2, "skill_integrate_button"),
+            ("final_review", "查看方案和提示", 3, None),
+            ("upstream_stale", "补全模型连接", 0, "api_key_entry"),
+        ],
+    )
+    def test_primary_action_navigates_to_current_delivery_work_without_model_call(
+        case: str,
+        expected_action: str,
+        tab_index: int,
+        focus_widget: str | None,
+        tk_window,
+        monkeypatch,
+    ) -&gt; None:
+        from tests.test_final_delivery import confirmed_plan_session
+    
+        session = confirmed_plan_session()
+        if case == "selected_skill":
+            from tests.test_ui_delivery_interactions import _candidate
+    
+            _candidate_row, binding_row = _candidate()
+            session.skill_state.update(
+                {
+                    "status": "selected",
+                    "basis": {
+                        "task_id": session.task_id,
+                        "requirement_version": session.requirement_version,
+                        "plan_id": session.plan["plan_id"],
+                        "plan_version": session.plan["plan_version"],
+                    },
+                    "bindings": [binding_row],
+                }
+            )
+        elif case == "final_review":
+            session.final_result.update(
+                {
+                    "revision": 1,
+                    "status": "draft",
+                    "canonical_body": "待复核的最终草稿",
+                    "content": {"pending_changes": []},
+                    "review_required_ids": ["review-fixture"],
+                }
+            )
+        elif case == "upstream_stale":
+            session.confirmed_requirements_version = None
+            session.requirements[0]["confirmation"] = "review_needed"
+            session.pending_review_item_ids = ["r1"]
+            session.plan["status"] = "stale"
+            session.final_result["status"] = "stale"
+    
+        app = PromptSmithApp(tk_window, session=session)
+        try:
+            calls: list[tuple[object, ...]] = []
+            app.widgets["task_text"].insert("1.0", session.task_text)
+            monkeypatch.setattr(app, "_submit", lambda *args: calls.append(args))
+            tk_window.deiconify()
+            tk_window.focus_force()
+            tk_window.update_idletasks()
+            tk_window.update()
+    
+            action = app._primary_action()
+&gt;           assert expected_action in action.label
+E           AssertionError: assert '整合所选 Agent Skill' in '生成方案'
+E            +  where '生成方案' = PrimaryAction(kind='integrate_skills', label='生成方案', reason='将已选 Skill 用于最终方案。', enabled=True).label
+
+tests\test_experience_iteration.py:620: AssertionError</failure></testcase><testcase classname="tests.test_experience_iteration" name="test_primary_action_navigates_to_current_delivery_work_without_model_call[final_review-\u67e5\u770b\u65b9\u6848\u548c\u63d0\u793a-3-None]" time="0.393" /><testcase classname="tests.test_experience_iteration" name="test_primary_action_navigates_to_current_delivery_work_without_model_call[upstream_stale-\u8865\u5168\u6a21\u578b\u8fde\u63a5-0-api_key_entry]" time="0.361" /><testcase classname="tests.test_experience_iteration" name="test_confirmed_plan_primary_action_leads_to_no_skill_final_draft" time="0.485" /><testcase classname="tests.test_experience_iteration" name="test_successful_m1_response_without_visible_business_progress_is_reported" time="0.196" /><testcase classname="tests.test_exporter" name="test_export_final_and_draft_are_readable_and_atomic" time="0.017" /><testcase classname="tests.test_exporter" name="test_pending_hard_m4_proposal_does_not_block_final_export" time="0.009" /><testcase classname="tests.test_exporter" name="test_final_export_requires_confirmation" time="0.003" /><testcase classname="tests.test_exporter" name="test_existing_export_is_preserved_without_explicit_overwrite" time="0.005" /><testcase classname="tests.test_exporter" name="test_export_replace_failure_keeps_previous_file_and_cleans_temporary" time="0.006" /><testcase classname="tests.test_exporter" name="test_not_started_cannot_export_placeholder" time="0.003" /><testcase classname="tests.test_exporter" name="test_remote_provenance_is_present_in_body_and_markdown_export" time="0.009" /><testcase classname="tests.test_exporter" name="test_final_export_revalidates_current_basis_before_write" time="0.004" /><testcase classname="tests.test_exporter" name="test_noncritical_m4_followup_is_in_formal_export" time="0.010" /><testcase classname="tests.test_final_closure" name="test_free_answer_is_saved_but_does_not_close_gap_before_model_assessment[\u8fd9\u4e2a\u8981\u95ee\u8d1f\u8d23\u62a5\u540d\u7684\u8001\u5e08]" time="0.001" /><testcase classname="tests.test_final_closure" name="test_free_answer_is_saved_but_does_not_close_gap_before_model_assessment[\u5148\u6536\u59d3\u540d\uff0c\u8054\u7cfb\u65b9\u5f0f\u7b49\u8001\u5e08\u786e\u8ba4\u540e\u518d\u8865]" time="0.001" /><testcase classname="tests.test_final_closure" name="test_valid_gap_update_closes_only_the_target_gap_and_is_persisted" time="0.015" /><testcase classname="tests.test_final_closure" name="test_partial_gap_update_keeps_only_the_remaining_unknown" time="0.005" /><testcase classname="tests.test_final_closure" name="test_model_omission_does_not_close_an_answered_gap" time="0.005" /><testcase classname="tests.test_final_closure" name="test_model_cannot_close_and_reask_the_same_gap_in_one_response" time="0.005" /><testcase classname="tests.test_final_closure" name="test_pending_answer_cannot_be_reasked_under_a_new_gap_id_with_same_field_and_scope" time="0.004" /><testcase classname="tests.test_final_closure" name="test_invalid_gap_update_is_rejected_without_partial_state_change[gap]" time="0.005" /><testcase classname="tests.test_final_closure" name="test_invalid_gap_update_is_rejected_without_partial_state_change[source]" time="0.022" /><testcase classname="tests.test_final_closure" name="test_invalid_gap_update_is_rejected_without_partial_state_change[answer]" time="0.005" /><testcase classname="tests.test_final_closure" name="test_conflict_survives_edit_that_invalidates_a_pending_candidate_then_can_resolve" time="0.001" /><testcase classname="tests.test_final_closure" name="test_explicit_latest_user_evidence_can_reopen_skipped_question_and_persists" time="0.016" /><testcase classname="tests.test_final_closure" name="test_unrelated_latest_message_cannot_reopen_skipped_question" time="0.005" /><testcase classname="tests.test_final_delivery" name="test_no_skill_draft_is_deep_copy_and_keeps_unknowns_and_suggestions" time="0.001" /><testcase classname="tests.test_final_delivery" name="test_tone_wrappers_share_exact_canonical_body" time="0.001" /><testcase classname="tests.test_final_delivery" name="test_canonical_body_distinguishes_requirement_source_type_scope_and_strength" time="0.001" /><testcase classname="tests.test_final_delivery" name="test_canonical_body_includes_key_work_goals_dependencies_steps_and_evidence" time="0.001" /><testcase classname="tests.test_final_delivery" name="test_canonical_body_preserves_unknown_origin_and_resolution_boundary" time="0.001" /><testcase classname="tests.test_final_delivery" name="test_canonical_body_marks_unadopted_suggestions_as_system_advice" time="0.001" /><testcase classname="tests.test_final_delivery" name="test_canonical_body_is_self_contained_and_does_not_invent_missing_materials" time="0.001" /><testcase classname="tests.test_final_delivery" name="test_confirm_final_requires_current_draft_and_preserves_tone" time="0.001" /><testcase classname="tests.test_final_delivery" name="test_unconfirmed_upstream_is_rejected" time="0.001" /><testcase classname="tests.test_final_delivery" name="test_session_v01_migrates_without_auto_confirming_legacy_skill" time="0.001" /><testcase classname="tests.test_final_delivery" name="test_invalid_final_confirmation_does_not_change_state" time="0.001" /><testcase classname="tests.test_final_delivery" name="test_note_edit_creates_current_draft_and_revokes_confirmation" time="0.001" /><testcase classname="tests.test_final_delivery" name="test_final_confirmation_rejects_changed_plan_basis_without_writes" time="0.002" /><testcase classname="tests.test_final_delivery" name="test_load_repairs_corrupt_render_cache_and_revokes_confirmation" time="0.019" /><testcase classname="tests.test_final_delivery" name="test_load_upgrades_valid_v01_body_without_revoking_confirmation" time="0.017" /><testcase classname="tests.test_final_delivery" name="test_load_upgrades_v01_m4_suggestion_to_nonblocking_post_delivery_item" time="0.018" /><testcase classname="tests.test_final_delivery" name="test_rebuild_without_skill_removes_old_contributions_and_preserves_notes" time="0.002" /><testcase classname="tests.test_final_delivery" name="test_m2_suggestion_accept_and_reject_are_explicit" time="0.001" /><testcase classname="tests.test_final_delivery" name="test_scope_changing_suggestion_cannot_be_accepted_in_final_page" time="0.001" /><testcase classname="tests.test_final_delivery" name="test_unknown_skill_prerequisite_requires_an_executable_fallback" time="0.003" /><testcase classname="tests.test_final_delivery" name="test_incompatible_skill_prerequisite_cannot_be_confirmed_even_with_fallback" time="0.002" /><testcase classname="tests.test_final_delivery" name="test_skill_prerequisite_status_requires_a_recorded_source" time="0.001" /><testcase classname="tests.test_final_delivery" name="test_m4_change_acceptance_is_recorded_and_applied_as_addition" time="0.001" /><testcase classname="tests.test_final_delivery" name="test_m4_change_rejection_keeps_explicit_decision_without_applying" time="0.001" /><testcase classname="tests.test_final_delivery" name="test_rejected_m4_change_disables_dependent_actions_and_uses_fallback" time="0.002" /><testcase classname="tests.test_final_delivery" name="test_rejected_noncritical_m4_change_without_fallback_is_deferred" time="0.002" /><testcase classname="tests.test_final_delivery" name="test_pending_noncritical_m4_change_is_deferred_to_final_prompt" time="0.001" /><testcase classname="tests.test_final_delivery" name="test_pending_hard_constraint_m4_change_is_deferred_without_adoption" time="0.001" /><testcase classname="tests.test_final_delivery" name="test_rejected_m4_fallback_survives_save_and_reopen" time="0.013" /><testcase classname="tests.test_final_delivery" name="test_m4_workflow_followups_can_be_decided_one_at_a_time" time="0.002" /><testcase classname="tests.test_final_delivery" name="test_m4_decision_does_not_remove_unrelated_review_blockers" time="0.002" /><testcase classname="tests.test_final_delivery" name="test_m4_change_that_affects_hard_constraints_cannot_be_accepted" time="0.002" /><testcase classname="tests.test_final_delivery" name="test_rebuild_keeps_shared_skill_content_for_surviving_binding" time="0.001" /><testcase classname="tests.test_fixed_demo_runner" name="test_failure_retains_manifest_session_and_raw_reference" time="0.045" /><testcase classname="tests.test_fixed_demo_runner" name="test_new_run_refuses_existing_evidence_and_budget_includes_prior_calls" time="0.013" /><testcase classname="tests.test_fixed_demo_runner" name="test_fixed_case_uses_full_production_contract_then_trial_save_reopen_export[D1]" time="0.525" /><testcase classname="tests.test_fixed_demo_runner" name="test_fixed_case_uses_full_production_contract_then_trial_save_reopen_export[D2]" time="0.265"><failure message="AssertionError: {'at': '2026-10-08T08:54:30+0800', 'error': 'Selected Skill source check failed: 方法 to-spec 的本地来源文件不可用。', 'error_type': 'SessionStateError', 'stage': 'm4_call'}&#10;assert 'failed' != 'failed'">tmp_path = WindowsPath('C:/Users/yph/AppData/Local/Temp/pytest-of-yph/pytest-1822/test_fixed_case_uses_full_prod1')
+case_id = 'D2'
+
+    @pytest.mark.parametrize("case_id", ["D1", "D2"])
+    def test_fixed_case_uses_full_production_contract_then_trial_save_reopen_export(tmp_path, case_id):
+        client = FixedClient(m1_question=case_id == "D1", m4_change=case_id == "D2")
+        run = runner.DemoRun(config(), tmp_path / case_id, [case_id], client=client, evidence_mode="offline_fixture")
+        stages = []
+        for _ in range(12):
+            result = run.advance()
+&gt;           assert result["status"] != "failed", result["cases"][case_id].get("failure")
+E           AssertionError: {'at': '2026-10-08T08:54:30+0800', 'error': 'Selected Skill source check failed: 方法 to-spec 的本地来源文件不可用。', 'error_type': 'SessionStateError', 'stage': 'm4_call'}
+E           assert 'failed' != 'failed'
+
+tests\test_fixed_demo_runner.py:202: AssertionError</failure></testcase><testcase classname="tests.test_fixed_demo_runner" name="test_checkpoint_does_not_accept_candidates_until_content_bound_decision" time="0.053" /><testcase classname="tests.test_fixed_demo_runner" name="test_fixed_runner_matches_generic_spec_work_using_confirmed_task_context" time="0.193" /><testcase classname="tests.test_fixed_demo_runner" name="test_resume_waiting_checkpoint_never_repeats_completed_call" time="0.074" /><testcase classname="tests.test_fixed_demo_runner" name="test_m4_pending_change_cannot_be_bypassed_by_final_confirmation" time="0.209"><failure message="AssertionError: {'base_url': 'https://example.invalid', 'budget_adjustments': [], 'call_limit': 14, 'calls_used': 3, ...}&#10;assert 'failed' == 'needs_review'&#10;  &#10;  - needs_review&#10;  + failed">tmp_path = WindowsPath('C:/Users/yph/AppData/Local/Temp/pytest-of-yph/pytest-1822/test_m4_pending_change_cannot_0')
+
+    def test_m4_pending_change_cannot_be_bypassed_by_final_confirmation(tmp_path):
+        run = runner.DemoRun(config(), tmp_path / "pending", ["D2"],
+                             client=FixedClient(m4_change=True), evidence_mode="offline_fixture")
+        for _ in range(5):
+            result = run.advance()
+&gt;           assert result["status"] == "needs_review", result
+E           AssertionError: {'base_url': 'https://example.invalid', 'budget_adjustments': [], 'call_limit': 14, 'calls_used': 3, ...}
+E           assert 'failed' == 'needs_review'
+E             
+E             - needs_review
+E             + failed
+
+tests\test_fixed_demo_runner.py:290: AssertionError</failure></testcase><testcase classname="tests.test_fixed_demo_runner" name="test_failed_same_task_retry_retains_previous_raw_evidence" time="0.106" /><testcase classname="tests.test_fixed_demo_runner" name="test_higher_call_limit_needs_explicit_reason_and_preserves_prior_budget" time="0.052" /><testcase classname="tests.test_fixed_demo_runner" name="test_failed_content_review_is_not_success_exit" time="0.001" /><testcase classname="tests.test_fixed_demo_runner" name="test_explicit_higher_budget_resumes_an_exhausted_run_without_resetting_count" time="0.069" /><testcase classname="tests.test_fixed_demo_runner" name="test_resume_of_interrupted_call_demands_explicit_recovery" time="0.074" /><testcase classname="tests.test_fixed_demo_runner" name="test_trial_failure_preserves_actual_input_raw_and_missing_usage" time="0.211"><failure message="AssertionError: assert 'm4_call' == 'trial_call'&#10;  &#10;  - trial_call&#10;  + m4_call">tmp_path = WindowsPath('C:/Users/yph/AppData/Local/Temp/pytest-of-yph/pytest-1822/test_trial_failure_preserves_a0')
+
+    def test_trial_failure_preserves_actual_input_raw_and_missing_usage(tmp_path):
+        class FailingTrialClient(FixedClient):
+            def complete_text(self, *_args, **_kwargs):
+                raise ApiError("network", "Offline network failure fixture", latency_ms=7)
+        run = runner.DemoRun(config(), tmp_path / "trial-failure", ["D2"],
+                             client=FailingTrialClient(), evidence_mode="offline_fixture")
+        for _ in range(7):
+            result = run.advance()
+            if result["status"] == "failed":
+                break
+            decide(run, "D2", fixture_decision(run, "D2"))
+        case = result["cases"]["D2"]
+&gt;       assert case["failure"]["stage"] == "trial_call"
+E       AssertionError: assert 'm4_call' == 'trial_call'
+E         
+E         - trial_call
+E         + m4_call
+
+tests\test_fixed_demo_runner.py:381: AssertionError</failure></testcase><testcase classname="tests.test_fixed_demo_runner" name="test_checkpoint_refuses_decision_if_business_state_changed_after_review" time="0.050" /><testcase classname="tests.test_generation_budget_recovery" name="test_official_deepseek_actual_json_body_keeps_contract_and_budget[openai_chat_completions-https://api.deepseek.com/v1/chat/completions-max_tokens-reasoning_effort-stop-deepseek-flash]" time="0.001" /><testcase classname="tests.test_generation_budget_recovery" name="test_official_deepseek_actual_json_body_keeps_contract_and_budget[openai_chat_completions-https://api.deepseek.com/v1/chat/completions-max_tokens-reasoning_effort-stop-deepseek-v4-pro]" time="0.001" /><testcase classname="tests.test_generation_budget_recovery" name="test_official_deepseek_actual_json_body_keeps_contract_and_budget[openai_responses-https://api.deepseek.com/v1/responses-max_output_tokens-reasoning-completed-deepseek-flash]" time="0.001" /><testcase classname="tests.test_generation_budget_recovery" name="test_official_deepseek_actual_json_body_keeps_contract_and_budget[openai_responses-https://api.deepseek.com/v1/responses-max_output_tokens-reasoning-completed-deepseek-v4-pro]" time="0.001" /><testcase classname="tests.test_generation_budget_recovery" name="test_official_deepseek_actual_json_body_keeps_contract_and_budget[anthropic_messages-https://api.deepseek.com/anthropic/v1-max_tokens-output_config-end_turn-deepseek-flash]" time="0.001" /><testcase classname="tests.test_generation_budget_recovery" name="test_official_deepseek_actual_json_body_keeps_contract_and_budget[anthropic_messages-https://api.deepseek.com/anthropic/v1-max_tokens-output_config-end_turn-deepseek-v4-pro]" time="0.001" /><testcase classname="tests.test_generation_budget_recovery" name="test_m2_retry_survives_reopen_and_preserves_all_input" time="0.044" /><testcase classname="tests.test_generation_budget_recovery" name="test_other_structured_generators_retain_truncation_diagnostics[m3]" time="0.022" /><testcase classname="tests.test_generation_budget_recovery" name="test_other_structured_generators_retain_truncation_diagnostics[m4]" time="0.020" /><testcase classname="tests.test_generation_budget_recovery" name="test_other_structured_generators_retain_truncation_diagnostics[m5]" time="0.019" /><testcase classname="tests.test_generation_budget_recovery" name="test_m2_ui_explicit_retry_keeps_requirements_and_main_action" time="0.366" /><testcase classname="tests.test_generation_module_timeouts" name="test_module_timeout_preserves_business_state_and_releases_ui[m2-generate_plan_button-\u521d\u59cb\u65b9\u6848\u751f\u6210]" time="0.305" /><testcase classname="tests.test_generation_module_timeouts" name="test_module_timeout_preserves_business_state_and_releases_ui[m3-skill_analyze_button-\u5019\u9009\u5206\u6790]" time="0.363" /><testcase classname="tests.test_generation_module_timeouts" name="test_module_timeout_preserves_business_state_and_releases_ui[m4-skill_integrate_button-Agent Skill \u6307\u4ee4\u6574\u5408]" time="0.272"><failure message="assert None">delivery_app = (&lt;promptsmith.ui.PromptSmithApp object at 0x0000025E55ED0410&gt;, &lt;tkinter.Toplevel object .!toplevel39&gt;)
+tmp_path = WindowsPath('C:/Users/yph/AppData/Local/Temp/pytest-of-yph/pytest-1822/test_module_timeout_preserves_2')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000025E55ED1F50&gt;
+purpose = 'm4', button_name = 'skill_integrate_button'
+label = 'Agent Skill 指令整合'
+
+    @pytest.mark.parametrize(
+        ("purpose", "button_name", "label"),
+        [
+            ("m2", "generate_plan_button", "初始方案生成"),
+            ("m3", "skill_analyze_button", "候选分析"),
+            ("m4", "skill_integrate_button", "Agent Skill 指令整合"),
+            ("m5", "m5_generate_button", "示例生成"),
+        ],
+    )
+    def test_module_timeout_preserves_business_state_and_releases_ui(
+        delivery_app, tmp_path, monkeypatch, purpose, button_name, label
+    ):
+        app, window = delivery_app
+        _configure_delivery_client(app, monkeypatch, _DeliveryUiClient())
+        if purpose in {"m3", "m4"}:
+            candidate, binding = _candidate()
+            if purpose == "m3":
+                _set_candidate_batch(app, candidate)
+            else:
+                _set_binding(app, candidate, binding)
+            # Preserve a real previous analysis or final draft across the failed replacement.
+            app.widgets[button_name].invoke()
+            _pump_until(window, lambda: not app.delivery_busy)
+            assert not app.test_dialogs
+            if purpose == "m3":
+                assert app.session.skill_state["candidate_batch"]["m3_analysis"]
+            else:
+&gt;               assert app.session.final_result["content"]
+E               assert None
+
+tests\test_generation_module_timeouts.py:61: AssertionError</failure></testcase><testcase classname="tests.test_generation_module_timeouts" name="test_module_timeout_preserves_business_state_and_releases_ui[m5-m5_generate_button-\u793a\u4f8b\u751f\u6210]" time="0.310" /><testcase classname="tests.test_generation_timeout_ui" name="test_generation_and_probe_timeouts_are_independent" time="0.190" /><testcase classname="tests.test_generation_timeout_ui" name="test_second_round_timeout_preserves_answers_then_explicit_retry_succeeds" time="1.187" /><testcase classname="tests.test_guided_jgs_chain" name="test_jgs_skip_then_same_region_supplement_closes_gap_without_rewriting_task" time="0.931" /><testcase classname="tests.test_guided_jgs_chain" name="test_jgs_skip_then_one_draft_click_produces_copyable_exportable_reopenable_result" time="0.837" /><testcase classname="tests.test_guided_jgs_chain" name="test_deciding_interpretation_reclaims_space_for_requirements[accept]" time="0.831" /><testcase classname="tests.test_guided_jgs_chain" name="test_deciding_interpretation_reclaims_space_for_requirements[correct]" time="0.813" /><testcase classname="tests.test_guided_jgs_chain" name="test_explicit_guess_choice_leaves_unrelated_budget_unadopted[accept]" time="0.756" /><testcase classname="tests.test_guided_jgs_chain" name="test_explicit_guess_choice_leaves_unrelated_budget_unadopted[correct]" time="0.839" /><testcase classname="tests.test_guided_jgs_chain" name="test_complete_writing_task_follows_default_no_skill_path_to_export" time="0.733" /><testcase classname="tests.test_guided_multi_gap_answer" name="test_freeform_answer_updates_two_existing_gaps_with_separate_evidence" time="0.031" /><testcase classname="tests.test_guided_multi_gap_answer" name="test_old_single_gap_answers_remain_strict" time="0.009" /><testcase classname="tests.test_guided_multi_gap_answer" name="test_multi_gap_permission_does_not_bypass_reference_and_evidence_guards[unknown_gap]" time="0.009" /><testcase classname="tests.test_guided_multi_gap_answer" name="test_multi_gap_permission_does_not_bypass_reference_and_evidence_guards[duplicate_gap]" time="0.009" /><testcase classname="tests.test_guided_multi_gap_answer" name="test_multi_gap_permission_does_not_bypass_reference_and_evidence_guards[invented_quote]" time="0.010" /><testcase classname="tests.test_guided_multi_gap_answer" name="test_extra_gap_only_update_leaves_original_answer_pending" time="0.009" /><testcase classname="tests.test_guided_multi_gap_answer" name="test_one_inline_submission_to_two_questions_has_no_unprocessed_duplicate" time="0.011" /><testcase classname="tests.test_guided_state" name="test_preview_confirmation_is_one_atomic_user_action" time="0.001" /><testcase classname="tests.test_guided_state" name="test_old_or_changed_preview_cannot_confirm_unseen_content" time="0.001" /><testcase classname="tests.test_guided_state" name="test_preview_conflict_failure_does_not_partially_accept" time="0.001" /><testcase classname="tests.test_guided_state" name="test_draft_authorization_keeps_direction_unknown_and_survives_export" time="0.024" /><testcase classname="tests.test_guided_state" name="test_draft_authorization_does_not_bypass_conflict_or_stale_analysis" time="0.001" /><testcase classname="tests.test_guided_state" name="test_draft_authorization_is_invalidated_after_upstream_change" time="0.001" /><testcase classname="tests.test_guided_state" name="test_draft_can_keep_model_goal_uncertain_when_known_deliverable_exists" time="0.001" /><testcase classname="tests.test_guided_state" name="test_accepting_goal_interpretation_refreshes_only_corresponding_readiness" time="0.001" /><testcase classname="tests.test_guided_state" name="test_plan_preview_confirms_all_shown_key_work_atomically" time="0.005" /><testcase classname="tests.test_guided_state" name="test_changed_plan_preview_is_rejected_without_review_mutations" time="0.005" /><testcase classname="tests.test_guided_state" name="test_supplement_preserves_task_history_candidates_and_deduplicates_retry" time="0.001" /><testcase classname="tests.test_guided_state" name="test_reopen_skipped_question_preserves_history_and_analysis_until_answer" time="0.001" /><testcase classname="tests.test_guided_state" name="test_new_analysis_preserves_pending_candidates_and_source_versions" time="0.001" /><testcase classname="tests.test_guided_state" name="test_guess_requires_separate_explicit_choice_and_resolves_only_its_gap" time="0.001" /><testcase classname="tests.test_guided_state" name="test_skipping_guess_keeps_unknown_and_records_no_user_fact" time="0.001" /><testcase classname="tests.test_guided_state" name="test_linked_guess_cannot_bypass_explicit_choice_via_bulk_accept" time="0.001" /><testcase classname="tests.test_guided_state" name="test_ordinary_skip_can_proceed_without_extra_analysis" time="0.001" /><testcase classname="tests.test_guided_state" name="test_authorized_draft_can_pass_optional_skill_entry_without_resolving_unknown" time="0.012" /><testcase classname="tests.test_guided_state" name="test_rejecting_interpretation_cancels_inflight_analysis_without_extra_question" time="0.001" /><testcase classname="tests.test_guided_state" name="test_correction_preserves_old_answer_but_only_new_answer_is_pending" time="0.001" /><testcase classname="tests.test_guided_state" name="test_direct_supplement_can_target_a_shown_skipped_gap_and_retry_once" time="0.001" /><testcase classname="tests.test_guided_state" name="test_targeted_supplement_validation_failure_is_atomic" time="0.001" /><testcase classname="tests.test_guided_state" name="test_answer_resolution_retires_stale_guess_without_adopting_it" time="0.001" /><testcase classname="tests.test_guided_state" name="test_explicit_draft_is_immediately_editable_saveable_and_exportable_before_plan_confirmation" time="0.025" /><testcase classname="tests.test_guided_state" name="test_interim_draft_entry_cannot_bypass_authorization_or_conflicts" time="0.009" /><testcase classname="tests.test_guided_state" name="test_reviewing_plan_rebuilds_interim_draft_as_normal_result" time="0.006" /><testcase classname="tests.test_guided_state" name="test_legacy_unlinked_guess_accepts_one_explicit_choice_with_user_provenance" time="0.001" /><testcase classname="tests.test_guided_ui" name="test_visible_task_uses_plain_start_label" time="0.177" /><testcase classname="tests.test_guided_ui" name="test_one_submit_records_and_analyzes_without_accepting_candidates" time="0.196" /><testcase classname="tests.test_guided_ui" name="test_skipped_direction_has_inline_reanswer_and_no_false_confirm" time="0.260" /><testcase classname="tests.test_guided_ui" name="test_preview_confirmation_goes_directly_to_m2" time="0.195" /><testcase classname="tests.test_guided_ui" name="test_confirmed_plan_default_does_not_require_skill_visit" time="0.182" /><testcase classname="tests.test_guided_ui" name="test_viewing_existing_sections_does_not_mutate_session" time="0.176" /><testcase classname="tests.test_guided_ui" name="test_switching_session_clears_inline_answer_selection[new]" time="0.199" /><testcase classname="tests.test_guided_ui" name="test_switching_session_clears_inline_answer_selection[open]" time="0.200" /><testcase classname="tests.test_guided_ui" name="test_answer_action_reveals_question_and_view_does_not_mutate_state" time="0.551" /><testcase classname="tests.test_guided_ui" name="test_understanding_accept_button_disabled_without_selected_interpretation" time="0.217" /><testcase classname="tests.test_guided_ui" name="test_editing_candidate_keeps_correction_and_retires_old_text" time="0.202" /><testcase classname="tests.test_guided_ui" name="test_conflict_preview_shows_both_sides_and_can_apply_explicit_replacement" time="0.288" /><testcase classname="tests.test_guided_ui" name="test_conflict_action_opens_user_resolution_and_allows_compatible_requirements" time="0.278" /><testcase classname="tests.test_guided_ui" name="test_conflict_action_selects_participant_when_user_wants_to_edit" time="0.275" /><testcase classname="tests.test_guided_ui" name="test_initial_window_fits_small_screen_at_high_system_scaling" time="0.364" /><testcase classname="tests.test_local_skill_search" name="test_discovers_skill_md_and_returns_m3_compatible_local_candidate" time="0.014" /><testcase classname="tests.test_local_skill_search" name="test_duplicate_roots_and_symlink_paths_do_not_duplicate_candidates" time="0.014" /><testcase classname="tests.test_local_skill_search" name="test_malformed_or_unreadable_skill_is_reported_without_aborting_scan" time="0.013" /><testcase classname="tests.test_local_skill_search" name="test_chinese_task_matches_english_skill_from_body_without_matching_name" time="0.014" /><testcase classname="tests.test_local_skill_search" name="test_frontmatter_folded_description_and_title_fallback_are_readable" time="0.020" /><testcase classname="tests.test_local_skill_search" name="test_catalog_hash_is_deterministic_and_changes_when_source_content_changes" time="0.021" /><testcase classname="tests.test_local_skill_search" name="test_candidate_limit_is_bounded_and_records_allowed_step_ids" time="0.038" /><testcase classname="tests.test_local_skill_search" name="test_default_search_returns_all_matching_local_skills" time="0.065" /><testcase classname="tests.test_local_skill_search" name="test_default_roots_scan_known_skill_locations_and_ignore_other_home_files" time="0.035" /><testcase classname="tests.test_local_skill_search" name="test_symlinked_directory_is_not_traversed" time="0.006"><skipped type="pytest.skip" message="Creating symlinks requires a Windows privilege on this host.">C:\Users\yph\Documents\GitHub\PromptSmith\tests\test_local_skill_search.py:202: Creating symlinks requires a Windows privilege on this host.</skipped></testcase><testcase classname="tests.test_local_skill_search_relevance" name="test_generic_testing_boilerplate_does_not_match_unrelated_domains" time="0.039" /><testcase classname="tests.test_local_skill_search_relevance" name="test_identical_skill_content_is_returned_once_across_installation_roots" time="0.015" /><testcase classname="tests.test_local_skill_search_relevance" name="test_named_domain_skill_is_kept_when_the_task_explicitly_requests_that_domain" time="0.018" /><testcase classname="tests.test_local_skill_search_relevance" name="test_candidate_binds_to_best_matching_key_work" time="0.019" /><testcase classname="tests.test_m1" name="test_assets_load_exact_current_versions" time="0.002"><failure message="AssertionError: assert 'M1_system_v0.22' == 'M1_system_v0.11'&#10;  &#10;  - M1_system_v0.11&#10;  ?              ^^&#10;  + M1_system_v0.22&#10;  ?              ^^">def test_assets_load_exact_current_versions() -&gt; None:
+        assets = M1Assets.load(DESIGN)
+    
+        assert "需求访谈模块" in assets.system_prompt
+&gt;       assert assets.prompt_version == "M1_system_v0.11"
+E       AssertionError: assert 'M1_system_v0.22' == 'M1_system_v0.11'
+E         
+E         - M1_system_v0.11
+E         ?              ^^
+E         + M1_system_v0.22
+E         ?              ^^
+
+tests\test_m1.py:26: AssertionError</failure></testcase><testcase classname="tests.test_m1" name="test_build_input_maps_session_to_existing_schema" time="0.004" /><testcase classname="tests.test_m1" name="test_existing_manual_fixtures_pass_contract[01_\u62a5\u540d\u7f51\u7ad9.input.json-01_\u62a5\u540d\u7f51\u7ad9.expected.json]" time="0.002" /><testcase classname="tests.test_m1" name="test_existing_manual_fixtures_pass_contract[02_\u51b2\u7a81\u4e14\u9884\u7b97\u8017\u5c3d.input.json-02_\u51b2\u7a81\u4e14\u9884\u7b97\u8017\u5c3d.expected.json]" time="0.002" /><testcase classname="tests.test_m1" name="test_duplicate_json_keys_are_rejected" time="0.002" /><testcase classname="tests.test_m1" name="test_nonliteral_quote_is_rejected_even_when_schema_passes" time="0.002" /><testcase classname="tests.test_m1" name="test_questions_are_rejected_when_budget_is_zero" time="0.002"><failure message="AssertionError: Regex pattern did not match.&#10; Regex: '预算'&#10; Input: '用户已经明确修改时不能重复追问同一选择。'">def test_questions_are_rejected_when_budget_is_zero() -&gt; None:
+        assets = M1Assets.load(DESIGN, legacy=True)
+        payload = fixture("02_冲突且预算耗尽.input.json")
+        result = fixture("02_冲突且预算耗尽.expected.json")
+        result["questions"] = [
+            {
+                "question_id": "q1",
+                "gap_id": "g1",
+                "field": "constraints",
+                "scope": "报名网站",
+                "text": "你确定要改吗？",
+                "options": [],
+                "reason": "重复确认。",
+                "depends_on": [],
+            }
+        ]
+    
+        with pytest.raises(M1ValidationError, match="预算"):
+&gt;           parse_m1_response(json.dumps(result, ensure_ascii=False), payload, assets.output_schema)
+
+tests\test_m1.py:107: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\promptsmith\m1.py:867: in parse_m1_response
+    _semantic_validate(result, payload)
+src\promptsmith\m1.py:744: in _semantic_validate
+    _fail(bool(result["questions"]), "用户已经明确修改时不能重复追问同一选择。")
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+condition = True, message = '用户已经明确修改时不能重复追问同一选择。'
+
+    def _fail(condition: bool, message: str) -&gt; None:
+        if condition:
+&gt;           raise M1ValidationError(message)
+E           promptsmith.m1.M1ValidationError: 用户已经明确修改时不能重复追问同一选择。
+
+src\promptsmith\m1.py:233: M1ValidationError
+
+During handling of the above exception, another exception occurred:
+
+    def test_questions_are_rejected_when_budget_is_zero() -&gt; None:
+        assets = M1Assets.load(DESIGN, legacy=True)
+        payload = fixture("02_冲突且预算耗尽.input.json")
+        result = fixture("02_冲突且预算耗尽.expected.json")
+        result["questions"] = [
+            {
+                "question_id": "q1",
+                "gap_id": "g1",
+                "field": "constraints",
+                "scope": "报名网站",
+                "text": "你确定要改吗？",
+                "options": [],
+                "reason": "重复确认。",
+                "depends_on": [],
+            }
+        ]
+    
+&gt;       with pytest.raises(M1ValidationError, match="预算"):
+E       AssertionError: Regex pattern did not match.
+E        Regex: '预算'
+E        Input: '用户已经明确修改时不能重复追问同一选择。'
+
+tests\test_m1.py:106: AssertionError</failure></testcase><testcase classname="tests.test_m1" name="test_explicit_change_is_not_asked_again_when_budget_exists" time="0.002" /><testcase classname="tests.test_m1" name="test_selected_category_cannot_be_silently_changed" time="0.002" /><testcase classname="tests.test_m1" name="test_invalid_input_fallback_must_be_empty_and_unready" time="0.002" /><testcase classname="tests.test_m1" name="test_readiness_rejects_undeclared_note_field" time="0.003" /><testcase classname="tests.test_m1_current_asset_versions" name="test_current_m1_assets_include_v022_bridge_rules" time="0.002" /><testcase classname="tests.test_m1_current_asset_versions" name="test_current_incremental_assets_include_v015_bridge_rules" time="0.003" /><testcase classname="tests.test_m1_incremental_retry" name="test_two_pending_answers_apply_only_updates_and_keep_omitted_unknown" time="0.022" /><testcase classname="tests.test_m1_incremental_retry" name="test_delta_gap_update_keeps_or_closes_only_its_evidenced_gap[partial]" time="0.011" /><testcase classname="tests.test_m1_incremental_retry" name="test_delta_gap_update_keeps_or_closes_only_its_evidenced_gap[unresolved]" time="0.010" /><testcase classname="tests.test_m1_incremental_retry" name="test_delta_gap_update_keeps_or_closes_only_its_evidenced_gap[resolved]" time="0.010" /><testcase classname="tests.test_m1_incremental_retry" name="test_delta_gap_update_keeps_or_closes_only_its_evidenced_gap[not_applicable]" time="0.010" /><testcase classname="tests.test_m1_incremental_retry" name="test_omitted_blocking_gap_still_blocks_false_ready_delta" time="0.010" /><testcase classname="tests.test_m1_incremental_retry" name="test_invalid_gap_resolution_cannot_remove_old_gap" time="0.010" /><testcase classname="tests.test_m1_incremental_retry" name="test_omitted_conflict_is_restored_and_still_blocks_confirmation" time="0.017" /><testcase classname="tests.test_m1_incremental_retry" name="test_returned_conflict_cannot_drop_or_replace_existing_participant[participants0]" time="0.005" /><testcase classname="tests.test_m1_incremental_retry" name="test_returned_conflict_cannot_drop_or_replace_existing_participant[participants1]" time="0.005" /><testcase classname="tests.test_m1_incremental_retry" name="test_omitted_conflict_cannot_be_claimed_ready_and_default_mode_remains_strict" time="0.007" /><testcase classname="tests.test_m1_incremental_retry" name="test_user_withdrawn_conflict_party_can_close_after_delta_reanalysis" time="0.005" /><testcase classname="tests.test_m1_incremental_retry" name="test_delta_cannot_readd_an_unchanged_existing_requirement" time="0.010" /><testcase classname="tests.test_m1_incremental_retry" name="test_delta_user_proposal_requires_current_answer_evidence" time="0.012" /><testcase classname="tests.test_m1_incremental_retry" name="test_delta_still_requires_all_schema_fields[gaps]" time="0.010" /><testcase classname="tests.test_m1_incremental_retry" name="test_delta_still_requires_all_schema_fields[conflicts]" time="0.009" /><testcase classname="tests.test_m1_incremental_retry" name="test_delta_still_requires_all_schema_fields[proposals]" time="0.009" /><testcase classname="tests.test_m1_incremental_retry" name="test_delta_still_requires_all_schema_fields[gap_updates]" time="0.009" /><testcase classname="tests.test_m1_incremental_retry" name="test_delta_merge_does_not_hide_duplicate_gap_ids" time="0.010" /><testcase classname="tests.test_m1_incremental_retry" name="test_delta_merge_does_not_hide_duplicate_conflict_ids" time="0.005" /><testcase classname="tests.test_m1_incremental_retry" name="test_delta_input_error_does_not_expand_old_conflicts_or_mutate_session" time="0.005" /><testcase classname="tests.test_m1_incremental_retry" name="test_json_errors_have_their_own_compatible_exception_type[{&quot;a&quot;:]" time="0.010" /><testcase classname="tests.test_m1_incremental_retry" name="test_json_errors_have_their_own_compatible_exception_type[{&quot;a&quot;:1,&quot;a&quot;:2}]" time="0.010" /><testcase classname="tests.test_m1_incremental_retry" name="test_json_errors_have_their_own_compatible_exception_type[{&quot;a&quot;:NaN}]" time="0.009" /><testcase classname="tests.test_m1_incremental_retry" name="test_json_errors_have_their_own_compatible_exception_type[[]]" time="0.009" /><testcase classname="tests.test_m1_incremental_retry" name="test_modes_use_separate_short_prompt_and_full_prompt_is_unchanged" time="0.005" /><testcase classname="tests.test_m1_interpretation_guidance" name="test_linked_contextual_interpretation_is_a_suggestion_with_concrete_gap" time="0.005" /><testcase classname="tests.test_m1_interpretation_guidance" name="test_interpretation_cannot_claim_user_decision_or_bind_unrelated_object[&lt;lambda&gt;-\u89e3\u91ca|\u63a8\u6d4b]" time="0.005" /><testcase classname="tests.test_m1_interpretation_guidance" name="test_interpretation_cannot_claim_user_decision_or_bind_unrelated_object[&lt;lambda&gt;-\u7f3a\u53e3]" time="0.005" /><testcase classname="tests.test_m1_interpretation_guidance" name="test_interpretation_cannot_claim_user_decision_or_bind_unrelated_object[&lt;lambda&gt;-\u95ee\u9898]" time="0.005" /><testcase classname="tests.test_m1_interpretation_guidance" name="test_interpretation_cannot_claim_user_decision_or_bind_unrelated_object[&lt;lambda&gt;-\u8303\u56f4|\u5bf9\u9f50]" time="0.005" /><testcase classname="tests.test_m1_interpretation_guidance" name="test_interpretation_cannot_claim_user_decision_or_bind_unrelated_object[&lt;lambda&gt;-\u6765\u6e90]" time="0.005" /><testcase classname="tests.test_m1_interpretation_guidance" name="test_interpretation_cannot_claim_user_decision_or_bind_unrelated_object[&lt;lambda&gt;-\u65b9\u5411|\u5173\u952e]" time="0.005" /><testcase classname="tests.test_m1_interpretation_guidance" name="test_at_most_two_distinct_explanations_for_one_gap" time="0.007" /><testcase classname="tests.test_m1_interpretation_guidance" name="test_interpretation_can_reference_skipped_history_without_repeating_question" time="0.005" /><testcase classname="tests.test_m1_interpretation_guidance" name="test_declined_interpretation_is_not_automatically_offered_again[skipped]" time="0.005" /><testcase classname="tests.test_m1_interpretation_guidance" name="test_declined_interpretation_is_not_automatically_offered_again[rejected]" time="0.005" /><testcase classname="tests.test_m1_interpretation_guidance" name="test_pending_drafts_and_interpretation_choices_are_in_model_input_without_runtime_fields" time="0.007" /><testcase classname="tests.test_m1_interpretation_guidance" name="test_existing_output_without_interpretation_extension_remains_valid" time="0.005"><failure message="AssertionError: assert {'assistant_t...cts': [], ...} == {'assistant_t...cts': [], ...}&#10;  &#10;  Omitting 17 identical items, use -vv to show&#10;  Left contains 1 more item:&#10;  {'model_judgment': {'answer_assessment': 'partial',&#10;                      'confidence': 'medium',&#10;                      'continue_interview': True,&#10;                      'critical_gap_ids': ['g-term'],&#10;                      'reason': '根据当前缺口和下一步建议补充的兼容判断；新响应应优先提供明确的模型判断。'}}&#10;  Use -v to get more diff">def test_existing_output_without_interpretation_extension_remains_valid() -&gt; None:
+        _, payload, result = interpretation_case()
+        result["proposals"][0].pop("interpretation_for")
+&gt;       assert parse(payload, result) == result
+E       AssertionError: assert {'assistant_t...cts': [], ...} == {'assistant_t...cts': [], ...}
+E         
+E         Omitting 17 identical items, use -vv to show
+E         Left contains 1 more item:
+E         {'model_judgment': {'answer_assessment': 'partial',
+E                             'confidence': 'medium',
+E                             'continue_interview': True,
+E                             'critical_gap_ids': ['g-term'],
+E                             'reason': '根据当前缺口和下一步建议补充的兼容判断；新响应应优先提供明确的模型判断。'}}
+E         Use -v to get more diff
+
+tests\test_m1_interpretation_guidance.py:130: AssertionError</failure></testcase><testcase classname="tests.test_m1_interpretation_guidance" name="test_interpretation_cannot_repeat_an_existing_draft" time="0.005" /><testcase classname="tests.test_m1_interpretation_guidance" name="test_new_resources_keep_legacy_contract_and_do_not_encode_jgs_answer" time="0.003"><failure message="AssertionError: assert 'M1_system_v0.22' == 'M1_system_v0.11'&#10;  &#10;  - M1_system_v0.11&#10;  ?              ^^&#10;  + M1_system_v0.22&#10;  ?              ^^">def test_new_resources_keep_legacy_contract_and_do_not_encode_jgs_answer() -&gt; None:
+        assets = M1Assets.load()
+        assert assets.contract_version == "m1.v0.2"
+&gt;       assert assets.prompt_version == "M1_system_v0.11"
+E       AssertionError: assert 'M1_system_v0.22' == 'M1_system_v0.11'
+E         
+E         - M1_system_v0.11
+E         ?              ^^
+E         + M1_system_v0.22
+E         ?              ^^
+
+tests\test_m1_interpretation_guidance.py:144: AssertionError</failure></testcase><testcase classname="tests.test_m1_interpretation_guidance" name="test_pending_conflict_parties_survive_incremental_round_without_repeating_drafts" time="0.009" /><testcase classname="tests.test_m1_interpretation_guidance" name="test_model_cannot_remove_still_pending_conflict_party" time="0.009" /><testcase classname="tests.test_m1_interpretation_guidance" name="test_user_accepts_exactly_one_interpretation_through_validated_flow_and_save" time="0.021" /><testcase classname="tests.test_m1_interpretation_guidance" name="test_correction_keeps_old_question_history_and_does_not_adopt_guess" time="0.019" /><testcase classname="tests.test_m1_model_authority_v07" name="test_v08_assets_make_quality_decision_model_led" time="0.002"><failure message="AssertionError: assert 'M1_system_v0.22' == 'M1_system_v0.18'&#10;  &#10;  - M1_system_v0.18&#10;  ?              ^^&#10;  + M1_system_v0.22&#10;  ?              ^^">def test_v08_assets_make_quality_decision_model_led() -&gt; None:
+        assets = M1Assets.load(DESIGN)
+    
+&gt;       assert assets.prompt_version == "M1_system_v0.18"
+E       AssertionError: assert 'M1_system_v0.22' == 'M1_system_v0.18'
+E         
+E         - M1_system_v0.18
+E         ?              ^^
+E         + M1_system_v0.22
+E         ?              ^^
+
+tests\test_m1_model_authority_v07.py:50: AssertionError</failure></testcase><testcase classname="tests.test_m1_model_authority_v07" name="test_model_can_continue_after_legacy_question_controls_are_exhausted" time="0.004" /><testcase classname="tests.test_m1_model_authority_v07" name="test_m1_gives_model_one_contextual_self_correction_attempt" time="0.020" /><testcase classname="tests.test_m1_model_authority_v07" name="test_m1_gives_model_two_content_correction_attempts" time="0.024" /><testcase classname="tests.test_m1_model_authority_v07" name="test_input_error_is_repaired_as_a_normal_interview_response" time="0.020" /><testcase classname="tests.test_m1_model_authority_v07" name="test_m1_stage_does_not_consume_legacy_question_budget" time="0.001" /><testcase classname="tests.test_m1_model_authority_v07" name="test_model_judgment_is_optional_and_saved_with_partial_answer" time="0.005" /><testcase classname="tests.test_m1_model_authority_v07" name="test_new_context_after_skip_can_return_a_different_question_without_reopen" time="0.010" /><testcase classname="tests.test_m1_model_authority_v11" name="test_model_judgment_cannot_claim_ready_while_requesting_more_information" time="0.004" /><testcase classname="tests.test_m1_model_authority_v11" name="test_old_question_controls_do_not_block_model_led_follow_up" time="0.004" /><testcase classname="tests.test_m1_model_authority_v11" name="test_legacy_current_response_gets_compatible_model_judgment" time="0.004" /><testcase classname="tests.test_m1_model_authority_v11" name="test_valid_semantic_input_error_never_becomes_user_visible_call_failure" time="0.033" /><testcase classname="tests.test_m1_model_authority_v11" name="test_v021_correction_prompt_makes_model_judgment_mandatory" time="0.001" /><testcase classname="tests.test_m1_model_authority_v11" name="test_v021_semantic_bridge_requires_continuable_normal_interview" time="0.001" /><testcase classname="tests.test_m1_model_bridge_v08" name="test_old_saved_session_without_judgment_or_source_count_loads_safely" time="0.003" /><testcase classname="tests.test_m1_model_bridge_v08" name="test_model_signal_is_advisory_and_persists_through_save_load" time="0.004" /><testcase classname="tests.test_m1_model_bridge_v08" name="test_old_skipped_question_is_not_repeated_without_new_context" time="0.003" /><testcase classname="tests.test_m1_model_recovery_v09" name="test_repeated_semantic_input_error_becomes_continuable_interview" time="0.037" /><testcase classname="tests.test_m1_semantic_bridge_v10" name="test_m1_input_declares_model_judgment_as_quality_authority" time="0.003" /><testcase classname="tests.test_m1_semantic_bridge_v10" name="test_semantic_input_error_uses_a_context_bridge_prompt" time="0.034" /><testcase classname="tests.test_m1_truncation_ui" name="test_second_round_truncation_preserves_answers_and_requires_explicit_compact_retry[retry-success]" time="0.573"><failure message="AssertionError: assert 'M1_incremental_v0.15' == 'M1_incremental_v0.4'&#10;  &#10;  - M1_incremental_v0.4&#10;  ?                   ^&#10;  + M1_incremental_v0.15&#10;  ?                   ^^">app = &lt;promptsmith.ui.PromptSmithApp object at 0x0000025E56B730D0&gt;
+tmp_path = WindowsPath('C:/Users/yph/AppData/Local/Temp/pytest-of-yph/pytest-1822/test_second_round_truncation_p0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000025E56BF4690&gt;
+retry_truncated = False
+
+    @pytest.mark.parametrize("retry_truncated", [False, True], ids=["retry-success", "retry-still-truncated"])
+    def test_second_round_truncation_preserves_answers_and_requires_explicit_compact_retry(
+        app, tmp_path, monkeypatch, retry_truncated
+    ):
+        received = []
+        request_entered = {2: threading.Event(), 3: threading.Event()}
+        release_response = {2: threading.Event(), 3: threading.Event()}
+        handler_errors = []
+    
+        class Handler(BaseHTTPRequestHandler):
+            def do_POST(self):
+                try:
+                    body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+                    payload = json.loads(body["messages"][1]["content"])
+                    received.append({"body": body, "payload": payload})
+                    call = len(received)
+                    if call in request_entered:
+                        request_entered[call].set()
+                        assert release_response[call].wait(timeout=3), "测试没有释放本地截断响应。"
+                    if call == 2 or (call == 3 and retry_truncated):
+                        raw = json.dumps({
+                            "id": f"truncated-{call}", "model": "local-truncation-model",
+                            "choices": [{"finish_reason": "length", "message": {"content": PARTIAL_JSON}}],
+                            "usage": PARTIAL_USAGE,
+                        }, ensure_ascii=False).encode("utf-8")
+                    else:
+                        raw = envelope(jgs_response(payload))
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(raw)))
+                    self.end_headers()
+                    self.wfile.write(raw)
+                except Exception as exc:
+                    handler_errors.append(repr(exc))
+    
+            def log_message(self, *_args):
+                pass
+    
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        thread = threading.Thread(target=lambda: server.serve_forever(poll_interval=0.01), daemon=True)
+        thread.start()
+        messages = []
+        monkeypatch.setattr("promptsmith.ui.messagebox.showerror", lambda *args, **_kwargs: messages.append(args))
+        app.api_base_var.set(f"http://127.0.0.1:{server.server_port}")
+        app.api_key_var.set("test-only-key")
+        try:
+            _start_and_answer(app)
+            assert not messages
+            before = deepcopy(app.session.to_dict())
+    
+            app.widgets["analyze_button"].invoke()
+            assert request_entered[2].wait(timeout=2)
+            assert app.busy and str(app.widgets["analyze_button"]["state"]) == "disabled"
+            app.run_primary_action()
+            app.start_analysis()
+            app.widgets["analyze_button"].invoke()
+            assert len(received) == 2
+            release_response[2].set()
+            pump(app.root, app)
+            _pump_idle(app)
+    
+            assert not handler_errors
+            assert len(received) == 2  # No automatic retry after a completed truncated response.
+            assert not app.busy and app.busy_kind is None
+            assert str(app.widgets["analyze_button"]["state"]) == "normal"
+            assert app.session.pending_requests == {}
+            _assert_preserved(before, app.session.to_dict())
+            assert app.primary_action_var.get() == "重试分析"
+            assert app._primary_action().kind == "retry_compact"
+            assert len(messages) == 1 and "截断" in messages[0][1]
+            assert "回答" in messages[0][1] and "保留" in messages[0][1]
+            assert app.session.api_runs[-1]["status"] == "truncated"
+            assert app.session.api_runs[-1]["usage"] == PARTIAL_USAGE
+    
+            second_payload = received[1]["payload"]
+            assert second_payload["state"]["question_history"] == before["question_history"]
+            assert second_payload["sources"] == before["sources"]
+            failed, metadata, check = _evidence_by_request(tmp_path / "calls")[second_payload["request_id"]]
+            assert check["failure_kind"] == "truncated"
+            assert check["schema"] == check["semantic"] == "not_reached"
+            assert (failed / "response.raw.txt").read_text(encoding="utf-8") == PARTIAL_JSON
+            assert metadata["usage"] == PARTIAL_USAGE
+            assert metadata["provider_response_id"] == "truncated-2"
+            assert metadata["model"] == "local-truncation-model"
+            assert metadata["request_mode"] == "incremental"
+&gt;           assert metadata["prompt_version"] == "M1_incremental_v0.4"
+E           AssertionError: assert 'M1_incremental_v0.15' == 'M1_incremental_v0.4'
+E             
+E             - M1_incremental_v0.4
+E             ?                   ^
+E             + M1_incremental_v0.15
+E             ?                   ^^
+
+tests\test_m1_truncation_ui.py:159: AssertionError</failure></testcase><testcase classname="tests.test_m1_truncation_ui" name="test_second_round_truncation_preserves_answers_and_requires_explicit_compact_retry[retry-still-truncated]" time="0.611"><failure message="AssertionError: assert 'M1_incremental_v0.15' == 'M1_incremental_v0.4'&#10;  &#10;  - M1_incremental_v0.4&#10;  ?                   ^&#10;  + M1_incremental_v0.15&#10;  ?                   ^^">app = &lt;promptsmith.ui.PromptSmithApp object at 0x0000025E56CD2690&gt;
+tmp_path = WindowsPath('C:/Users/yph/AppData/Local/Temp/pytest-of-yph/pytest-1822/test_second_round_truncation_p1')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000025E56CD2850&gt;
+retry_truncated = True
+
+    @pytest.mark.parametrize("retry_truncated", [False, True], ids=["retry-success", "retry-still-truncated"])
+    def test_second_round_truncation_preserves_answers_and_requires_explicit_compact_retry(
+        app, tmp_path, monkeypatch, retry_truncated
+    ):
+        received = []
+        request_entered = {2: threading.Event(), 3: threading.Event()}
+        release_response = {2: threading.Event(), 3: threading.Event()}
+        handler_errors = []
+    
+        class Handler(BaseHTTPRequestHandler):
+            def do_POST(self):
+                try:
+                    body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+                    payload = json.loads(body["messages"][1]["content"])
+                    received.append({"body": body, "payload": payload})
+                    call = len(received)
+                    if call in request_entered:
+                        request_entered[call].set()
+                        assert release_response[call].wait(timeout=3), "测试没有释放本地截断响应。"
+                    if call == 2 or (call == 3 and retry_truncated):
+                        raw = json.dumps({
+                            "id": f"truncated-{call}", "model": "local-truncation-model",
+                            "choices": [{"finish_reason": "length", "message": {"content": PARTIAL_JSON}}],
+                            "usage": PARTIAL_USAGE,
+                        }, ensure_ascii=False).encode("utf-8")
+                    else:
+                        raw = envelope(jgs_response(payload))
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(raw)))
+                    self.end_headers()
+                    self.wfile.write(raw)
+                except Exception as exc:
+                    handler_errors.append(repr(exc))
+    
+            def log_message(self, *_args):
+                pass
+    
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        thread = threading.Thread(target=lambda: server.serve_forever(poll_interval=0.01), daemon=True)
+        thread.start()
+        messages = []
+        monkeypatch.setattr("promptsmith.ui.messagebox.showerror", lambda *args, **_kwargs: messages.append(args))
+        app.api_base_var.set(f"http://127.0.0.1:{server.server_port}")
+        app.api_key_var.set("test-only-key")
+        try:
+            _start_and_answer(app)
+            assert not messages
+            before = deepcopy(app.session.to_dict())
+    
+            app.widgets["analyze_button"].invoke()
+            assert request_entered[2].wait(timeout=2)
+            assert app.busy and str(app.widgets["analyze_button"]["state"]) == "disabled"
+            app.run_primary_action()
+            app.start_analysis()
+            app.widgets["analyze_button"].invoke()
+            assert len(received) == 2
+            release_response[2].set()
+            pump(app.root, app)
+            _pump_idle(app)
+    
+            assert not handler_errors
+            assert len(received) == 2  # No automatic retry after a completed truncated response.
+            assert not app.busy and app.busy_kind is None
+            assert str(app.widgets["analyze_button"]["state"]) == "normal"
+            assert app.session.pending_requests == {}
+            _assert_preserved(before, app.session.to_dict())
+            assert app.primary_action_var.get() == "重试分析"
+            assert app._primary_action().kind == "retry_compact"
+            assert len(messages) == 1 and "截断" in messages[0][1]
+            assert "回答" in messages[0][1] and "保留" in messages[0][1]
+            assert app.session.api_runs[-1]["status"] == "truncated"
+            assert app.session.api_runs[-1]["usage"] == PARTIAL_USAGE
+    
+            second_payload = received[1]["payload"]
+            assert second_payload["state"]["question_history"] == before["question_history"]
+            assert second_payload["sources"] == before["sources"]
+            failed, metadata, check = _evidence_by_request(tmp_path / "calls")[second_payload["request_id"]]
+            assert check["failure_kind"] == "truncated"
+            assert check["schema"] == check["semantic"] == "not_reached"
+            assert (failed / "response.raw.txt").read_text(encoding="utf-8") == PARTIAL_JSON
+            assert metadata["usage"] == PARTIAL_USAGE
+            assert metadata["provider_response_id"] == "truncated-2"
+            assert metadata["model"] == "local-truncation-model"
+            assert metadata["request_mode"] == "incremental"
+&gt;           assert metadata["prompt_version"] == "M1_incremental_v0.4"
+E           AssertionError: assert 'M1_incremental_v0.15' == 'M1_incremental_v0.4'
+E             
+E             - M1_incremental_v0.4
+E             ?                   ^
+E             + M1_incremental_v0.15
+E             ?                   ^^
+
+tests\test_m1_truncation_ui.py:159: AssertionError</failure></testcase><testcase classname="tests.test_m1_truncation_ui" name="test_nontruncation_failures_keep_distinct_kinds_and_do_not_offer_compact_retry[json_error]" time="0.568"><failure message="AssertionError: assert 4 == 2&#10; +  where 4 = len([{'base_version': 1, 'category_config': {'category_fields': {'coding': ['use_context', 'features', 'runtime', 'existin...context_coverage': 'complete', 'current_date': '2026-10-08', 'max_questions': 3, ...}, 'current_source_id': 'u3', ...}])">app = &lt;promptsmith.ui.PromptSmithApp object at 0x0000025E56D73FD0&gt;
+tmp_path = WindowsPath('C:/Users/yph/AppData/Local/Temp/pytest-of-yph/pytest-1822/test_nontruncation_failures_ke0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000025E56D97190&gt;
+failure_kind = 'json_error'
+
+    @pytest.mark.parametrize("failure_kind", ["json_error", "network", "timeout"])
+    def test_nontruncation_failures_keep_distinct_kinds_and_do_not_offer_compact_retry(
+        app, tmp_path, monkeypatch, failure_kind
+    ):
+        received = []
+        malformed = '{"schema_version":'
+    
+        class Handler(BaseHTTPRequestHandler):
+            def do_POST(self):
+                body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+                payload = json.loads(body["messages"][1]["content"])
+                received.append(payload)
+                if len(received) == 1:
+                    raw = envelope(jgs_response(payload))
+                else:
+                    raw = json.dumps({
+                        "id": "malformed-completed", "model": "malformed-fixture",
+                        "choices": [{"finish_reason": "stop", "message": {"content": malformed}}],
+                        "usage": {"total_tokens": 30},
+                    }).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(raw)))
+                self.end_headers()
+                self.wfile.write(raw)
+    
+            def log_message(self, *_args):
+                pass
+    
+        class FailingClient:
+            def __init__(self):
+                self.calls = 0
+    
+            def complete_json(self, *_args):
+                self.calls += 1
+                if failure_kind == "timeout":
+                    raise ApiError("timeout", "fixture timeout", latency_ms=120001, timeout_seconds=120)
+                raise ApiError("network", "无法连接模型接口，请检查网络。", latency_ms=20)
+    
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        thread = threading.Thread(target=lambda: server.serve_forever(poll_interval=0.01), daemon=True)
+        thread.start()
+        messages = []
+        monkeypatch.setattr("promptsmith.ui.messagebox.showerror", lambda *args, **_kwargs: messages.append(args))
+        app.api_base_var.set(f"http://127.0.0.1:{server.server_port}")
+        app.api_key_var.set("test-only-key")
+        try:
+            _start_and_answer(app)
+            before = deepcopy(app.session.to_dict())
+            fake = FailingClient()
+            if failure_kind != "json_error":
+                monkeypatch.setattr(app, "_client", lambda _config: fake)
+            app.widgets["analyze_button"].invoke()
+            pump(app.root, app)
+            _pump_idle(app)
+            _assert_preserved(before, app.session.to_dict())
+            assert not app.busy and app.busy_kind is None
+            assert app.session.pending_requests == {}
+            assert app.primary_action_var.get() == "重试分析"
+            assert app._primary_action().kind == "analyze_answer"
+            assert app.session.api_runs[-1]["status"] == failure_kind
+            assert app.session.errors[-1]["kind"] == failure_kind
+            assert len(messages) == 1
+            assert "截断" not in messages[0][1]
+            last = app.session.api_runs[-1]
+            failed = Path(last["evidence_dir"])
+            check = json.loads((failed / "check.json").read_text(encoding="utf-8"))
+            assert check["failure_kind"] == failure_kind
+            if failure_kind == "json_error":
+&gt;               assert len(received) == 2
+E               AssertionError: assert 4 == 2
+E                +  where 4 = len([{'base_version': 1, 'category_config': {'category_fields': {'coding': ['use_context', 'features', 'runtime', 'existin...context_coverage': 'complete', 'current_date': '2026-10-08', 'max_questions': 3, ...}, 'current_source_id': 'u3', ...}])
+
+tests\test_m1_truncation_ui.py:305: AssertionError</failure></testcase><testcase classname="tests.test_m1_truncation_ui" name="test_nontruncation_failures_keep_distinct_kinds_and_do_not_offer_compact_retry[network]" time="0.552" /><testcase classname="tests.test_m1_truncation_ui" name="test_nontruncation_failures_keep_distinct_kinds_and_do_not_offer_compact_retry[timeout]" time="0.543" /><testcase classname="tests.test_m2" name="test_m2_example_fixtures_are_schema_valid_and_marked_as_manual" time="0.003" /><testcase classname="tests.test_m2" name="test_m2_entry_rejects_unready_requirements_before_starting_request[&lt;lambda&gt;0]" time="0.001" /><testcase classname="tests.test_m2" name="test_m2_entry_rejects_unready_requirements_before_starting_request[&lt;lambda&gt;1]" time="0.001" /><testcase classname="tests.test_m2" name="test_m2_entry_rejects_unready_requirements_before_starting_request[&lt;lambda&gt;2]" time="0.001" /><testcase classname="tests.test_m2" name="test_m2_entry_rejects_unready_requirements_before_starting_request[&lt;lambda&gt;3]" time="0.001" /><testcase classname="tests.test_m2" name="test_m2_entry_rejects_unready_requirements_before_starting_request[&lt;lambda&gt;4]" time="0.001" /><testcase classname="tests.test_m2" name="test_m2_input_contains_confirmed_requirements_unknowns_and_category" time="0.002" /><testcase classname="tests.test_m2" name="test_m2_input_adapts_unspecified_strength_without_mutating_requirement" time="0.002" /><testcase classname="tests.test_m2" name="test_m2_semantic_validation_rejects_invalid_plan[missing_coverage]" time="0.003" /><testcase classname="tests.test_m2" name="test_m2_semantic_validation_rejects_invalid_plan[bad_reference]" time="0.003" /><testcase classname="tests.test_m2" name="test_m2_semantic_validation_rejects_invalid_plan[cycle]" time="0.003" /><testcase classname="tests.test_m2" name="test_m2_semantic_validation_rejects_invalid_plan[missing_unknown]" time="0.003" /><testcase classname="tests.test_m2" name="test_structured_error_branch_is_valid_but_cannot_be_applied" time="0.002" /><testcase classname="tests.test_m2" name="test_m2_plan_draft_edit_review_confirm_and_round_trip" time="0.015" /><testcase classname="tests.test_m2" name="test_regeneration_archives_previous_plan" time="0.006" /><testcase classname="tests.test_m2" name="test_requirement_change_keeps_old_plan_but_marks_it_stale" time="0.003" /><testcase classname="tests.test_m2" name="test_m2_late_response_is_rejected_after_plan_edit" time="0.006" /><testcase classname="tests.test_m2" name="test_request_connection_version_is_bound_in_program_state" time="0.002" /><testcase classname="tests.test_m2" name="test_step_edit_add_move_and_delete_preserve_requirements_and_plan_rules" time="0.003" /><testcase classname="tests.test_m2" name="test_referenced_step_cannot_be_deleted_silently" time="0.003" /><testcase classname="tests.test_m2" name="test_structured_plan_sections_are_editable_without_changing_requirements" time="0.003" /><testcase classname="tests.test_m2_categories" name="test_all_entry_categories_use_the_same_m2_contract[writing-style]" time="0.002" /><testcase classname="tests.test_m2_categories" name="test_all_entry_categories_use_the_same_m2_contract[presentation-duration]" time="0.002" /><testcase classname="tests.test_m2_categories" name="test_all_entry_categories_use_the_same_m2_contract[learning-baseline]" time="0.002" /><testcase classname="tests.test_m2_categories" name="test_all_entry_categories_use_the_same_m2_contract[planning_research-evidence_policy]" time="0.002" /><testcase classname="tests.test_m2_categories" name="test_all_entry_categories_use_the_same_m2_contract[data_analysis-metric_definition]" time="0.002" /><testcase classname="tests.test_m2_categories" name="test_all_entry_categories_use_the_same_m2_contract[coding-runtime]" time="0.002" /><testcase classname="tests.test_m2_categories" name="test_all_entry_categories_use_the_same_m2_contract[general-goal]" time="0.002" /><testcase classname="tests.test_m2_workflow" name="test_workflow_generates_and_records_m2_draft" time="0.013" /><testcase classname="tests.test_m2_workflow" name="test_workflow_structured_error_keeps_existing_plan" time="0.011" /><testcase classname="tests.test_m2_workflow" name="test_m1_and_m2_pending_request_purposes_are_isolated" time="0.005" /><testcase classname="tests.test_m2_workflow" name="test_m2_truncation_preserves_partial_response_usage_and_existing_state" time="0.022" /><testcase classname="tests.test_m2_workflow" name="test_m2_v02_prompt_is_loaded_and_packaged" time="0.003" /><testcase classname="tests.test_m3_m4" name="test_m3_manual_normal_fixture_parses_and_maps_only_real_input_references" time="0.004" /><testcase classname="tests.test_m3_m4" name="test_m3_manual_no_match_fixture_marks_the_real_work_unmatched" time="0.003" /><testcase classname="tests.test_m3_m4" name="test_m3_rejects_invalid_candidate_coverage_and_references[omit-\u9057\u6f0f]" time="0.004" /><testcase classname="tests.test_m3_m4" name="test_m3_rejects_invalid_candidate_coverage_and_references[duplicate-\u91cd\u590d]" time="0.004" /><testcase classname="tests.test_m3_m4" name="test_m3_rejects_invalid_candidate_coverage_and_references[candidate-\u5019\u9009]" time="0.004" /><testcase classname="tests.test_m3_m4" name="test_m3_rejects_invalid_candidate_coverage_and_references[capability-\u80fd\u529b]" time="0.004" /><testcase classname="tests.test_m3_m4" name="test_m3_rejects_invalid_candidate_coverage_and_references[prerequisite-\u524d\u63d0]" time="0.004" /><testcase classname="tests.test_m3_m4" name="test_m3_rejects_invalid_candidate_coverage_and_references[unmatched-\u65e0\u5339\u914d]" time="0.004" /><testcase classname="tests.test_m3_m4" name="test_m3_rejects_invalid_candidate_coverage_and_references[request-request_id]" time="0.004" /><testcase classname="tests.test_m3_m4" name="test_m3_error_branch_is_exclusive_and_has_no_fake_http_details" time="0.006" /><testcase classname="tests.test_m3_m4" name="test_build_m3_input_uses_candidate_snapshot_and_validates_payload" time="0.003" /><testcase classname="tests.test_m3_m4" name="test_build_m3_input_converts_a_real_local_catalog_match" time="0.005" /><testcase classname="tests.test_m3_m4" name="test_build_m3_input_preserves_remote_source_provenance" time="0.003" /><testcase classname="tests.test_m3_m4" name="test_build_m4_input_accepts_optional_remote_source_provenance" time="0.005" /><testcase classname="tests.test_m3_m4" name="test_build_m4_input_accepts_search_metadata_provenance" time="0.003" /><testcase classname="tests.test_m3_m4" name="test_m4_manual_normal_fixture_requires_complete_selected_binding_coverage" time="0.004" /><testcase classname="tests.test_m3_m4" name="test_m4_no_binding_fixture_allows_a_zero_contribution_result" time="0.003" /><testcase classname="tests.test_m3_m4" name="test_m4_rejects_missing_coverage_and_unknown_or_duplicate_references[missing_binding-\u7ed1\u5b9a]" time="0.004" /><testcase classname="tests.test_m3_m4" name="test_m4_rejects_missing_coverage_and_unknown_or_duplicate_references[unselected_binding-\u7ed1\u5b9a]" time="0.004" /><testcase classname="tests.test_m3_m4" name="test_m4_rejects_missing_coverage_and_unknown_or_duplicate_references[step-\u6b65\u9aa4]" time="0.004" /><testcase classname="tests.test_m3_m4" name="test_m4_rejects_missing_coverage_and_unknown_or_duplicate_references[capability-\u80fd\u529b]" time="0.004" /><testcase classname="tests.test_m3_m4" name="test_m4_rejects_missing_coverage_and_unknown_or_duplicate_references[prerequisite-\u524d\u63d0]" time="0.004" /><testcase classname="tests.test_m3_m4" name="test_m4_rejects_missing_coverage_and_unknown_or_duplicate_references[duplicate_pair-\u91cd\u590d]" time="0.004" /><testcase classname="tests.test_m3_m4" name="test_m4_rejects_missing_coverage_and_unknown_or_duplicate_references[unknown_change-\u53d8\u5316]" time="0.004" /><testcase classname="tests.test_m3_m4" name="test_m4_rejects_missing_coverage_and_unknown_or_duplicate_references[duplicate_change-\u91cd\u590d]" time="0.004" /><testcase classname="tests.test_m3_m4" name="test_m4_rejects_missing_coverage_and_unknown_or_duplicate_references[baseline_rewrite-\u4e0d\u7b26\u5408\u5951\u7ea6]" time="0.004" /><testcase classname="tests.test_m3_m4" name="test_m4_rejects_missing_coverage_and_unknown_or_duplicate_references[accepted_field-\u4e0d\u7b26\u5408\u5951\u7ea6]" time="0.004" /><testcase classname="tests.test_m3_m4" name="test_m4_error_branch_is_exclusive" time="0.006" /><testcase classname="tests.test_m3_m4" name="test_build_m4_input_is_a_validated_deep_copy" time="0.003" /><testcase classname="tests.test_m3_m4" name="test_m4_unknown_blocking_prerequisite_requires_reference_and_fallback[omitted_prerequisite]" time="0.004" /><testcase classname="tests.test_m3_m4" name="test_m4_unknown_blocking_prerequisite_requires_reference_and_fallback[missing_fallback]" time="0.004" /><testcase classname="tests.test_m3_m4" name="test_m4_unknown_blocking_prerequisite_accepts_an_explicit_fallback" time="0.004" /><testcase classname="tests.test_m3_m4" name="test_m4_input_schema_has_local_environment_definition" time="0.001" /><testcase classname="tests.test_m5_asset_version" name="test_current_m5_prompt_revision_keeps_the_existing_contract_and_old_prompt" time="0.002" /><testcase classname="tests.test_m5_feedback_provenance" name="test_accepted_m5_feedback_has_user_source_in_m1_and_saved_session" time="0.017" /><testcase classname="tests.test_m5_feedback_provenance" name="test_m5_choice_only_source_does_not_claim_example_details" time="0.005" /><testcase classname="tests.test_m5_feedback_provenance" name="test_m5_candidate_with_no_feedback_origin_is_rejected_atomically" time="0.005" /><testcase classname="tests.test_m5_feedback_provenance" name="test_accepting_m5_feedback_invalidates_prior_m1_readiness" time="0.005" /><testcase classname="tests.test_m5_feedback_provenance" name="test_m5_batch_failure_rolls_back_new_sources_and_feedback_links" time="0.005" /><testcase classname="tests.test_m5_workflow" name="test_m5_rejects_unprovided_equipment_action_in_example" time="0.005" /><testcase classname="tests.test_m5_workflow" name="test_m5_workflow_registers_request_and_applies_example" time="0.014" /><testcase classname="tests.test_m5_workflow" name="test_m5_transport_failure_preserves_requirements_and_records_missing_usage" time="0.013" /><testcase classname="tests.test_m5_workflow" name="test_m5_apply_rejects_response_after_task_change" time="0.014" /><testcase classname="tests.test_m5_workflow" name="test_m5_example_becomes_stale_when_requirements_change" time="0.052" /><testcase classname="tests.test_mousewheel" name="test_page_wheel_works_over_label_empty_text_tree_and_entry" time="0.534" /><testcase classname="tests.test_mousewheel" name="test_long_text_and_tree_scroll_inside_then_page_takes_next_event" time="0.479" /><testcase classname="tests.test_mousewheel" name="test_readonly_details_uses_inner_scroll_and_then_page_at_boundary" time="0.519" /><testcase classname="tests.test_mousewheel" name="test_plan_page_scrolls_independently_when_content_overflows" time="0.663" /><testcase classname="tests.test_mousewheel" name="test_plan_page_without_overflow_stays_stable" time="0.453" /><testcase classname="tests.test_mousewheel" name="test_open_dialog_wheel_isolated_from_main_page" time="0.478" /><testcase classname="tests.test_mousewheel" name="test_menu_is_outside_page_wheel_routing" time="0.461" /><testcase classname="tests.test_mousewheel" name="test_fractional_delta_and_target_changes_do_not_leak_or_double_scroll" time="0.458" /><testcase classname="tests.test_mousewheel" name="test_combobox_wheel_does_not_change_value_or_route_shift_to_vertical" time="0.520" /><testcase classname="tests.test_mousewheel" name="test_shift_wheel_keeps_horizontal_scroll_on_long_text" time="0.507" /><testcase classname="tests.test_mousewheel" name="test_expanded_combobox_list_wheel_does_not_scroll_background" time="0.518" /><testcase classname="tests.test_mousewheel" name="test_refresh_reuses_bindings_and_scroll_does_not_mutate_business_state" time="0.553" /><testcase classname="tests.test_mousewheel" name="test_unique_wheel_binding_is_removed_on_shutdown" time="0.400" /><testcase classname="tests.test_no_skill_final_categories" name="test_no_skill_final_assembly_preserves_each_task_category[writing]" time="0.001" /><testcase classname="tests.test_no_skill_final_categories" name="test_no_skill_final_assembly_preserves_each_task_category[presentation]" time="0.001" /><testcase classname="tests.test_no_skill_final_categories" name="test_no_skill_final_assembly_preserves_each_task_category[learning]" time="0.001" /><testcase classname="tests.test_no_skill_final_categories" name="test_no_skill_final_assembly_preserves_each_task_category[planning_research]" time="0.001" /><testcase classname="tests.test_no_skill_final_categories" name="test_no_skill_final_assembly_preserves_each_task_category[data_analysis]" time="0.001" /><testcase classname="tests.test_no_skill_final_categories" name="test_no_skill_final_assembly_preserves_each_task_category[coding]" time="0.001" /><testcase classname="tests.test_no_skill_final_categories" name="test_no_skill_final_assembly_preserves_each_task_category[general]" time="0.001" /><testcase classname="tests.test_open_skill_search" name="test_web_search_does_not_return_ordinary_websites_as_agent_skills" time="0.001" /><testcase classname="tests.test_open_skill_search" name="test_search_planning_targets_agent_skill_artifacts" time="0.001" /><testcase classname="tests.test_open_skill_search" name="test_fallback_web_queries_include_agent_skill_artifact_marker" time="0.001" /><testcase classname="tests.test_open_skill_search" name="test_explicit_web_queries_are_also_scoped_to_agent_skills" time="0.001" /><testcase classname="tests.test_open_skill_search" name="test_default_web_search_reads_bing_rss_skill_result" time="0.001" /><testcase classname="tests.test_open_skill_search" name="test_default_web_search_falls_back_when_bing_returns_challenge" time="0.001" /><testcase classname="tests.test_open_skill_search" name="test_custom_web_endpoint_failure_continues_with_public_fallback" time="0.001" /><testcase classname="tests.test_open_skill_search" name="test_web_search_reads_github_blob_skill_as_raw_markdown" time="0.001" /><testcase classname="tests.test_open_skill_search" name="test_web_search_reports_source_failure_instead_of_empty_match" time="0.001" /><testcase classname="tests.test_open_skill_search" name="test_web_search_does_not_offer_unread_skill_url_as_candidate" time="0.001" /><testcase classname="tests.test_open_skill_search" name="test_search_result_fallback_rejects_non_skill_pages" time="0.001" /><testcase classname="tests.test_open_skill_search" name="test_github_root_skill_blob_is_downloaded_as_raw_markdown" time="0.001" /><testcase classname="tests.test_open_skill_search" name="test_duckduckgo_challenge_is_reported_as_source_failure" time="0.001" /><testcase classname="tests.test_question_display" name="test_guided_question_formatter_keeps_question_options_and_reason_in_one_paragraph" time="0.001" /><testcase classname="tests.test_question_display" name="test_guided_question_formatter_supports_multiple_questions_with_complete_bodies" time="0.001" /><testcase classname="tests.test_question_display" name="test_guided_context_appends_draft_explanation_to_question_body_inline" time="0.000" /><testcase classname="tests.test_question_display" name="test_guided_interpretations_are_rendered_as_part_of_the_question_body" time="0.001" /><testcase classname="tests.test_release_chain" name="test_source_release_chain_uses_http_and_persists_final_artifacts" time="1.686" /><testcase classname="tests.test_reliability" name="test_task_change_invalidates_analysis_and_blocks_old_requirement_confirmation" time="0.001" /><testcase classname="tests.test_reliability" name="test_withdrawing_only_directional_requirement_blocks_confirmation" time="0.001" /><testcase classname="tests.test_reliability" name="test_batch_accept_is_atomic_when_one_candidate_is_stale" time="0.001" /><testcase classname="tests.test_reliability" name="test_repeated_accept_never_adds_duplicate_requirement" time="0.001" /><testcase classname="tests.test_reliability" name="test_accepting_new_conflicting_requirement_keeps_conflict_open" time="0.001" /><testcase classname="tests.test_reliability" name="test_partial_multi_candidate_conflict_does_not_close_early" time="0.001" /><testcase classname="tests.test_reliability" name="test_skipped_gap_survives_when_model_omits_it" time="0.001" /><testcase classname="tests.test_reliability" name="test_old_gap_survives_new_same_field_scope_gap_with_a_different_id" time="0.001" /><testcase classname="tests.test_reliability" name="test_answer_keeps_the_corresponding_gap_pending_until_model_assessment" time="0.001" /><testcase classname="tests.test_reliability" name="test_edit_redirects_dependencies_and_marks_dependents_for_review" time="0.001" /><testcase classname="tests.test_reliability" name="test_missing_review_item_id_is_rejected" time="0.003" /><testcase classname="tests.test_reliability" name="test_repeating_skipped_question_without_new_context_is_rejected" time="0.002" /><testcase classname="tests.test_reliability" name="test_edit_while_request_is_running_rejects_late_response" time="0.001" /><testcase classname="tests.test_reliability" name="test_round_trip_preserves_reliability_state" time="0.020" /><testcase classname="tests.test_reliability" name="test_build_input_never_contains_archived_dependency" time="0.004" /><testcase classname="tests.test_reliability" name="test_build_input_rejects_any_dangling_active_reference_before_starting_request" time="0.001" /><testcase classname="tests.test_reliability" name="test_edit_redirects_safe_candidate_dependency_but_invalidates_old_target" time="0.001" /><testcase classname="tests.test_reliability" name="test_same_field_scope_known_requirement_does_not_close_budget_unknown" time="0.001" /><testcase classname="tests.test_reliability" name="test_question_answers_only_close_a_clear_answer[answered-\u6211\u4e0d\u77e5\u9053-True]" time="0.001" /><testcase classname="tests.test_reliability" name="test_question_answers_only_close_a_clear_answer[answered-\u59d3\u540d\u548c\u7535\u8bdd\uff0c\u5176\u4ed6\u5b57\u6bb5\u4ee5\u540e\u518d\u5b9a-True]" time="0.001" /><testcase classname="tests.test_reliability" name="test_question_answers_only_close_a_clear_answer[skipped--True]" time="0.001" /><testcase classname="tests.test_reliability" name="test_question_answers_only_close_a_clear_answer[answered-\u8bfe\u5802\u6f14\u793a-True]" time="0.001" /><testcase classname="tests.test_reliability" name="test_program_review_survives_empty_model_review_list_until_user_review" time="0.001" /><testcase classname="tests.test_reliability" name="test_replacement_or_withdrawal_removes_archived_ids_from_review_list[replace]" time="0.001" /><testcase classname="tests.test_reliability" name="test_replacement_or_withdrawal_removes_archived_ids_from_review_list[withdraw]" time="0.001" /><testcase classname="tests.test_reliability" name="test_edit_updates_gap_and_question_dependencies_and_legal_next_response" time="0.005" /><testcase classname="tests.test_reliability" name="test_different_scopes_can_repeat_field_but_same_scope_cannot" time="0.005" /><testcase classname="tests.test_reliability" name="test_confirmation_rejects_truncated_context_and_readiness_mismatch" time="0.001" /><testcase classname="tests.test_runlog" name="test_run_evidence_uses_unique_location_when_timestamp_and_request_repeat" time="0.011" /><testcase classname="tests.test_runlog" name="test_run_evidence_preserves_raw_response_and_never_writes_key" time="0.022" /><testcase classname="tests.test_session" name="test_new_session_records_task_as_user_source_and_invalidates_downstream" time="0.001" /><testcase classname="tests.test_session" name="test_skill_search_url_is_persisted_in_session_control" time="0.001" /><testcase classname="tests.test_session" name="test_staging_questions_does_not_consume_legacy_round_budget" time="0.001" /><testcase classname="tests.test_session" name="test_late_response_is_rejected_after_task_change" time="0.001" /><testcase classname="tests.test_session" name="test_model_candidate_never_confirms_until_user_event" time="0.001" /><testcase classname="tests.test_session" name="test_answer_skip_and_unsure_are_recorded_without_inventing_answers" time="0.001" /><testcase classname="tests.test_session" name="test_manual_edit_replaces_item_and_invalidates_confirmation" time="0.001" /><testcase classname="tests.test_session" name="test_user_can_dismiss_model_candidates_without_changing_requirements" time="0.001" /><testcase classname="tests.test_skill_ai_selection" name="test_discovery_offers_all_local_files_for_model_review" time="0.014" /><testcase classname="tests.test_skill_ai_selection" name="test_model_reads_source_and_selects_indirectly_useful_skill" time="0.015" /><testcase classname="tests.test_skill_ai_selection" name="test_ai_selection_requires_agent_skills_not_general_methods" time="0.012" /><testcase classname="tests.test_skill_ai_selection" name="test_changed_source_is_rejected_before_model_call" time="0.020" /><testcase classname="tests.test_skill_ai_selection" name="test_bad_model_response_is_visible_failure" time="0.009" /><testcase classname="tests.test_skill_ai_selection" name="test_model_can_reject_all_skills" time="0.008" /><testcase classname="tests.test_skill_ai_selection" name="test_model_can_bind_skill_to_best_key_work" time="0.011" /><testcase classname="tests.test_skill_ai_selection" name="test_remote_source_text_must_match_verified_hash" time="0.001" /><testcase classname="tests.test_skill_ai_selection" name="test_model_relevance_scores_order_selected_skills" time="0.012" /><testcase classname="tests.test_skill_ai_selection" name="test_model_can_review_builtin_catalog_candidate_from_summary_evidence" time="0.003" /><testcase classname="tests.test_skill_catalog" name="test_catalog_loads_real_records_and_verifies_source_hashes" time="0.004"><failure message="assert False&#10; +  where False = all(&lt;generator object test_catalog_loads_real_records_and_verifies_source_hashes.&lt;locals&gt;.&lt;genexpr&gt; at 0x0000025E57496E90&gt;)">def test_catalog_loads_real_records_and_verifies_source_hashes() -&gt; None:
+        catalog = SkillCatalog.load(CATALOG, source_root=ROOT, verify_sources=True)
+    
+        assert catalog.schema_version == "catalog.v0.1"
+        assert [row["skill_id"] for row in catalog.records] == [
+            "to-spec",
+            "domain-modeling",
+            "goal-prompt",
+        ]
+        assert catalog.snapshot_hash
+        verification = catalog.verify_sources(ROOT)
+&gt;       assert all(row["source_exists"] for row in verification.values())
+E       assert False
+E        +  where False = all(&lt;generator object test_catalog_loads_real_records_and_verifies_source_hashes.&lt;locals&gt;.&lt;genexpr&gt; at 0x0000025E57496E90&gt;)
+
+tests\test_skill_catalog.py:26: AssertionError</failure></testcase><testcase classname="tests.test_skill_catalog" name="test_default_catalog_path_uses_project_resource_root" time="0.003" /><testcase classname="tests.test_skill_catalog" name="test_legacy_work_signals_explain_matches_without_borrowing_task_context" time="0.010" /><testcase classname="tests.test_skill_catalog" name="test_matching_is_deterministic_and_bounded" time="0.003"><failure message="AssertionError: assert 'incompatible' == 'ok'&#10;  &#10;  - ok&#10;  + incompatible">def test_matching_is_deterministic_and_bounded() -&gt; None:
+        catalog = SkillCatalog.load(CATALOG, source_root=ROOT, verify_sources=True)
+        work = {
+            "key_work_id": "kw-spec",
+            "title": "整理软件开发规格",
+            "goal": "把需求、用户故事、实现决定和测试策略整理成规格文档",
+            "inputs": ["已确认需求", "范围边界"],
+            "outputs": ["本地规格文档"],
+            "checkpoints": ["每条要求有对应测试决定"],
+            "step_ids": ["step-spec"],
+        }
+    
+        first = catalog.match([work])
+        second = catalog.match([work])
+    
+&gt;       assert first.status == "ok"
+E       AssertionError: assert 'incompatible' == 'ok'
+E         
+E         - ok
+E         + incompatible
+
+tests\test_skill_catalog.py:76: AssertionError</failure></testcase><testcase classname="tests.test_skill_catalog" name="test_catalog_record_is_selectable_without_shipping_original_source_files" time="0.002" /><testcase classname="tests.test_skill_catalog" name="test_writing_notice_has_no_false_positive_match" time="0.003" /><testcase classname="tests.test_skill_catalog" name="test_domain_modeling_matches_explicit_domain_terms_and_relationship_work" time="0.003"><failure message="AssertionError: assert 'incompatible' == 'ok'&#10;  &#10;  - ok&#10;  + incompatible">def test_domain_modeling_matches_explicit_domain_terms_and_relationship_work() -&gt; None:
+        catalog = SkillCatalog.load(CATALOG, source_root=ROOT, verify_sources=True)
+        work = {
+            "key_work_id": "kw-domain",
+            "title": "澄清报名系统领域术语与实体关系",
+            "goal": "形成成员、活动、报名之間的关系说明和术语表",
+            "inputs": ["已确认的报名流程"],
+            "outputs": ["领域术语表", "实体关系说明"],
+            "checkpoints": ["业务对象和关系均有来源说明"],
+        }
+    
+        result = catalog.match([work])
+    
+&gt;       assert result.status == "ok"
+E       AssertionError: assert 'incompatible' == 'ok'
+E         
+E         - ok
+E         + incompatible
+
+tests\test_skill_catalog.py:136: AssertionError</failure></testcase><testcase classname="tests.test_skill_catalog" name="test_generic_goal_checklist_does_not_match_goal_prompt_from_weak_goal_term" time="0.003" /><testcase classname="tests.test_skill_catalog" name="test_software_spec_candidate_explains_the_specific_matching_work" time="0.003"><failure message="AssertionError: assert 'incompatible' == 'ok'&#10;  &#10;  - ok&#10;  + incompatible">def test_software_spec_candidate_explains_the_specific_matching_work() -&gt; None:
+        catalog = SkillCatalog.load(CATALOG, source_root=ROOT, verify_sources=True)
+        work = {
+            "key_work_id": "kw-registration-spec",
+            "title": "整理软件报名系统规格",
+            "goal": "把已确认的软件需求整理成用户故事、实现决定和测试决定",
+            "inputs": ["已确认的软件功能需求", "范围边界"],
+            "outputs": ["本地软件规格文档"],
+            "checkpoints": ["每条软件要求有对应测试决定"],
+        }
+    
+        result = catalog.match([work])
+    
+&gt;       assert result.status == "ok"
+E       AssertionError: assert 'incompatible' == 'ok'
+E         
+E         - ok
+E         + incompatible
+
+tests\test_skill_catalog.py:174: AssertionError</failure></testcase><testcase classname="tests.test_skill_catalog" name="test_task_context_does_not_replace_required_specification_work_signal" time="0.003" /><testcase classname="tests.test_skill_catalog" name="test_software_context_and_generic_scope_do_not_make_notice_specification_work" time="0.002" /><testcase classname="tests.test_skill_catalog" name="test_confirmed_registration_tool_context_matches_each_d2_spec_work" time="0.003"><failure message="AssertionError: assert 'incompatible' == 'ok'&#10;  &#10;  - ok&#10;  + incompatible">def test_confirmed_registration_tool_context_matches_each_d2_spec_work() -&gt; None:
+        catalog = SkillCatalog.load(CATALOG, source_root=ROOT, verify_sources=True)
+        works = [
+            {
+                "key_work_id": "k1",
+                "title": "功能需求规格编写",
+                "goal": "把成员、管理员功能与报名规则整理为结构化需求。",
+                "inputs": ["已确认需求", "范围边界"],
+                "outputs": ["功能需求规格初稿"],
+                "checkpoints": ["每项功能和规则均有对应需求条目"],
+            },
+            {
+                "key_work_id": "k2",
+                "title": "测试要点编写",
+                "goal": "为已确认的功能和规则整理可核对的测试要点。",
+                "inputs": ["功能需求规格初稿"],
+                "outputs": ["测试要点初稿"],
+                "checkpoints": ["测试要点与需求条目一一对应"],
+            },
+            {
+                "key_work_id": "k3",
+                "title": "开发者可用性与演示标准复核",
+                "goal": "复核规格和测试要点能否支撑开发者与比赛演示。",
+                "inputs": ["需求规格", "测试要点"],
+                "outputs": ["复核意见与修订稿"],
+                "checkpoints": ["核心流程可支撑演示", "详略程度符合比赛定位"],
+            },
+        ]
+        task_context = "为社团活动报名工具整理可供开发者使用的需求规格与测试要点。"
+    
+        result = catalog.match(works, context_text=task_context)
+    
+&gt;       assert result.status == "ok"
+E       AssertionError: assert 'incompatible' == 'ok'
+E         
+E         - ok
+E         + incompatible
+
+tests\test_skill_catalog.py:247: AssertionError</failure></testcase><testcase classname="tests.test_skill_catalog" name="test_general_course_or_document_spec_work_does_not_match_to_spec[\u5e94\u7528\u6570\u5b66\u8bfe\u7a0b\u89c4\u683c\u7f16\u5199-\u5c06\u5e94\u7528\u6570\u5b66\u8bfe\u7a0b\u76ee\u6807\u3001\u7ae0\u8282\u4e0e\u6d4b\u8bd5\u5b89\u6392\u6574\u7406\u6210\u89c4\u683c]" time="0.003" /><testcase classname="tests.test_skill_catalog" name="test_general_course_or_document_spec_work_does_not_match_to_spec[\u8bfe\u7a0b\u5e94\u7528\u9700\u6c42\u89c4\u683c\u7f16\u5199-\u6574\u7406\u8bfe\u7a0b\u5e94\u7528\u9700\u6c42\u4e0e\u6d4b\u8bd5\u89c4\u683c]" time="0.003" /><testcase classname="tests.test_skill_catalog" name="test_general_course_or_document_spec_work_does_not_match_to_spec[\u7f51\u7ad9\u5185\u5bb9\u89c4\u683c\u6574\u7406-\u6574\u7406\u7f51\u7ad9\u680f\u76ee\u548c\u5185\u5bb9\u89c4\u683c]" time="0.003" /><testcase classname="tests.test_skill_catalog" name="test_general_course_or_document_spec_work_does_not_match_to_spec[\u6559\u5b66\u5de5\u5177\u9700\u6c42\u89c4\u683c\u7f16\u5199-\u6574\u7406\u6559\u5b66\u5de5\u5177\u7684\u8bfe\u7a0b\u9700\u6c42\u89c4\u683c]" time="0.003" /><testcase classname="tests.test_skill_catalog" name="test_general_course_or_document_spec_work_does_not_match_to_spec[\u6587\u6863\u5f00\u53d1\u89c4\u683c\u6574\u7406-\u6574\u7406\u6587\u6863\u7f16\u5236\u89c4\u683c\u4e0e\u68c0\u67e5\u8981\u70b9]" time="0.003" /><testcase classname="tests.test_skill_catalog" name="test_catalog_records_trace_fixed_sources_and_report_five_verification_levels" time="0.005" /><testcase classname="tests.test_skill_catalog" name="test_empty_catalog_is_distinct_from_no_match" time="0.007" /><testcase classname="tests.test_skill_catalog" name="test_malformed_catalog_is_rejected_without_falling_back" time="0.005" /><testcase classname="tests.test_skill_catalog" name="test_missing_source_is_reported_without_marking_skill_verified" time="0.007" /><testcase classname="tests.test_skill_catalog" name="test_missing_source_candidates_are_visible_but_not_selectable" time="0.006" /><testcase classname="tests.test_skill_catalog" name="test_changed_source_hash_is_reported_and_blocks_selection" time="0.009" /><testcase classname="tests.test_skill_catalog" name="test_incompatible_environment_is_marked_and_not_selectable" time="0.003" /><testcase classname="tests.test_skill_catalog" name="test_binding_catalog_consistency_accepts_unchanged_and_unrelated_updates" time="0.019" /><testcase classname="tests.test_skill_catalog" name="test_binding_catalog_consistency_detects_changed_or_missing_selected_record" time="0.026" /><testcase classname="tests.test_skill_catalog_untrusted_data" name="test_catalog_attack_string_remains_data_across_m3_without_execution" time="0.025" /><testcase classname="tests.test_skill_handoff" name="test_selected_github_skill_survives_m4_copy_export_and_reopen[search_metadata]" time="0.033" /><testcase classname="tests.test_skill_handoff" name="test_selected_github_skill_survives_m4_copy_export_and_reopen[api_metadata]" time="0.033" /><testcase classname="tests.test_skill_handoff" name="test_selected_github_skill_survives_m4_copy_export_and_reopen[source_content]" time="0.034" /><testcase classname="tests.test_skill_handoff" name="test_selected_github_skill_survives_m4_copy_export_and_reopen[source_verified]" time="0.034" /><testcase classname="tests.test_skill_handoff" name="test_local_skill_handoff_includes_name_path_and_portability" time="0.029" /><testcase classname="tests.test_skill_handoff" name="test_rebuild_removes_cancelled_skill_identity_and_source" time="0.003" /><testcase classname="tests.test_skill_network_discovery" name="test_network_eligibility_accepts_skill_md_identity_but_rejects_general_web_url" time="0.001" /><testcase classname="tests.test_skill_network_discovery" name="test_network_discovery_combines_sources_and_ai_reviews_originals" time="0.001" /><testcase classname="tests.test_skill_network_discovery" name="test_network_discovery_keeps_web_results_when_index_fails" time="0.001" /><testcase classname="tests.test_skill_network_discovery" name="test_network_discovery_keeps_collected_candidates_when_ai_review_fails" time="0.001" /><testcase classname="tests.test_skill_network_discovery" name="test_network_discovery_filters_non_skill_urls_before_ai_review" time="0.001" /><testcase classname="tests.test_skill_network_discovery" name="test_network_discovery_runs_three_sources_in_parallel_with_independent_budgets" time="0.001" /><testcase classname="tests.test_skill_network_discovery" name="test_network_discovery_reuses_successful_source_cache" time="0.001" /><testcase classname="tests.test_skill_search" name="test_build_skill_query_contains_task_terms_and_repository_filter" time="0.001" /><testcase classname="tests.test_skill_search" name="test_build_skill_query_is_bounded_for_github_api" time="0.001" /><testcase classname="tests.test_skill_search" name="test_search_github_repositories_searches_for_skill_files" time="0.001" /><testcase classname="tests.test_skill_search" name="test_search_github_repositories_assigns_confirmed_steps_to_remote_candidate" time="0.001" /><testcase classname="tests.test_skill_search" name="test_github_repository_metadata_without_skill_file_is_not_a_skill_candidate" time="0.001" /><testcase classname="tests.test_skill_search" name="test_metadata_fallback_requires_a_skill_artifact_or_explicit_skill_index_entry" time="0.001" /><testcase classname="tests.test_skill_search" name="test_skill_index_does_not_promote_arbitrary_urls_to_skill_entries" time="0.000" /><testcase classname="tests.test_skill_search" name="test_online_web_source_must_be_an_actual_skill_markdown_path" time="0.001" /><testcase classname="tests.test_skill_search" name="test_skill_markdown_requires_instruction_body_after_frontmatter" time="0.001" /><testcase classname="tests.test_skill_search" name="test_github_repository_supplement_queries_for_agent_skill_files" time="0.001" /><testcase classname="tests.test_skill_search" name="test_search_github_repositories_uses_only_steps_for_each_confirmed_work" time="0.001" /><testcase classname="tests.test_skill_search" name="test_github_search_rejects_invalid_or_unsafe_custom_api_urls[not a url]" time="0.001" /><testcase classname="tests.test_skill_search" name="test_github_search_rejects_invalid_or_unsafe_custom_api_urls[file:///tmp/api]" time="0.001" /><testcase classname="tests.test_skill_search" name="test_github_search_rejects_invalid_or_unsafe_custom_api_urls[http://api.example.test]" time="0.001" /><testcase classname="tests.test_skill_search" name="test_github_search_rejects_invalid_or_unsafe_custom_api_urls[https://user:secret@api.example.test]" time="0.001" /><testcase classname="tests.test_skill_search" name="test_github_search_rejects_invalid_or_unsafe_custom_api_urls[https://api.example.test?token=secret]" time="0.001" /><testcase classname="tests.test_skill_search" name="test_github_search_rejects_invalid_or_unsafe_custom_api_urls[https://api.example.test#fragment]" time="0.001" /><testcase classname="tests.test_skill_search" name="test_custom_api_url_does_not_receive_github_token" time="0.001" /><testcase classname="tests.test_skill_search" name="test_custom_api_url_is_trimmed_before_building_endpoint" time="0.001" /><testcase classname="tests.test_skill_search" name="test_search_github_reports_empty_results" time="0.001" /><testcase classname="tests.test_skill_search" name="test_search_github_translates_http_and_json_errors" time="0.001" /><testcase classname="tests.test_skill_search" name="test_merge_candidates_deduplicates_by_skill_work_and_keeps_sources" time="0.001" /><testcase classname="tests.test_skill_search" name="test_online_search_restores_skills_index_and_reads_pinned_skill" time="0.001" /><testcase classname="tests.test_skill_search" name="test_online_search_does_not_offer_unverified_files[tree_hash]" time="0.001" /><testcase classname="tests.test_skill_search" name="test_online_search_does_not_offer_unverified_files[pinned_content]" time="0.001" /><testcase classname="tests.test_skill_search" name="test_online_search_does_not_offer_unverified_files[missing_metadata]" time="0.001" /><testcase classname="tests.test_skill_search" name="test_online_search_chinese_work_uses_short_multiround_keywords" time="0.001" /><testcase classname="tests.test_skill_search" name="test_online_search_model_queries_and_progress_are_supported" time="0.001" /><testcase classname="tests.test_skill_search" name="test_github_supplement_uses_multiple_task_queries_for_skill_artifacts" time="0.001" /><testcase classname="tests.test_skill_search" name="test_github_api_limit_uses_public_page_to_read_skill" time="0.001" /><testcase classname="tests.test_skill_search" name="test_github_public_fallback_accepts_root_skill_for_index_id" time="0.001" /><testcase classname="tests.test_skill_search" name="test_online_custom_search_address_is_used_as_search_endpoint[https://index.example.test-https://index.example.test/api/search]" time="0.001" /><testcase classname="tests.test_skill_search" name="test_online_custom_search_address_is_used_as_search_endpoint[https://index.example.test/search-https://index.example.test/search]" time="0.001" /><testcase classname="tests.test_skill_search" name="test_online_custom_search_address_is_used_as_search_endpoint[https://index.example.test/find?q={query}&amp;limit=8-https://index.example.test/find]" time="0.001" /><testcase classname="tests.test_skill_search" name="test_online_generic_search_supports_actual_skill_on_other_sites" time="0.001" /><testcase classname="tests.test_skill_search" name="test_online_search_matches_each_confirmed_work_independently" time="0.001" /><testcase classname="tests.test_skill_search" name="test_online_all_sources_failing_reports_failure_instead_of_zero_results" time="0.001" /><testcase classname="tests.test_skill_search" name="test_online_valid_empty_search_is_distinct_from_failure" time="0.001" /><testcase classname="tests.test_skill_search" name="test_online_search_can_run_index_only_and_caps_verification" time="0.001" /><testcase classname="tests.test_skill_search_state" name="test_new_session_has_search_state_defaults" time="0.001" /><testcase classname="tests.test_skill_search_state" name="test_skill_state_migration_preserves_search_state" time="0.001" /><testcase classname="tests.test_skill_search_state" name="test_set_skill_state_keeps_search_state_when_candidate_batch_changes" time="0.001" /><testcase classname="tests.test_status_version_label" name="test_status_label_matches_the_loaded_prompt_assets" time="0.001"><failure message="AssertionError: assert 'M1 v0.22 / m...0.2 / m5.v0.1' == 'M1 v0.11 / m...0.2 / m5.v0.1'&#10;  &#10;  Skipping 41 identical trailing characters in diff, use -v to show&#10;  - M1 v0.11 / m1.v0.&#10;  ?       ^^&#10;  + M1 v0.22 / m1.v0.&#10;  ?       ^^">def test_status_label_matches_the_loaded_prompt_assets() -&gt; None:
+        text = _status_label_text()
+    
+&gt;       assert text == "M1 v0.11 / m1.v0.2 · M2 v0.2 / m2.v0.1 · M5 v0.2 / m5.v0.1"
+E       AssertionError: assert 'M1 v0.22 / m...0.2 / m5.v0.1' == 'M1 v0.11 / m...0.2 / m5.v0.1'
+E         
+E         Skipping 41 identical trailing characters in diff, use -v to show
+E         - M1 v0.11 / m1.v0.
+E         ?       ^^
+E         + M1 v0.22 / m1.v0.
+E         ?       ^^
+
+tests\test_status_version_label.py:40: AssertionError</failure></testcase><testcase classname="tests.test_status_version_label" name="test_status_label_is_not_hard_coded_in_the_source" time="0.002" /><testcase classname="tests.test_status_version_label" name="test_m1_current_prompt_file_exists_and_matches_the_declared_version" time="0.001"><failure message="AssertionError: assert 'M1_system_v0.22' == 'M1_system_v0.11'&#10;  &#10;  - M1_system_v0.11&#10;  ?              ^^&#10;  + M1_system_v0.22&#10;  ?              ^^">def test_m1_current_prompt_file_exists_and_matches_the_declared_version() -&gt; None:
+        design = ROOT / "resources" / "prompts"
+    
+&gt;       assert M1Assets.prompt_version == "M1_system_v0.11"
+E       AssertionError: assert 'M1_system_v0.22' == 'M1_system_v0.11'
+E         
+E         - M1_system_v0.11
+E         ?              ^^
+E         + M1_system_v0.22
+E         ?              ^^
+
+tests\test_status_version_label.py:59: AssertionError</failure></testcase><testcase classname="tests.test_storage" name="test_json_round_trip_preserves_state_and_excludes_secret" time="0.012" /><testcase classname="tests.test_storage" name="test_load_adds_defaults_for_older_session" time="0.009" /><testcase classname="tests.test_storage" name="test_save_is_valid_utf8_json" time="0.011" /><testcase classname="tests.test_storage" name="test_long_text_round_trips_without_truncation" time="0.011" /><testcase classname="tests.test_storage" name="test_failed_replace_keeps_old_session_and_removes_partial_file" time="0.010" /><testcase classname="tests.test_storage" name="test_unknown_future_session_schema_is_rejected" time="0.008" /><testcase classname="tests.test_task_input_sync" name="test_refresh_uses_visible_task_without_writing_session" time="0.224" /><testcase classname="tests.test_task_input_sync" name="test_primary_click_syncs_text_and_category_before_dispatch" time="0.207" /><testcase classname="tests.test_task_input_sync" name="test_button_enters_existing_workflow_with_synced_task" time="0.212" /><testcase classname="tests.test_task_input_sync" name="test_empty_visible_task_focuses_without_sync_or_request[]" time="0.428" /><testcase classname="tests.test_task_input_sync" name="test_empty_visible_task_focuses_without_sync_or_request[\u6b64\u524d\u5df2\u7ecf\u5206\u6790\u7684\u4efb\u52a1]" time="0.538" /><testcase classname="tests.test_task_input_sync" name="test_typing_updates_label_and_connection_changes_without_sync" time="0.420" /><testcase classname="tests.test_task_input_sync" name="test_paste_cut_and_undo_refresh_without_mutating_session[right_click]" time="0.485" /><testcase classname="tests.test_task_input_sync" name="test_paste_cut_and_undo_refresh_without_mutating_session[ctrl_v]" time="0.409" /><testcase classname="tests.test_task_input_sync" name="test_questions_remain_primary_for_unchanged_visible_task" time="0.304" /><testcase classname="tests.test_task_input_sync" name="test_edit_opened_task_invalidates_once_and_new_session_clears_label" time="0.328" /><testcase classname="tests.test_task_result_guidance" name="test_jgs_missing_result_has_visible_offer_and_one_click_to_m2" time="0.192" /><testcase classname="tests.test_task_result_guidance" name="test_task_result_requires_explicit_shown_confirmation_and_survives_save" time="0.015" /><testcase classname="tests.test_task_result_guidance" name="test_task_result_offer_does_not_bypass_unfinished_interview[stale]" time="0.001" /><testcase classname="tests.test_task_result_guidance" name="test_task_result_offer_does_not_bypass_unfinished_interview[blocking]" time="0.002" /><testcase classname="tests.test_task_result_guidance" name="test_task_result_offer_does_not_bypass_unfinished_interview[conflict]" time="0.001" /><testcase classname="tests.test_task_result_guidance" name="test_task_result_offer_does_not_bypass_unfinished_interview[no_goal]" time="0.001" /><testcase classname="tests.test_task_result_guidance" name="test_task_result_offer_does_not_bypass_unfinished_interview[result_gap]" time="0.002" /><testcase classname="tests.test_task_result_guidance" name="test_task_result_offer_does_not_bypass_unfinished_interview[truncated]" time="0.001" /><testcase classname="tests.test_task_result_guidance" name="test_missing_result_reveals_specific_question_if_model_has_not_identified_it" time="0.183" /><testcase classname="tests.test_task_result_guidance" name="test_user_can_confirm_original_result_immediately_after_accepting_meaning" time="0.001" /><testcase classname="tests.test_task_result_guidance" name="test_changed_preview_cannot_confirm_old_task_result_offer" time="0.001" /><testcase classname="tests.test_task_result_guidance" name="test_incremental_old_source_backfill_is_limited_to_missing_result[deliverable-True]" time="0.006" /><testcase classname="tests.test_task_result_guidance" name="test_incremental_old_source_backfill_is_limited_to_missing_result[constraints-False]" time="0.005" /><testcase classname="tests.test_thinking_level_ui" name="test_thinking_level_choice_is_plainly_selectable_and_reaches_m1" time="0.239" /><testcase classname="tests.test_thinking_level_ui" name="test_thinking_level_defaults_to_standard_for_new_session" time="0.182" /><testcase classname="tests.test_trial" name="test_trial_success_records_version_hash_usage_and_output" time="0.003" /><testcase classname="tests.test_trial" name="test_trial_missing_usage_stays_missing" time="0.001" /><testcase classname="tests.test_trial" name="test_trial_failure_records_attempt_metadata_without_changing_final" time="0.001" /><testcase classname="tests.test_trial" name="test_trial_rejects_stale_final_response_and_records_rejected_history" time="0.001" /><testcase classname="tests.test_trial" name="test_trial_tone_change_rejects_response_from_previous_prompt_rendering" time="0.001" /><testcase classname="tests.test_trial" name="test_trial_superseded_request_is_recorded_as_stale_without_applying_output" time="0.001" /><testcase classname="tests.test_trial" name="test_trial_history_survives_save_and_reopen" time="0.011" /><testcase classname="tests.test_trial" name="test_trial_requires_confirmed_current_final" time="0.001" /><testcase classname="tests.test_ui_contract" name="test_four_step_shell_exposes_the_final_delivery_phases" time="0.001" /><testcase classname="tests.test_ui_contract" name="test_public_api_summary_never_contains_key" time="0.001" /><testcase classname="tests.test_ui_contract" name="test_ui_current_custom_service_and_protocol_select_real_m1_adapter" time="0.730" /><testcase classname="tests.test_ui_contract" name="test_ui_current_custom_service_and_protocol_select_real_m2_adapter" time="0.727" /><testcase classname="tests.test_ui_contract" name="test_application_constructs_required_delivery_controls" time="0.227" /><testcase classname="tests.test_ui_contract" name="test_ui_no_skill_delivery_tone_export_and_save_reopen" time="0.276" /><testcase classname="tests.test_ui_contract" name="test_ui_local_skill_can_be_selected_cancelled_and_integrated" time="0.987"><failure message="AssertionError: assert 'stale' == 'selected'&#10;  &#10;  - selected&#10;  + stale">tk_window = &lt;tkinter.Toplevel object .!toplevel101&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000025E57C74610&gt;
+
+    def test_ui_local_skill_can_be_selected_cancelled_and_integrated(tk_window, monkeypatch) -&gt; None:
+        session = confirmed_plan_session()
+        session.plan["content"]["key_work"][0]["title"] = "为活动报名软件系统整理需求规格和用户故事"
+        app = PromptSmithApp(tk_window, session=session)
+        try:
+            app.find_skills()
+            _pump_until(tk_window, lambda: not app._skill_search_busy)
+            candidate = next(row for row in app._candidate_rows() if row["skill_id"] == "to-spec")
+            candidates_tree = app.widgets["skill_candidates_tree"]
+            candidates_tree.selection_set(candidate["candidate_id"])
+            app.select_skill_candidates()
+            assert len(app.session.skill_state["bindings"]) == 1
+&gt;           assert app.session.skill_state["status"] == "selected"
+E           AssertionError: assert 'stale' == 'selected'
+E             
+E             - selected
+E             + stale
+
+tests\test_ui_contract.py:352: AssertionError</failure></testcase><testcase classname="tests.test_ui_contract" name="test_ui_skill_search_uses_confirmed_task_context" time="0.938" /><testcase classname="tests.test_ui_contract" name="test_ui_rejects_skill_candidates_after_plan_basis_changes" time="0.896" /><testcase classname="tests.test_ui_contract" name="test_background_errors_are_delivered_to_ui_callback" time="0.406" /><testcase classname="tests.test_ui_contract" name="test_ui_runs_m1_over_background_http_and_stages_candidates" time="0.846" /><testcase classname="tests.test_ui_delivery_interactions" name="test_explicit_candidate_analysis_uses_delivery_m3_workflow" time="0.429"><failure message="IndexError: list index out of range">delivery_app = (&lt;promptsmith.ui.PromptSmithApp object at 0x0000025E5922B050&gt;, &lt;tkinter.Toplevel object .!toplevel106&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000025E5922B850&gt;
+
+    def test_explicit_candidate_analysis_uses_delivery_m3_workflow(delivery_app, monkeypatch) -&gt; None:
+        app, window = delivery_app
+        candidate, _binding = _candidate()
+        _set_candidate_batch(app, candidate)
+        client = _DeliveryUiClient()
+        _configure_delivery_client(app, monkeypatch, client)
+    
+        app.widgets["skill_analyze_button"].invoke()
+        _pump_until(window, lambda: not app.delivery_busy)
+    
+        analysis = app.session.skill_state["candidate_batch"]["m3_analysis"]
+        assert client.payloads[0]["schema_version"] == "m3.v0.1"
+        assert analysis["result"]["assessments"][0]["candidate_id"] == candidate["candidate_id"]
+        assert app.session.skill_state["bindings"] == []
+        app.widgets["skill_candidates_tree"].selection_set(candidate["candidate_id"])
+        app.select_skill_candidates()
+        assert len(app.session.skill_state["bindings"]) == 1
+        app.widgets["skill_integrate_button"].invoke()
+        _pump_until(window, lambda: not app.delivery_busy)
+&gt;       assert client.payloads[1]["schema_version"] == "m4.v0.1"
+               ^^^^^^^^^^^^^^^^^^
+E       IndexError: list index out of range
+
+tests\test_ui_delivery_interactions.py:311: IndexError</failure></testcase><testcase classname="tests.test_ui_delivery_interactions" name="test_m3_validation_failure_preserves_previous_analysis" time="0.406" /><testcase classname="tests.test_ui_delivery_interactions" name="test_selected_prerequisite_is_updated_as_user_reported_before_m4" time="0.360"><failure message="IndexError: list index out of range">delivery_app = (&lt;promptsmith.ui.PromptSmithApp object at 0x0000025E592F6590&gt;, &lt;tkinter.Toplevel object .!toplevel108&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000025E591EE450&gt;
+
+    def test_selected_prerequisite_is_updated_as_user_reported_before_m4(delivery_app, monkeypatch) -&gt; None:
+        app, window = delivery_app
+        candidate, binding = _candidate()
+        _set_binding(app, candidate, binding)
+        client = _DeliveryUiClient()
+        _configure_delivery_client(app, monkeypatch, client)
+    
+        app.widgets["skill_selected_tree"].selection_set(binding["binding_id"])
+        app._show_selected_skill_binding()
+        app.widgets["skill_prerequisites_tree"].selection_set(
+            binding["precondition_assessments"][0]["prerequisite_id"]
+        )
+        app.widgets["skill_prerequisite_status_combo"].set("已满足")
+        app.widgets["skill_update_prerequisite_button"].invoke()
+        app.widgets["skill_integrate_button"].invoke()
+        _pump_until(window, lambda: not app.delivery_busy)
+    
+        assessment = app.session.skill_state["bindings"][0]["precondition_assessments"][0]
+        assert assessment["status"] == "satisfied"
+        assert assessment["source"] == "user_reported"
+&gt;       assert client.payloads[0]["schema_version"] == "m4.v0.1"
+               ^^^^^^^^^^^^^^^^^^
+E       IndexError: list index out of range
+
+tests\test_ui_delivery_interactions.py:355: IndexError</failure></testcase><testcase classname="tests.test_ui_delivery_interactions" name="test_m4_missing_key_preserves_selected_binding_and_skip_path" time="0.274"><failure message="assert []">delivery_app = (&lt;promptsmith.ui.PromptSmithApp object at 0x0000025E59577810&gt;, &lt;tkinter.Toplevel object .!toplevel109&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000025E592F6D90&gt;
+
+    def test_m4_missing_key_preserves_selected_binding_and_skip_path(delivery_app, monkeypatch) -&gt; None:
+        app, _window = delivery_app
+        candidate, binding = _candidate()
+        _set_binding(app, candidate, binding)
+        app.api_key_var.set("")
+        notices: list[tuple] = []
+        monkeypatch.setattr("promptsmith.ui.messagebox.showinfo", lambda *args, **kwargs: notices.append(args))
+        monkeypatch.setattr("promptsmith.ui.messagebox.showerror", lambda *args, **kwargs: notices.append(args))
+        before_final = deepcopy(app.session.final_result)
+    
+        app.widgets["skill_integrate_button"].invoke()
+    
+&gt;       assert notices
+E       assert []
+
+tests\test_ui_delivery_interactions.py:371: AssertionError</failure></testcase><testcase classname="tests.test_ui_delivery_interactions" name="test_selected_binding_is_integrated_by_m4_and_changes_are_decided_individually" time="0.364"><failure message="IndexError: list index out of range">delivery_app = (&lt;promptsmith.ui.PromptSmithApp object at 0x0000025E595E9590&gt;, &lt;tkinter.Toplevel object .!toplevel110&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000025E595E9310&gt;
+
+    def test_selected_binding_is_integrated_by_m4_and_changes_are_decided_individually(
+        delivery_app, monkeypatch
+    ) -&gt; None:
+        app, window = delivery_app
+        candidate, binding = _candidate()
+        _set_binding(app, candidate, binding)
+        changes = [
+            {
+                "change_id": "change-extra-checklist",
+                "binding_ids": [binding["binding_id"]],
+                "kind": "scope",
+                "description": "增加一份检查清单。",
+                "reason": "让关键步骤便于复核。",
+                "affects_hard_constraints": False,
+            },
+            {
+                "change_id": "change-ignore-no-payment",
+                "binding_ids": [binding["binding_id"]],
+                "kind": "scope",
+                "description": "忽略一项已确认的硬约束。",
+                "reason": "测试硬约束边界。",
+                "affects_hard_constraints": True,
+            },
+        ]
+        client = _DeliveryUiClient(changes=changes)
+        _configure_delivery_client(app, monkeypatch, client)
+    
+        app.widgets["skill_integrate_button"].invoke()
+        _pump_until(window, lambda: not app.delivery_busy)
+    
+        final = app.session.final_result
+&gt;       assert client.payloads[0]["schema_version"] == "m4.v0.1"
+               ^^^^^^^^^^^^^^^^^^
+E       IndexError: list index out of range
+
+tests\test_ui_delivery_interactions.py:413: IndexError</failure></testcase><testcase classname="tests.test_ui_delivery_interactions" name="test_m4_error_and_user_cancel_do_not_replace_existing_final_result" time="2.393"><failure message="assert False&#10; +  where False = wait(timeout=2)&#10; +    where wait = &lt;threading.Event at 0x25e594e1810: unset&gt;.wait">delivery_app = (&lt;promptsmith.ui.PromptSmithApp object at 0x0000025E59478E90&gt;, &lt;tkinter.Toplevel object .!toplevel111&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000025E59479D90&gt;
+
+    def test_m4_error_and_user_cancel_do_not_replace_existing_final_result(delivery_app, monkeypatch) -&gt; None:
+        app, window = delivery_app
+        candidate, binding = _candidate()
+        _set_binding(app, candidate, binding)
+        client = _DeliveryUiClient()
+        _configure_delivery_client(app, monkeypatch, client)
+        app.widgets["skill_integrate_button"].invoke()
+        _pump_until(window, lambda: not app.delivery_busy)
+        previous_final = deepcopy(app.session.final_result)
+    
+        client.response_override = {}
+        app.widgets["skill_integrate_button"].invoke()
+        _pump_until(window, lambda: not app.delivery_busy)
+        assert app.session.final_result == previous_final
+    
+        entered, release = Event(), Event()
+        client.response_override = None
+        client.entered, client.release = entered, release
+        app.widgets["skill_integrate_button"].invoke()
+&gt;       assert entered.wait(timeout=2)
+E       assert False
+E        +  where False = wait(timeout=2)
+E        +    where wait = &lt;threading.Event at 0x25e594e1810: unset&gt;.wait
+
+tests\test_ui_delivery_interactions.py:459: AssertionError</failure></testcase><testcase classname="tests.test_ui_delivery_interactions" name="test_late_m3_response_after_session_switch_does_not_write_into_new_session" time="0.394" /><testcase classname="tests.test_ui_delivery_interactions" name="test_open_session_rebuilds_delivery_workflow_with_new_instance_token" time="0.334" /><testcase classname="tests.test_ui_delivery_interactions" name="test_no_skill_ui_flow_confirms_saves_and_reopens_consistently" time="0.303" /><testcase classname="tests.test_ui_delivery_interactions" name="test_cancel_binding_then_skip_removes_old_skill_content_and_preserves_independent_note" time="0.363"><failure message="promptsmith.finalization.DeliveryValidationError: 当前没有可编辑的最终草稿。">delivery_app = (&lt;promptsmith.ui.PromptSmithApp object at 0x0000025E59651AD0&gt;, &lt;tkinter.Toplevel object .!toplevel115&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000025E597D76D0&gt;
+
+    def test_cancel_binding_then_skip_removes_old_skill_content_and_preserves_independent_note(
+        delivery_app, monkeypatch
+    ) -&gt; None:
+        app, window = delivery_app
+        candidate, binding = _candidate()
+        _set_binding(app, candidate, binding)
+        client = _DeliveryUiClient()
+        _configure_delivery_client(app, monkeypatch, client)
+        app.widgets["skill_integrate_button"].invoke()
+        _pump_until(window, lambda: not app.delivery_busy)
+&gt;       edit_final_note(app.session, "note-independent", "保留这条独立附注。")
+
+tests\test_ui_delivery_interactions.py:536: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+session = SessionState(schema_version='promptsmith.session.v0.2', task_id='task-b72eb9250d034ea0aae29359424315c2', created_at='2...tion': None, 'candidate_pending': False, 'last_error': None}, m5_examples=[], m5_feedback=[], trial_runs=[], errors=[])
+note_id = 'note-independent', text = '保留这条独立附注。', depends_on_binding_ids = None
+
+    def edit_final_note(session: SessionState, note_id: str, text: str, depends_on_binding_ids: list[str] | None = None) -&gt; None:
+        clean = str(text).strip()
+        if not clean:
+            raise DeliveryValidationError("附注不能为空。")
+        result = session.final_result
+        if result.get("status") not in {"draft", "confirmed"} or not isinstance(result.get("content"), dict):
+&gt;           raise DeliveryValidationError("当前没有可编辑的最终草稿。")
+E           promptsmith.finalization.DeliveryValidationError: 当前没有可编辑的最终草稿。
+
+src\promptsmith\finalization.py:689: DeliveryValidationError</failure></testcase><testcase classname="tests.test_ui_delivery_interactions" name="test_task_prompt_preview_and_copy_actions_are_distinct_and_state_gated" time="0.266" /><testcase classname="tests.test_ui_delivery_interactions" name="test_m2_suggestion_can_be_decided_individually" time="0.299" /><testcase classname="tests.test_ui_delivery_interactions" name="test_high_impact_suggestion_routes_to_its_plan_section" time="0.316" /><testcase classname="tests.test_ui_delivery_interactions" name="test_review_blocker_routes_to_existing_key_work_review_control" time="0.333" /><testcase classname="tests.test_ui_delivery_interactions" name="test_skill_details_show_inputs_outputs_and_prerequisite_state" time="0.316" /><testcase classname="tests.test_ui_delivery_interactions" name="test_canceling_binding_clearly_marks_final_result_stale" time="0.356"><failure message="AssertionError: assert not [('Agent Skill 选用已过期', '请基于当前已确认方案重新筛选并选用 Agent Skill。')]">delivery_app = (&lt;promptsmith.ui.PromptSmithApp object at 0x0000025E59C9E710&gt;, &lt;tkinter.Toplevel object .!toplevel121&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000025E59986990&gt;
+
+    def test_canceling_binding_clearly_marks_final_result_stale(delivery_app, monkeypatch) -&gt; None:
+        app, window = delivery_app
+        errors: list[tuple] = []
+        monkeypatch.setattr("promptsmith.ui.messagebox.showerror", lambda *args, **kwargs: errors.append(args))
+        candidate, binding = _candidate()
+        app.session.set_skill_state(
+            status="selected",
+            basis=app._delivery_basis(),
+            candidate_batch={"result": {"candidates": [candidate]}},
+            bindings=[binding],
+        )
+        app.refresh()
+        client = _DeliveryUiClient()
+        _configure_delivery_client(app, monkeypatch, client)
+        app.integrate_selected_skills()
+        _pump_until(window, lambda: not app.delivery_busy)
+&gt;       assert not errors
+E       AssertionError: assert not [('Agent Skill 选用已过期', '请基于当前已确认方案重新筛选并选用 Agent Skill。')]
+
+tests\test_ui_delivery_interactions.py:689: AssertionError</failure></testcase><testcase classname="tests.test_ui_delivery_interactions" name="test_selected_catalog_record_change_marks_final_stale_and_blocks_confirmation" time="1.027"><failure message="promptsmith.finalization.DeliveryValidationError: 所选 Agent Skill 来自旧任务或方案，请重新筛选并选用。">delivery_app = (&lt;promptsmith.ui.PromptSmithApp object at 0x0000025E59D3B550&gt;, &lt;tkinter.Toplevel object .!toplevel122&gt;)
+tmp_path = WindowsPath('C:/Users/yph/AppData/Local/Temp/pytest-of-yph/pytest-1822/test_selected_catalog_record_c0')
+
+    def test_selected_catalog_record_change_marks_final_stale_and_blocks_confirmation(delivery_app, tmp_path) -&gt; None:
+        app, _window = delivery_app
+        binding = _select_to_spec_binding(app, tmp_path)
+&gt;       _stage_confirmed_skill_draft(app, binding)
+
+tests\test_ui_delivery_interactions.py:702: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_ui_delivery_interactions.py:287: in _stage_confirmed_skill_draft
+    draft = build_final_draft(app.session, selected_contributions=[contribution])
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\promptsmith\finalization.py:530: in build_final_draft
+    live_bindings = _validate_skill_bindings(session)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+session = SessionState(schema_version='promptsmith.session.v0.2', task_id='task-95c9d9df18194c408fca4c3189c5053b', created_at='2...tion': None, 'candidate_pending': False, 'last_error': None}, m5_examples=[], m5_feedback=[], trial_runs=[], errors=[])
+
+    def _validate_skill_bindings(session: SessionState) -&gt; set[str]:
+        state = session.skill_state
+        bindings = state.get("bindings", [])
+        if not bindings:
+            return set()
+        expected_plan_basis = {
+            "task_id": session.task_id,
+            "requirement_version": session.requirement_version,
+            "plan_id": session.plan.get("plan_id"),
+            "plan_version": session.plan.get("plan_version"),
+        }
+        if state.get("status") != "selected" or state.get("basis") != expected_plan_basis:
+&gt;           raise DeliveryValidationError("所选 Agent Skill 来自旧任务或方案，请重新筛选并选用。")
+E           promptsmith.finalization.DeliveryValidationError: 所选 Agent Skill 来自旧任务或方案，请重新筛选并选用。
+
+src\promptsmith\finalization.py:365: DeliveryValidationError</failure></testcase><testcase classname="tests.test_ui_delivery_interactions" name="test_unrelated_catalog_record_change_keeps_selected_final_current" time="1.033"><failure message="promptsmith.finalization.DeliveryValidationError: 所选 Agent Skill 来自旧任务或方案，请重新筛选并选用。">delivery_app = (&lt;promptsmith.ui.PromptSmithApp object at 0x0000025E59B8B990&gt;, &lt;tkinter.Toplevel object .!toplevel123&gt;)
+tmp_path = WindowsPath('C:/Users/yph/AppData/Local/Temp/pytest-of-yph/pytest-1822/test_unrelated_catalog_record_0')
+
+    def test_unrelated_catalog_record_change_keeps_selected_final_current(delivery_app, tmp_path) -&gt; None:
+        app, _window = delivery_app
+        binding = _select_to_spec_binding(app, tmp_path)
+&gt;       _stage_confirmed_skill_draft(app, binding)
+
+tests\test_ui_delivery_interactions.py:717: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_ui_delivery_interactions.py:287: in _stage_confirmed_skill_draft
+    draft = build_final_draft(app.session, selected_contributions=[contribution])
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\promptsmith\finalization.py:530: in build_final_draft
+    live_bindings = _validate_skill_bindings(session)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+session = SessionState(schema_version='promptsmith.session.v0.2', task_id='task-ba00ca44079949399b7a8053d97b6b72', created_at='2...tion': None, 'candidate_pending': False, 'last_error': None}, m5_examples=[], m5_feedback=[], trial_runs=[], errors=[])
+
+    def _validate_skill_bindings(session: SessionState) -&gt; set[str]:
+        state = session.skill_state
+        bindings = state.get("bindings", [])
+        if not bindings:
+            return set()
+        expected_plan_basis = {
+            "task_id": session.task_id,
+            "requirement_version": session.requirement_version,
+            "plan_id": session.plan.get("plan_id"),
+            "plan_version": session.plan.get("plan_version"),
+        }
+        if state.get("status") != "selected" or state.get("basis") != expected_plan_basis:
+&gt;           raise DeliveryValidationError("所选 Agent Skill 来自旧任务或方案，请重新筛选并选用。")
+E           promptsmith.finalization.DeliveryValidationError: 所选 Agent Skill 来自旧任务或方案，请重新筛选并选用。
+
+src\promptsmith\finalization.py:365: DeliveryValidationError</failure></testcase><testcase classname="tests.test_ui_delivery_interactions" name="test_unavailable_catalog_preserves_selected_snapshot_and_allows_explicit_skip" time="1.014"><failure message="promptsmith.finalization.DeliveryValidationError: 所选 Agent Skill 来自旧任务或方案，请重新筛选并选用。">delivery_app = (&lt;promptsmith.ui.PromptSmithApp object at 0x0000025E59BC3310&gt;, &lt;tkinter.Toplevel object .!toplevel124&gt;)
+tmp_path = WindowsPath('C:/Users/yph/AppData/Local/Temp/pytest-of-yph/pytest-1822/test_unavailable_catalog_prese0')
+
+    def test_unavailable_catalog_preserves_selected_snapshot_and_allows_explicit_skip(delivery_app, tmp_path) -&gt; None:
+        app, _window = delivery_app
+        binding = _select_to_spec_binding(app, tmp_path)
+&gt;       _stage_confirmed_skill_draft(app, binding)
+
+tests\test_ui_delivery_interactions.py:730: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_ui_delivery_interactions.py:287: in _stage_confirmed_skill_draft
+    draft = build_final_draft(app.session, selected_contributions=[contribution])
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\promptsmith\finalization.py:530: in build_final_draft
+    live_bindings = _validate_skill_bindings(session)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+session = SessionState(schema_version='promptsmith.session.v0.2', task_id='task-ed8064aafa73442d8d4cc664eb14c2fa', created_at='2...tion': None, 'candidate_pending': False, 'last_error': None}, m5_examples=[], m5_feedback=[], trial_runs=[], errors=[])
+
+    def _validate_skill_bindings(session: SessionState) -&gt; set[str]:
+        state = session.skill_state
+        bindings = state.get("bindings", [])
+        if not bindings:
+            return set()
+        expected_plan_basis = {
+            "task_id": session.task_id,
+            "requirement_version": session.requirement_version,
+            "plan_id": session.plan.get("plan_id"),
+            "plan_version": session.plan.get("plan_version"),
+        }
+        if state.get("status") != "selected" or state.get("basis") != expected_plan_basis:
+&gt;           raise DeliveryValidationError("所选 Agent Skill 来自旧任务或方案，请重新筛选并选用。")
+E           promptsmith.finalization.DeliveryValidationError: 所选 Agent Skill 来自旧任务或方案，请重新筛选并选用。
+
+src\promptsmith\finalization.py:365: DeliveryValidationError</failure></testcase><testcase classname="tests.test_ui_delivery_interactions" name="test_selected_skill_source_change_marks_final_stale[modify]" time="0.958"><failure message="promptsmith.finalization.DeliveryValidationError: 所选 Agent Skill 来自旧任务或方案，请重新筛选并选用。">delivery_app = (&lt;promptsmith.ui.PromptSmithApp object at 0x0000025E59E03910&gt;, &lt;tkinter.Toplevel object .!toplevel125&gt;)
+tmp_path = WindowsPath('C:/Users/yph/AppData/Local/Temp/pytest-of-yph/pytest-1822/test_selected_skill_source_cha0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000025E59BC1310&gt;
+change = 'modify'
+
+    @pytest.mark.parametrize("change", ["modify", "remove"])
+    def test_selected_skill_source_change_marks_final_stale(delivery_app, tmp_path, monkeypatch, change) -&gt; None:
+        app, _window = delivery_app
+        binding = _select_to_spec_binding(app, tmp_path)
+&gt;       _stage_confirmed_skill_draft(app, binding)
+
+tests\test_ui_delivery_interactions.py:750: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_ui_delivery_interactions.py:287: in _stage_confirmed_skill_draft
+    draft = build_final_draft(app.session, selected_contributions=[contribution])
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\promptsmith\finalization.py:530: in build_final_draft
+    live_bindings = _validate_skill_bindings(session)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+session = SessionState(schema_version='promptsmith.session.v0.2', task_id='task-e658e64290694a6e876314029eeb0180', created_at='2...tion': None, 'candidate_pending': False, 'last_error': None}, m5_examples=[], m5_feedback=[], trial_runs=[], errors=[])
+
+    def _validate_skill_bindings(session: SessionState) -&gt; set[str]:
+        state = session.skill_state
+        bindings = state.get("bindings", [])
+        if not bindings:
+            return set()
+        expected_plan_basis = {
+            "task_id": session.task_id,
+            "requirement_version": session.requirement_version,
+            "plan_id": session.plan.get("plan_id"),
+            "plan_version": session.plan.get("plan_version"),
+        }
+        if state.get("status") != "selected" or state.get("basis") != expected_plan_basis:
+&gt;           raise DeliveryValidationError("所选 Agent Skill 来自旧任务或方案，请重新筛选并选用。")
+E           promptsmith.finalization.DeliveryValidationError: 所选 Agent Skill 来自旧任务或方案，请重新筛选并选用。
+
+src\promptsmith\finalization.py:365: DeliveryValidationError</failure></testcase><testcase classname="tests.test_ui_delivery_interactions" name="test_selected_skill_source_change_marks_final_stale[remove]" time="1.003"><failure message="promptsmith.finalization.DeliveryValidationError: 所选 Agent Skill 来自旧任务或方案，请重新筛选并选用。">delivery_app = (&lt;promptsmith.ui.PromptSmithApp object at 0x0000025E59B009D0&gt;, &lt;tkinter.Toplevel object .!toplevel126&gt;)
+tmp_path = WindowsPath('C:/Users/yph/AppData/Local/Temp/pytest-of-yph/pytest-1822/test_selected_skill_source_cha1')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000025E59B01410&gt;
+change = 'remove'
+
+    @pytest.mark.parametrize("change", ["modify", "remove"])
+    def test_selected_skill_source_change_marks_final_stale(delivery_app, tmp_path, monkeypatch, change) -&gt; None:
+        app, _window = delivery_app
+        binding = _select_to_spec_binding(app, tmp_path)
+&gt;       _stage_confirmed_skill_draft(app, binding)
+
+tests\test_ui_delivery_interactions.py:750: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_ui_delivery_interactions.py:287: in _stage_confirmed_skill_draft
+    draft = build_final_draft(app.session, selected_contributions=[contribution])
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\promptsmith\finalization.py:530: in build_final_draft
+    live_bindings = _validate_skill_bindings(session)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+session = SessionState(schema_version='promptsmith.session.v0.2', task_id='task-da96e5382b6c414591a3545742304218', created_at='2...tion': None, 'candidate_pending': False, 'last_error': None}, m5_examples=[], m5_feedback=[], trial_runs=[], errors=[])
+
+    def _validate_skill_bindings(session: SessionState) -&gt; set[str]:
+        state = session.skill_state
+        bindings = state.get("bindings", [])
+        if not bindings:
+            return set()
+        expected_plan_basis = {
+            "task_id": session.task_id,
+            "requirement_version": session.requirement_version,
+            "plan_id": session.plan.get("plan_id"),
+            "plan_version": session.plan.get("plan_version"),
+        }
+        if state.get("status") != "selected" or state.get("basis") != expected_plan_basis:
+&gt;           raise DeliveryValidationError("所选 Agent Skill 来自旧任务或方案，请重新筛选并选用。")
+E           promptsmith.finalization.DeliveryValidationError: 所选 Agent Skill 来自旧任务或方案，请重新筛选并选用。
+
+src\promptsmith\finalization.py:365: DeliveryValidationError</failure></testcase><testcase classname="tests.test_ui_delivery_interactions" name="test_selected_skill_catalog_only_runtime_keeps_final_current" time="1.021"><failure message="promptsmith.finalization.DeliveryValidationError: 所选 Agent Skill 来自旧任务或方案，请重新筛选并选用。">delivery_app = (&lt;promptsmith.ui.PromptSmithApp object at 0x0000025E5A16A050&gt;, &lt;tkinter.Toplevel object .!toplevel127&gt;)
+tmp_path = WindowsPath('C:/Users/yph/AppData/Local/Temp/pytest-of-yph/pytest-1822/test_selected_skill_catalog_on0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000025E5A1685D0&gt;
+
+    def test_selected_skill_catalog_only_runtime_keeps_final_current(delivery_app, tmp_path, monkeypatch) -&gt; None:
+        app, _window = delivery_app
+        binding = _select_to_spec_binding(app, tmp_path)
+&gt;       _stage_confirmed_skill_draft(app, binding)
+
+tests\test_ui_delivery_interactions.py:775: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_ui_delivery_interactions.py:287: in _stage_confirmed_skill_draft
+    draft = build_final_draft(app.session, selected_contributions=[contribution])
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\promptsmith\finalization.py:530: in build_final_draft
+    live_bindings = _validate_skill_bindings(session)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+session = SessionState(schema_version='promptsmith.session.v0.2', task_id='task-39361623cc51401793498da88716b62a', created_at='2...tion': None, 'candidate_pending': False, 'last_error': None}, m5_examples=[], m5_feedback=[], trial_runs=[], errors=[])
+
+    def _validate_skill_bindings(session: SessionState) -&gt; set[str]:
+        state = session.skill_state
+        bindings = state.get("bindings", [])
+        if not bindings:
+            return set()
+        expected_plan_basis = {
+            "task_id": session.task_id,
+            "requirement_version": session.requirement_version,
+            "plan_id": session.plan.get("plan_id"),
+            "plan_version": session.plan.get("plan_version"),
+        }
+        if state.get("status") != "selected" or state.get("basis") != expected_plan_basis:
+&gt;           raise DeliveryValidationError("所选 Agent Skill 来自旧任务或方案，请重新筛选并选用。")
+E           promptsmith.finalization.DeliveryValidationError: 所选 Agent Skill 来自旧任务或方案，请重新筛选并选用。
+
+src\promptsmith\finalization.py:365: DeliveryValidationError</failure></testcase><testcase classname="tests.test_ui_delivery_interactions" name="test_no_skill_final_does_not_depend_on_catalog_availability" time="1.065" /><testcase classname="tests.test_ui_delivery_interactions" name="test_one_skill_can_be_selected_for_multiple_key_works" time="1.069" /><testcase classname="tests.test_ui_delivery_interactions" name="test_complementary_skills_can_be_selected_for_one_key_work" time="0.958" /><testcase classname="tests.test_ui_delivery_interactions" name="test_canceling_overwrite_confirmation_preserves_existing_export" time="0.271" /><testcase classname="tests.test_ui_delivery_interactions" name="test_confirming_overwrite_replaces_existing_export" time="0.288" /><testcase classname="tests.test_ui_delivery_interactions" name="test_export_preserves_existing_file_if_session_changes_during_overwrite_confirmation" time="0.299" /><testcase classname="tests.test_ui_delivery_interactions" name="test_export_refuses_session_change_during_file_picker" time="0.267" /><testcase classname="tests.test_ui_delivery_interactions" name="test_pending_hard_m4_change_is_not_a_final_review_blocker" time="0.265" /><testcase classname="tests.test_ui_delivery_interactions" name="test_direction_review_action_reveals_answer_field" time="0.277" /><testcase classname="tests.test_ui_delivery_interactions" name="test_noncritical_m4_change_is_absent_from_blocking_review_list" time="0.283" /><testcase classname="tests.test_ui_delivery_interactions" name="test_m4_fallback_review_navigates_to_affected_binding_cancel" time="0.293"><failure message="promptsmith.finalization.DeliveryValidationError: 所选 Agent Skill 来自旧任务或方案，请重新筛选并选用。">delivery_app = (&lt;promptsmith.ui.PromptSmithApp object at 0x0000025E5B7B9290&gt;, &lt;tkinter.Toplevel object .!toplevel138&gt;)
+
+    def test_m4_fallback_review_navigates_to_affected_binding_cancel(delivery_app) -&gt; None:
+        app, _window = delivery_app
+        candidate, binding = _candidate()
+        _set_binding(app, candidate, binding)
+&gt;       _stage_confirmed_skill_draft(app, binding)
+
+tests\test_ui_delivery_interactions.py:1006: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_ui_delivery_interactions.py:287: in _stage_confirmed_skill_draft
+    draft = build_final_draft(app.session, selected_contributions=[contribution])
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\promptsmith\finalization.py:530: in build_final_draft
+    live_bindings = _validate_skill_bindings(session)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+session = SessionState(schema_version='promptsmith.session.v0.2', task_id='task-8c212bbbccf1451089e95050d9cebaae', created_at='2...tion': None, 'candidate_pending': False, 'last_error': None}, m5_examples=[], m5_feedback=[], trial_runs=[], errors=[])
+
+    def _validate_skill_bindings(session: SessionState) -&gt; set[str]:
+        state = session.skill_state
+        bindings = state.get("bindings", [])
+        if not bindings:
+            return set()
+        expected_plan_basis = {
+            "task_id": session.task_id,
+            "requirement_version": session.requirement_version,
+            "plan_id": session.plan.get("plan_id"),
+            "plan_version": session.plan.get("plan_version"),
+        }
+        if state.get("status") != "selected" or state.get("basis") != expected_plan_basis:
+&gt;           raise DeliveryValidationError("所选 Agent Skill 来自旧任务或方案，请重新筛选并选用。")
+E           promptsmith.finalization.DeliveryValidationError: 所选 Agent Skill 来自旧任务或方案，请重新筛选并选用。
+
+src\promptsmith\finalization.py:365: DeliveryValidationError</failure></testcase><testcase classname="tests.test_ui_m5_trial" name="test_m5_uses_current_task_version_and_feedback_candidate_excludes_example_assumptions" time="0.295" /><testcase classname="tests.test_ui_m5_trial" name="test_m5_neither_or_skip_records_no_requirement_proposal[m5_neither_button]" time="0.281" /><testcase classname="tests.test_ui_m5_trial" name="test_m5_neither_or_skip_records_no_requirement_proposal[m5_skip_button]" time="0.274" /><testcase classname="tests.test_ui_m5_trial" name="test_m5_response_after_session_switch_does_not_change_new_session" time="0.264" /><testcase classname="tests.test_ui_m5_trial" name="test_trial_is_explicit_records_and_renders_output_without_changing_final" time="0.322" /><testcase classname="tests.test_ui_m5_trial" name="test_late_trial_response_is_stale_and_failure_does_not_mutate_final" time="0.584" /><testcase classname="tests.test_ui_reliability" name="test_input_error_reaches_ui_as_failure_without_erasing_state" time="0.757" /><testcase classname="tests.test_ui_reliability" name="test_semantic_input_error_returns_to_interview_without_failure_dialog" time="0.739" /><testcase classname="tests.test_ui_reliability" name="test_selection_details_show_origin_strength_scope_source_and_change" time="0.314" /><testcase classname="tests.test_ui_reliability" name="test_new_analysis_does_not_overwrite_unreviewed_candidates" time="0.759" /><testcase classname="tests.test_ui_reliability" name="test_complete_ui_path_allows_answer_before_draft_review_and_round_trips" time="1.232" /><testcase classname="tests.test_ui_skill_ai_flow" name="test_network_source_summary_shows_attempted_web_engines" time="0.001" /><testcase classname="tests.test_ui_skill_ai_flow" name="test_local_then_optional_network_candidates_are_visible_and_selectable" time="0.416" /><testcase classname="tests.test_ui_skill_search" name="test_skill_candidates_are_visible_and_selectable_in_real_window" time="0.398" /><testcase classname="tests.test_ui_skill_search" name="test_skill_toolbar_shows_only_search_and_selection_actions" time="0.388" /><testcase classname="tests.test_ui_skill_search" name="test_local_skill_search_reports_running_then_completion_and_enables_network" time="0.303" /><testcase classname="tests.test_ui_skill_search" name="test_local_search_keeps_catalog_candidates_when_model_is_not_configured" time="0.302" /><testcase classname="tests.test_ui_skill_search" name="test_network_search_is_explicit_merges_candidates_and_renders_source" time="0.358" /><testcase classname="tests.test_ui_skill_search" name="test_network_search_preserves_bindings_selected_from_local_results" time="0.344" /><testcase classname="tests.test_ui_skill_search" name="test_verified_online_candidate_can_be_selected_and_used_in_final_draft" time="0.326" /><testcase classname="tests.test_ui_skill_search" name="test_network_request_keeps_request_id_separate_from_github_token" time="0.289" /><testcase classname="tests.test_ui_skill_search" name="test_local_search_failure_keeps_old_candidates_and_can_retry" time="0.282" /><testcase classname="tests.test_ui_skill_search" name="test_network_failure_preserves_local_candidates_and_allows_network_retry" time="0.398" /><testcase classname="tests.test_ui_skill_search" name="test_network_zero_candidates_with_source_error_is_not_reported_as_no_match" time="0.338" /><testcase classname="tests.test_ui_skill_search" name="test_late_local_result_is_discarded_when_plan_basis_changes" time="0.273" /><testcase classname="tests.test_ui_skill_search" name="test_local_search_uses_skill_files_and_selected_source_is_rechecked" time="0.296" /><testcase classname="tests.test_workflow" name="test_workflow_records_then_applies_valid_candidate" time="0.029" /><testcase classname="tests.test_workflow" name="test_invalid_model_output_is_preserved_but_not_applied" time="0.031" /><testcase classname="tests.test_workflow" name="test_valid_input_error_is_recorded_as_failure_and_preserves_state" time="0.028" /><testcase classname="tests.test_workflow" name="test_transport_failure_records_available_metadata_and_preserves_state" time="0.023" /></testsuite></testsuites>

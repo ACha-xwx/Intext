@@ -1,0 +1,4 @@
+{
+  "schema_version": "m4.v0.1", "request_id": "fixture-m4-001", "task_id": "fixture-task-001", "status": "error", "contributions": [], "proposed_changes": [],
+  "error": {"code": "constraint_conflict", "message": "所选方法要求外部发布，但任务明确禁止发布。", "recovery_action": "保留当前方案，取消该绑定或返回上游处理冲突。"}
+}

@@ -1,0 +1,42 @@
+# Python environments and caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+.coverage
+htmlcov/
+coverage.xml
+
+# Rebuildable bundles, local evidence and private working data
+/build/
+/dist/
+/tmp/
+/output/
+/local_artifacts/
+/%SystemDrive%/
+*.spec.bak
+
+# Run scripts write here; only reviewed baseline and handoff reports are shared
+/verification/*
+!/verification/README.md
+!/verification/baseline/
+!/verification/repository_handoff_20261008/
+
+# Secrets / machine-specific settings
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+config.local.*
+settings.local.*
+.DS_Store
+Thumbs.db
+desktop.ini
+/.idea/
+/.vscode/

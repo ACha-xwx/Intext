@@ -1,0 +1,7 @@
+{
+  "schema_version": "m3.v0.1", "request_id": "fixture-m3-nomatch-001", "task_id": "fixture-task-001",
+  "source_basis": {"plan_id": "fixture-plan-01", "plan_version": 1, "requirement_version": 1, "task_id": "fixture-task-001"},
+  "key_work": [{"key_work_id": "kw-notice-01", "title": "撰写摄影社新生群通知", "goal": "写一则简短自然的活动通知", "inputs": ["活动信息"], "outputs": ["微信群通知"], "checkpoints": ["活动、报名和咨询均有说明"], "step_ids": ["s-notice-01"]}],
+  "candidates": [{"candidate_id": "candidate-to-spec-kw-notice-01", "skill_id": "to-spec", "key_work_id": "kw-notice-01", "record_hash": "c1257134105bcd9a66bb893f6e3beb725ae45b5a6926bfa77e129a548acbf980", "usage_mode": "method_adaptation", "method_adaptation_allowed": true, "step_ids": ["s-notice-01"], "capabilities": [{"capability_id": "cap-spec-structure", "summary": "组织软件需求规格。", "inputs": ["已确认需求"], "outputs": ["规格文档"], "limitations": ["不发布 issue"]}], "original_prerequisites": [], "adaptation_prerequisites": [], "limitations": ["与通知写作没有直接对应"]}],
+  "target_environment": {"known": [], "unknown": ["活动时间"], "forbidden_actions": []}
+}

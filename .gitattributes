@@ -1,2 +1,5 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Fixed third-party snapshots are verified byte-for-byte by catalog SHA-256.
+/resources/skill_catalog/sources/* -text

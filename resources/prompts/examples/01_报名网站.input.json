@@ -1,0 +1,83 @@
+{
+  "schema_version": "m1.v0.1",
+  "request_id": "req-01",
+  "task_id": "task-01",
+  "base_version": 0,
+  "control": {
+    "max_questions": 2,
+    "remaining_rounds": 2,
+    "allow_questions": true,
+    "context_coverage": "complete",
+    "current_date": "2026-09-22"
+  },
+  "state": {
+    "selected_category": null,
+    "requirements": [],
+    "gaps": [],
+    "question_history": [],
+    "open_conflicts": []
+  },
+  "sources": [
+    {
+      "source_id": "u1",
+      "role": "user",
+      "text": "帮我做一个活动报名网站，不做付款。"
+    }
+  ],
+  "current_source_id": "u1",
+  "category_config": {
+    "version": "categories.proposed.v0.1",
+    "common_fields": [
+      "goal",
+      "audience",
+      "context",
+      "materials",
+      "constraints",
+      "deliverable",
+      "success_criteria",
+      "preferences",
+      "other"
+    ],
+    "category_fields": {
+      "writing": [
+        "purpose",
+        "length",
+        "evidence_policy",
+        "style"
+      ],
+      "presentation": [
+        "duration",
+        "slide_count",
+        "core_message",
+        "structure"
+      ],
+      "learning": [
+        "baseline",
+        "learning_goal",
+        "available_time",
+        "practice"
+      ],
+      "planning_research": [
+        "decision_purpose",
+        "scope_boundary",
+        "resources",
+        "evidence_policy"
+      ],
+      "data_analysis": [
+        "analysis_question",
+        "data_schema",
+        "metric_definition",
+        "chart_use",
+        "analysis_scope"
+      ],
+      "coding": [
+        "use_context",
+        "features",
+        "runtime",
+        "existing_code",
+        "io_behavior"
+      ],
+      "general": []
+    }
+  }
+}

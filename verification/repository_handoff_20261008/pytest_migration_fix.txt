@@ -1,0 +1,3 @@
+............................................                             [100%]
+- generated xml file: C:\Users\yph\Documents\GitHub\PromptSmith\verification\repository_handoff_20261008\pytest_migration_fix.xml -
+44 passed in 12.18s

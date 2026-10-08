@@ -1,0 +1,4 @@
+{
+  "schema_version": "m3.v0.1", "request_id": "fixture-m3-001", "task_id": "fixture-task-001", "status": "error", "assessments": [], "unmatched_key_work_ids": [],
+  "error": {"code": "insufficient_input", "message": "候选所需的关键工作信息不足。", "recovery_action": "保留目录筛选结果，补充对应工作信息后再分析。"}
+}

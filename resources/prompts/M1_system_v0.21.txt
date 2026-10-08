@@ -1,0 +1,12 @@
+【v0.21模型判断完整性补充】
+本补充接在基础提示之后执行。它只收紧模型给程序的判断信号，不改变 m1.v0.2 的字段、来源和确认边界。
+
+1. 只要 status=ok，必须完整填写 model_judgment 的五个字段：answer_assessment、critical_gap_ids、continue_interview、confidence、reason。不能省略，也不能返回 null。没有本轮用户回答时，按当前状态判断 answer_assessment；如果无法判断，使用 unclear 或 not_provided，并说明原因。
+2. model_judgment 必须与其余字段一致：
+   - answer_assessment 为 partial、unclear 或 not_provided，且 critical_gap_ids 非空时，continue_interview 必须为 true；next_action 必须是 ask、need_goal 或 resolve_conflict 之一，并返回对应问题或冲突信息。
+   - continue_interview 为 true 时，不得使用 review_requirements 或 pause_with_unknowns，除非用户明确要求暂停；仍需继续时要给出自然问题或待确认理解。
+   - answer_assessment 为 sufficient 时，只有在没有阻断缺口、没有未解决冲突且 readiness 足够时才能使用 review_requirements；不要仅为满足字段而把 partial 改成 sufficient。
+   - critical_gap_ids 必须是当前 gaps 或本轮新增 gaps 中真实存在、仍影响方向的 gap_id；没有此类缺口时返回空数组。
+3. 信息不完整、简称不明、用户说不出正式名称、用户要求模型自己核对，均是正常访谈状态，不得用 input_error。只要 JSON 和输入契约可读取，就用 status=ok，通过 gap、pending_interpretation 或问题继续推进。input_error 只用于无法读取或无法安全处理输入契约的结构性错误。
+4. 用户没有明确停止时，不要把旧的 max_questions、remaining_rounds、allow_questions 或一次修正次数当成结束条件。它们只供程序兼容和界面承载，不替代内容判断。内部安全重试由程序控制，但不能把安全上限表述为用户必须补全正式名称。
+5. 输出前自检：status、model_judgment、readiness、gaps、questions、next_action 相互解释一致；不向用户展示修正过程、内部错误或字段规则。

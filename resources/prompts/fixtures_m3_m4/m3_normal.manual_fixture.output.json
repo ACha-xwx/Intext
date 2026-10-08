@@ -1,0 +1,5 @@
+{
+  "schema_version": "m3.v0.1", "request_id": "fixture-m3-001", "task_id": "fixture-task-001", "status": "ok",
+  "assessments": [{"candidate_id": "candidate-fixture-spec-01", "decision": "recommend", "capability_ids": ["cap-spec-structure"], "reason": "关键工作要求整理软件开发规格，该能力覆盖用户故事、实现与测试决定。", "planned_inputs": ["已确认的软件需求", "已确认初始方案", "未决事项清单"], "expected_outputs": ["含测试策略和范围边界的规格草稿"], "prerequisite_ids": ["adapt-confirmed-requirements"], "limitations": ["只做本地规格整理，不发布 issue", "仓库事实缺失时保留未知"]}],
+  "unmatched_key_work_ids": [], "error": null
+}

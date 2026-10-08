@@ -1,0 +1,25 @@
+{
+  "schema_version": "m2.v0.1",
+  "request_id": "fixture-m2-normal",
+  "task_id": "task-fixture-m2",
+  "source_requirements_version": 3,
+  "confirmed_requirements_version": 3,
+  "control": {"current_date": "2026-09-23"},
+  "task": {"text": "制作一个供课堂演示的活动报名网站，不做付款。"},
+  "category": {
+    "primary": "coding",
+    "secondary": [],
+    "config_version": "categories.proposed.v0.1",
+    "applicable_fields": ["goal", "deliverable", "constraints", "use_context", "features", "runtime"]
+  },
+  "requirements": [
+    {"item_id": "r1", "field": "deliverable", "text": "一个可演示的活动报名网站", "kind": "user_decision", "strength": "hard", "scope": "整体任务", "source_refs": [], "depends_on": []},
+    {"item_id": "r2", "field": "constraints", "text": "不实现付款功能", "kind": "user_decision", "strength": "hard", "scope": "功能范围", "source_refs": [], "depends_on": []},
+    {"item_id": "r3", "field": "use_context", "text": "用于课堂演示", "kind": "user_decision", "strength": "preference", "scope": "整体任务", "source_refs": [], "depends_on": []}
+  ],
+  "unresolved_items": [
+    {"unresolved_id": "g1", "field": "runtime", "scope": "部署方式", "description": "最终部署位置尚未决定。", "importance": "can_defer", "can_defer": true, "source_refs": [], "depends_on": ["r1"]}
+  ],
+  "relevant_materials": [],
+  "plan_context": {"current_plan_id": null, "current_plan_version": 0}
+}

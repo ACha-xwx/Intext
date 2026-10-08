@@ -1,0 +1,11 @@
+{
+  "git_files": 481,
+  "bytes": 8997970,
+  "large_files_over_10MiB": [],
+  "forbidden_files": [],
+  "secret_pattern_matches": [],
+  "local_doc_links_checked": 262,
+  "broken_local_doc_links": [],
+  "fixed_catalog_sources_match_git_blobs": true,
+  "limitations": "Pattern scan is not a universal secret detector; original raw evidence is intentionally excluded from Git."
+}

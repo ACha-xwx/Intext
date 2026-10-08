@@ -1,0 +1,118 @@
+{
+  "schema_version": "m1.v0.1",
+  "request_id": "req-01",
+  "task_id": "task-01",
+  "base_version": 0,
+  "status": "ok",
+  "error": null,
+  "category": {
+    "primary": "coding",
+    "secondary": [],
+    "reason": "按本次主要交付物建议类别，用户可以改选。"
+  },
+  "proposals": [
+    {
+      "proposal_id": "p1",
+      "operation": "new",
+      "target_item_id": null,
+      "field": "goal",
+      "text": "制作活动报名网站。",
+      "kind": "user_decision",
+      "strength": "unspecified",
+      "scope": "报名网站",
+      "source_refs": [
+        {
+          "source_id": "u1",
+          "quote": "帮我做一个活动报名网站"
+        }
+      ],
+      "depends_on": [],
+      "reason": "来自用户本轮明确表述。"
+    },
+    {
+      "proposal_id": "p2",
+      "operation": "new",
+      "target_item_id": null,
+      "field": "constraints",
+      "text": "本次不做付款。",
+      "kind": "user_decision",
+      "strength": "hard",
+      "scope": "报名网站",
+      "source_refs": [
+        {
+          "source_id": "u1",
+          "quote": "不做付款"
+        }
+      ],
+      "depends_on": [],
+      "reason": "来自用户本轮明确表述。"
+    },
+    {
+      "proposal_id": "p3",
+      "operation": "new",
+      "target_item_id": null,
+      "field": "deliverable",
+      "text": "活动报名网站。",
+      "kind": "user_decision",
+      "strength": "unspecified",
+      "scope": "报名网站",
+      "source_refs": [
+        {
+          "source_id": "u1",
+          "quote": "活动报名网站"
+        }
+      ],
+      "depends_on": [],
+      "reason": "来自用户本轮明确表述。"
+    }
+  ],
+  "conflicts": [],
+  "review_item_ids": [],
+  "gaps": [
+    {
+      "gap_id": "g1",
+      "field": "use_context",
+      "scope": "报名网站",
+      "description": "网站用于实际报名还是演示尚未说明。",
+      "importance": "blocking_direction",
+      "origin": "missing",
+      "source_refs": [],
+      "depends_on": []
+    },
+    {
+      "gap_id": "g2",
+      "field": "features",
+      "scope": "报名网站",
+      "description": "除报名和不含付款外，必要功能边界尚待补充。",
+      "importance": "can_defer",
+      "origin": "missing",
+      "source_refs": [],
+      "depends_on": []
+    }
+  ],
+  "questions": [
+    {
+      "question_id": "q1",
+      "gap_id": "g1",
+      "field": "use_context",
+      "scope": "报名网站",
+      "text": "这个报名网站准备给大家实际使用，还是先做课堂演示？",
+      "options": [
+        "实际使用",
+        "课堂演示"
+      ],
+      "reason": "用途会影响功能范围和运行要求，应先于部署细节澄清。",
+      "depends_on": []
+    }
+  ],
+  "readiness": {
+    "goal_identified": true,
+    "deliverable_identified": true,
+    "blocking_gap_ids": [
+      "g1"
+    ],
+    "reason": "网站目标与不付款范围已表达，用途仍会改变方案方向。"
+  },
+  "next_action": "ask",
+  "assistant_text": "已记下这次不做付款。"
+}

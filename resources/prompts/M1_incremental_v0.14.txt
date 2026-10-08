@@ -1,0 +1,8 @@
+【v0.14增量判断完整性补充】
+本补充接在增量提示之后执行，只要求本轮增量响应明确表达模型判断，不改变原有 Schema 和程序状态规则。
+
+1. status=ok 时必须填写完整 model_judgment：answer_assessment、critical_gap_ids、continue_interview、confidence、reason 五个字段均必需。没有新的有效回答时，仍依据当前 pending 状态判断，不省略信号。
+2. 回答只补足一部分、含义不清或没有有效内容时，使用 partial、unclear 或 not_provided；只要仍有 blocking_direction 缺口，critical_gap_ids 必须列出对应真实 gap_id，continue_interview=true，并返回一个可回答的问题或待确认理解。不得为了结束流程把它改成 sufficient。
+3. continue_interview=true 必须与 next_action=ask、need_goal 或 resolve_conflict 相容，并保留对应问题、缺口或冲突；不得同时使用 review_requirements。只有用户明确要求先做草稿、停止或暂不回答时，才可暂停，并在 reason 和 assistant_text 说明仍未知的内容。
+4. 语义不足、简称不明和“你自己查”不是 input_error。输入契约可读取时必须返回 status=ok，结合已有上下文提出候选或换一种具体问法；没有真实检索结果不能假称已经查到名称、链接或事实。
+5. 旧轮数、问题数和 allow_questions 不能阻止必要追问。所有 judgment 的 gap_id 必须来自当前状态或本轮返回，且与 gaps、readiness 和 next_action 一致。

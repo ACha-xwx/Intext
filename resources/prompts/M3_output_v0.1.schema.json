@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "m3.output.v0.1",
+  "title": "M3 output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "request_id", "task_id", "status", "assessments", "unmatched_key_work_ids", "error"],
+  "properties": {
+    "schema_version": {"const": "m3.v0.1"},
+    "request_id": {"type": "string", "minLength": 1},
+    "task_id": {"type": "string", "minLength": 1},
+    "status": {"enum": ["ok", "error"]},
+    "assessments": {"type": "array", "items": {"$ref": "#/$defs/assessment"}},
+    "unmatched_key_work_ids": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+    "error": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/error"}]}
+  },
+  "allOf": [
+    {"if": {"properties": {"status": {"const": "error"}}, "required": ["status"]}, "then": {"properties": {"assessments": {"maxItems": 0}, "unmatched_key_work_ids": {"maxItems": 0}, "error": {"$ref": "#/$defs/error"}}}},
+    {"if": {"properties": {"status": {"const": "ok"}}, "required": ["status"]}, "then": {"properties": {"error": {"type": "null"}}}}
+  ],
+  "$defs": {
+    "stringList": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+    "assessment": {
+      "type": "object", "additionalProperties": false,
+      "required": ["candidate_id", "decision", "capability_ids", "reason", "planned_inputs", "expected_outputs", "prerequisite_ids", "limitations"],
+      "properties": {
+        "candidate_id": {"type": "string", "minLength": 1},
+        "decision": {"enum": ["recommend", "conditional", "no_match"]},
+        "capability_ids": {"$ref": "#/$defs/stringList"},
+        "reason": {"type": "string", "minLength": 1},
+        "planned_inputs": {"$ref": "#/$defs/stringList"},
+        "expected_outputs": {"$ref": "#/$defs/stringList"},
+        "prerequisite_ids": {"$ref": "#/$defs/stringList"},
+        "limitations": {"$ref": "#/$defs/stringList"}
+      }
+    },
+    "error": {
+      "type": "object", "additionalProperties": false,
+      "required": ["code", "message", "recovery_action"],
+      "properties": {
+        "code": {"enum": ["insufficient_input", "unsupported_input", "contract_issue"]},
+        "message": {"type": "string", "minLength": 1},
+        "recovery_action": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}

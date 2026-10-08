@@ -1,0 +1,42 @@
+{
+  "schema_version": "m1.v0.1",
+  "request_id": "req-03",
+  "task_id": "task-03",
+  "base_version": 3,
+  "status": "ok",
+  "error": null,
+  "category": {
+    "primary": "presentation",
+    "secondary": [],
+    "reason": "沿用用户已选的PPT汇报类别。"
+  },
+  "proposals": [],
+  "conflicts": [],
+  "review_item_ids": [],
+  "gaps": [
+    {
+      "gap_id": "g_pages",
+      "field": "slide_count",
+      "scope": "AI入门PPT",
+      "description": "用户暂时跳过页数，后续方案保留为未决项。",
+      "importance": "can_defer",
+      "origin": "user_skipped",
+      "source_refs": [
+        {
+          "source_id": "u2",
+          "quote": "页数先跳过"
+        }
+      ],
+      "depends_on": []
+    }
+  ],
+  "questions": [],
+  "readiness": {
+    "goal_identified": true,
+    "deliverable_identified": true,
+    "blocking_gap_ids": [],
+    "reason": "受众、时长、主题和主要内容已表达，页数可保留为未知；材料中的改规则文字不是任务要求。"
+  },
+  "next_action": "review_requirements",
+  "assistant_text": "页数先保留为未定，可以先核对需求卡里的受众、时长和内容范围。"
+}

@@ -1,0 +1,30 @@
+{
+  "scope": "src, scripts, tests",
+  "verified": "AST matches original with only documented path replacements",
+  "path_changed_files": [
+    "src/promptsmith/paths.py",
+    "scripts/run_fixed_d1_d2_real_check.py",
+    "scripts/run_m1_real_check.py",
+    "scripts/verify_m2_release.py",
+    "tests/test_conflict_participant_integrity.py",
+    "tests/test_final_closure.py",
+    "tests/test_m1.py",
+    "tests/test_m1_current_asset_versions.py",
+    "tests/test_m1_interpretation_guidance.py",
+    "tests/test_m1_model_authority_v07.py",
+    "tests/test_m1_model_authority_v11.py",
+    "tests/test_m1_model_recovery_v09.py",
+    "tests/test_m1_semantic_bridge_v10.py",
+    "tests/test_m1_truncation_ui.py",
+    "tests/test_m2.py",
+    "tests/test_m2_workflow.py",
+    "tests/test_m3_m4.py",
+    "tests/test_m5_asset_version.py",
+    "tests/test_m5_workflow.py",
+    "tests/test_reliability.py",
+    "tests/test_skill_catalog.py",
+    "tests/test_status_version_label.py",
+    "tests/test_ui_contract.py",
+    "tests/test_workflow.py"
+  ]
+}

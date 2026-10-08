@@ -1,0 +1,443 @@
+{
+  "schema_version": "catalog.v0.1",
+  "catalog_id": "promptsmith-local-skill-catalog",
+  "catalog_version": "0.1.2",
+  "records": [
+    {
+      "skill_id": "to-spec",
+      "name": "to-spec",
+      "description": "把已经讨论清楚的需求整理为规格、用户故事、实现决定、测试决定和范围边界。",
+      "repository": "https://github.com/mattpocock/skills",
+      "fixed_commit": "c55ee46073ed923f86ce59a5eb3b6d895095d1b7",
+      "source_recorded_at": "2026-09-28",
+      "source_path": "resources/skill_catalog/sources/mattpocock_to-spec.md",
+      "local_snapshot_path": "resources/skill_catalog/sources/mattpocock_to-spec.md",
+      "source_url": "https://github.com/mattpocock/skills/blob/c55ee46073ed923f86ce59a5eb3b6d895095d1b7/skills/engineering/to-spec/SKILL.md",
+      "local_source_snapshot_sha256": "43AD9CF318E5E7D3D1FA360253A37021796DC87A0C2E595AD262661A10F85088",
+      "record_hash": "41e6129232dfe4c340a9c38d838c7ef3a88575aceda14c64ee2054a05654b175",
+      "capabilities": [
+        {
+          "capability_id": "cap-spec-structure",
+          "summary": "按当前已确认的需求和代码上下文形成独立可读的软件规格。",
+          "work_signals": [
+            "报名工具",
+            "报名系统",
+            "软件系统",
+            "软件开发",
+            "管理后台",
+            "应用程序",
+            "网站开发",
+            "Web应用",
+            "Web 应用",
+            "API接口",
+            "API 接口",
+            "前端开发",
+            "后端开发",
+            "数据库系统",
+            "客户端软件",
+            "服务端程序",
+            "代码库",
+            "规格",
+            "用户故事",
+            "实现决定",
+            "测试决定"
+          ],
+          "work_signal_groups": [
+            {
+              "group_id": "software_context",
+              "terms": [
+                "报名工具",
+                "报名系统",
+                "软件系统",
+                "软件开发",
+                "软件项目",
+                "软件需求",
+                "软件规格",
+                "管理后台",
+                "应用程序",
+                "网站开发",
+                "网站系统",
+                "Web应用",
+                "Web 应用",
+                "API接口",
+                "API 接口",
+                "前端开发",
+                "后端开发",
+                "前端页面",
+                "后端接口",
+                "数据库系统",
+                "客户端软件",
+                "服务端程序",
+                "代码库"
+              ],
+              "allow_task_context": true
+            },
+            {
+              "group_id": "specification_work",
+              "terms": [
+                "规格",
+                "用户故事",
+                "实现决定",
+                "测试决定"
+              ]
+            }
+          ],
+          "match_terms": [
+            "规格",
+            "开发规格",
+            "需求",
+            "用户故事",
+            "实现决定",
+            "测试决定",
+            "范围边界"
+          ],
+          "inputs": [
+            "已确认需求",
+            "方案步骤",
+            "范围边界"
+          ],
+          "outputs": [
+            "问题陈述",
+            "用户故事",
+            "实现决定",
+            "测试决定",
+            "不包含范围"
+          ],
+          "limitations": [
+            "本地只做规格整理，不发布 issue 或调用 issue tracker。"
+          ],
+          "evidence": "resources/skill_catalog/sources/mattpocock_to-spec.md#spec-template"
+        }
+      ],
+      "method_adaptation_allowed": true,
+      "adaptation_summary": "借鉴规格整理和测试切入点；产品只生成本地规格内容，不执行原版仓库探查、issue 发布或 triage。",
+      "suitable_work": [
+        "将已确认的软件系统需求整理为规格、用户故事、实现决定和测试决定。"
+      ],
+      "unsuitable_work": [
+        "撰写社团通知、课程讲义或其他一般文案。",
+        "继续访谈以发现尚未明确的需求；本方法用于综合已确认信息。"
+      ],
+      "host_tool_requirements": [
+        "原版需要项目代码库上下文、issue tracker 约定和 triage 标签。",
+        "原文要求先完成 /setup-matt-pocock-skills 配置。"
+      ],
+      "original_side_effects": [
+        "向项目 issue tracker 发布规格并应用 ready-for-agent 标签。"
+      ],
+      "adaptation_side_effects": [
+        "仅生成本地规格草稿，不发布 issue 或调用 issue tracker。"
+      ],
+      "original_prerequisites": [
+        {
+          "prerequisite_id": "orig-to-spec-host",
+          "description": "原版需要项目代码库与 issue tracker 约定。",
+          "status": "unknown"
+        },
+        {
+          "prerequisite_id": "orig-to-spec-setup",
+          "description": "原文提到 /setup-matt-pocock-skills 配置。",
+          "status": "unknown"
+        }
+      ],
+      "adaptation_prerequisites": [
+        {
+          "prerequisite_id": "adapt-confirmed-requirements",
+          "description": "已有用户确认的需求、范围和交付物。"
+        },
+        {
+          "prerequisite_id": "adapt-local-output",
+          "description": "当前工作只需要本地规格文档，不需要发布外部 issue。"
+        }
+      ],
+      "incompatible_if": [
+        "发布 issue",
+        "issue tracker 发布",
+        "外部 issue"
+      ],
+      "license": {
+        "name": "MIT",
+        "path": "resources/skill_catalog/sources/mattpocock_LICENSE.txt",
+        "repository": "https://github.com/mattpocock/skills",
+        "fixed_commit": "c55ee46073ed923f86ce59a5eb3b6d895095d1b7",
+        "evidence_url": "https://github.com/mattpocock/skills/blob/c55ee46073ed923f86ce59a5eb3b6d895095d1b7/LICENSE",
+        "sha256": "0E7AC423BF2C6E223B7C5B156F8CF72DA49D748E56A1641402C31F22AD07DBB5"
+      },
+      "verification": {
+        "source_read": true,
+        "local_text_checked": true,
+        "local_text_checked_at": "2026-09-28",
+        "upstream_rechecked": false,
+        "upstream_rechecked_at": null,
+        "host_dependencies_available": "unknown",
+        "installed": false,
+        "execution_tested": false
+      }
+    },
+    {
+      "skill_id": "domain-modeling",
+      "name": "domain-modeling",
+      "description": "澄清项目术语、领域关系和需要记录的领域决策。",
+      "repository": "https://github.com/mattpocock/skills",
+      "fixed_commit": "c55ee46073ed923f86ce59a5eb3b6d895095d1b7",
+      "source_recorded_at": "2026-09-28",
+      "source_path": "resources/skill_catalog/sources/mattpocock_domain-modeling.md",
+      "local_snapshot_path": "resources/skill_catalog/sources/mattpocock_domain-modeling.md",
+      "source_url": "https://github.com/mattpocock/skills/blob/c55ee46073ed923f86ce59a5eb3b6d895095d1b7/skills/engineering/domain-modeling/SKILL.md",
+      "local_source_snapshot_sha256": "327A2B50620E2FD70ABC6893CD6965E76B20F8D0ADB0DC2C8D5EB3845EFB643E",
+      "record_hash": "b13479a4a8204d79044cb723bca2f80d9d523fb830624db584c1f51f902a23f5",
+      "capabilities": [
+        {
+          "capability_id": "cap-domain-terms",
+          "summary": "在确有领域术语、实体关系或决策记录需要澄清时建立术语和关系检查。",
+          "work_signals": [
+            "领域建模",
+            "领域模型",
+            "领域术语",
+            "实体关系",
+            "术语",
+            "ADR",
+            "决策记录"
+          ],
+          "work_signal_groups": [
+            {
+              "group_id": "domain_context",
+              "terms": [
+                "领域建模",
+                "领域模型",
+                "领域术语",
+                "domain modeling",
+                "domain model"
+              ]
+            },
+            {
+              "group_id": "modeling_work",
+              "terms": [
+                "实体关系",
+                "术语",
+                "实体",
+                "业务对象",
+                "ADR",
+                "决策记录"
+              ]
+            }
+          ],
+          "match_terms": [
+            "领域建模",
+            "领域模型",
+            "实体",
+            "关系",
+            "术语",
+            "ADR",
+            "决策记录"
+          ],
+          "inputs": [
+            "当前需求",
+            "领域术语候选",
+            "待澄清关系"
+          ],
+          "outputs": [
+            "术语表",
+            "实体关系说明",
+            "待记录的决策"
+          ],
+          "limitations": [
+            "本地没有原文引用的 CONTEXT-FORMAT.md 和 ADR-FORMAT.md，不声称模板齐备。"
+          ],
+          "evidence": "resources/skill_catalog/sources/mattpocock_domain-modeling.md#File-structure"
+        }
+      ],
+      "method_adaptation_allowed": true,
+      "adaptation_summary": "只借鉴术语澄清、关系压力测试和适度记录决策；不要求所有软件任务都新增领域建模文件。",
+      "suitable_work": [
+        "澄清业务术语、实体关系、领域边界或领域决策。"
+      ],
+      "unsuitable_work": [
+        "没有领域术语或关系问题的一般软件实现。",
+        "仅撰写不涉及领域模型的一般通知或清单。"
+      ],
+      "host_tool_requirements": [
+        "原版可读取或维护 CONTEXT.md、CONTEXT-MAP.md、上下文格式文件和 ADR 格式文件。"
+      ],
+      "original_side_effects": [
+        "按需要创建或更新上下文和 ADR 文档。"
+      ],
+      "adaptation_side_effects": [
+        "仅将术语、关系和决策澄清作为本地步骤建议；缺少模板时不声称模板齐备。"
+      ],
+      "original_prerequisites": [
+        {
+          "prerequisite_id": "orig-domain-context",
+          "description": "原版可使用 CONTEXT.md、CONTEXT-MAP.md 和格式文件。",
+          "status": "unknown"
+        },
+        {
+          "prerequisite_id": "orig-domain-adr",
+          "description": "原版可按需维护 ADR 与领域上下文。",
+          "status": "unknown"
+        }
+      ],
+      "adaptation_prerequisites": [
+        {
+          "prerequisite_id": "adapt-domain-need",
+          "description": "当前关键工作确实包含需要澄清的领域术语、实体或关系。"
+        },
+        {
+          "prerequisite_id": "adapt-domain-material",
+          "description": "相关领域材料或用户定义的术语可供核对；缺失时保留未知。"
+        }
+      ],
+      "incompatible_if": [],
+      "license": {
+        "name": "MIT",
+        "path": "resources/skill_catalog/sources/mattpocock_LICENSE.txt",
+        "repository": "https://github.com/mattpocock/skills",
+        "fixed_commit": "c55ee46073ed923f86ce59a5eb3b6d895095d1b7",
+        "evidence_url": "https://github.com/mattpocock/skills/blob/c55ee46073ed923f86ce59a5eb3b6d895095d1b7/LICENSE",
+        "sha256": "0E7AC423BF2C6E223B7C5B156F8CF72DA49D748E56A1641402C31F22AD07DBB5"
+      },
+      "verification": {
+        "source_read": true,
+        "local_text_checked": true,
+        "local_text_checked_at": "2026-09-28",
+        "upstream_rechecked": false,
+        "upstream_rechecked_at": null,
+        "host_dependencies_available": "unknown",
+        "installed": false,
+        "execution_tested": false
+      }
+    },
+    {
+      "skill_id": "goal-prompt",
+      "name": "goal-prompt",
+      "description": "把已经明确的长任务目标、检查条件、不变量和停止边界整理为可复用的目标提示。",
+      "repository": "https://github.com/trailofbits/skills",
+      "fixed_commit": "123037ec8aed26f0d86327cc39137ee5043e5deb",
+      "source_recorded_at": "2026-09-28",
+      "source_path": "resources/skill_catalog/sources/trailofbits_goal-prompt.md",
+      "local_snapshot_path": "resources/skill_catalog/sources/trailofbits_goal-prompt.md",
+      "source_url": "https://github.com/trailofbits/skills/blob/123037ec8aed26f0d86327cc39137ee5043e5deb/plugins/goal-prompt/skills/goal-prompt/SKILL.md",
+      "local_source_snapshot_sha256": "684BD98D836F88E7B7EC552CC329E4E4CC1FD51CB0D4EF23E83036992F6EF6CC",
+      "record_hash": "67c47b285e49f8b7e0df4b7a3446c9d8503a9d93ee87b7752d12fffbb8889c8c",
+      "capabilities": [
+        {
+          "capability_id": "cap-goal-condition",
+          "summary": "为已有明确结束条件的长任务整理结束状态、验证命令、不变量和停止边界。",
+          "work_signals": [
+            "目标提示",
+            "任务提示",
+            "提示词",
+            "结束条件",
+            "停止边界",
+            "验收证据",
+            "长任务"
+          ],
+          "work_signal_groups": [
+            {
+              "group_id": "prompt_authoring",
+              "terms": [
+                "目标提示",
+                "任务提示",
+                "提示词",
+                "goal prompt"
+              ]
+            },
+            {
+              "group_id": "goal_conditions",
+              "terms": [
+                "结束条件",
+                "停止边界",
+                "验收证据",
+                "验证命令",
+                "不变量"
+              ]
+            }
+          ],
+          "match_terms": [
+            "目标提示",
+            "结束条件",
+            "停止边界",
+            "验收证据",
+            "可验证",
+            "长任务"
+          ],
+          "inputs": [
+            "已确认任务目标",
+            "完成条件",
+            "验证命令",
+            "不变量"
+          ],
+          "outputs": [
+            "目标提示草稿",
+            "可观察检查",
+            "阻塞处理边界"
+          ],
+          "limitations": [
+            "本地只借鉴目标条件编写方法，不启动 /goal，不运行 formatter 或其他宿主工具。"
+          ],
+          "evidence": "resources/skill_catalog/sources/trailofbits_goal-prompt.md#Draft"
+        }
+      ],
+      "method_adaptation_allowed": true,
+      "adaptation_summary": "借鉴可终止目标、可观察检查和不变量的组织方式；不执行 Claude Code/Codex 宿主命令。",
+      "suitable_work": [
+        "为已明确的复杂任务撰写含完成条件、验证证据、不变量和停止边界的可复用目标提示。"
+      ],
+      "unsuitable_work": [
+        "只需要常规执行清单或简单内容生成的任务。",
+        "要求产品直接启动持续目标模式或执行宿主命令的任务。"
+      ],
+      "host_tool_requirements": [
+        "原版面向支持 /goal 的 Claude Code 或 Codex 宿主。",
+        "原文要求运行 goal prompt formatter 脚本。"
+      ],
+      "original_side_effects": [
+        "生成可粘贴到目标宿主的单行目标命令；Skill 本身不替宿主执行目标。"
+      ],
+      "adaptation_side_effects": [
+        "仅整理目标提示文本，不启动 /goal，不调用宿主工具。"
+      ],
+      "original_prerequisites": [
+        {
+          "prerequisite_id": "orig-goal-host",
+          "description": "原版面向 Claude Code 或 Codex 的 /goal 宿主。",
+          "status": "unknown"
+        },
+        {
+          "prerequisite_id": "orig-goal-formatter",
+          "description": "原文要求可用 formatter 脚本校验格式。",
+          "status": "unknown"
+        }
+      ],
+      "adaptation_prerequisites": [
+        {
+          "prerequisite_id": "adapt-verifiable-end-state",
+          "description": "关键工作已经有明确、可观察的结束条件。"
+        },
+        {
+          "prerequisite_id": "adapt-check-command",
+          "description": "存在用户可执行或可核对的验证方式；缺失时保留待补充。"
+        }
+      ],
+      "incompatible_if": [],
+      "license": {
+        "name": "CC BY-SA 4.0",
+        "path": "resources/skill_catalog/sources/trailofbits_LICENSE.txt",
+        "repository": "https://github.com/trailofbits/skills",
+        "fixed_commit": "123037ec8aed26f0d86327cc39137ee5043e5deb",
+        "evidence_url": "https://github.com/trailofbits/skills/blob/123037ec8aed26f0d86327cc39137ee5043e5deb/LICENSE",
+        "sha256": "7ABE19EC9BB73B36141B999B861D24AD855E808BAFE0F81E84CCE28556F6C297"
+      },
+      "verification": {
+        "source_read": true,
+        "local_text_checked": true,
+        "local_text_checked_at": "2026-09-28",
+        "upstream_rechecked": false,
+        "upstream_rechecked_at": null,
+        "host_dependencies_available": "unknown",
+        "installed": false,
+        "execution_tested": false
+      }
+    }
+  ]
+}

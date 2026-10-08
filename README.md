@@ -1,2 +1,65 @@
 # PromptSmith
 
+需求引导式提示构建助手：将模糊想法整理为明确需求、执行方案和可交给其他 AI 使用的提示，并按任务选配 Agent Skill。
+
+Python / Tkinter Windows 桌面应用。AI 功能调用用户配置的模型接口；软件提供需求确认、方案管理、Skill 检索与选择、保存和导出。
+
+## 接手入口
+
+**新队员先读 [HANDOFF.md](HANDOFF.md)**，再按职责阅读：
+
+| 工作 | 入口 |
+|---|---|
+| 功能开发、架构与状态逻辑 | [架构与数据流](docs/architecture.md) |
+| UI 设计与实现 | [UI 接手指南](docs/ui-handoff.md) |
+| 启动、检查、打包 | [开发与验证](docs/development.md) |
+| 既往问题与已知限制 | [踩坑与防回归](docs/pitfalls.md) |
+| 比赛要求、PPT、技术文档和视频 | [比赛与展示资料](docs/competition/README.md) |
+| GitHub Desktop、三人协作与提交 | [协作说明](CONTRIBUTING.md) |
+
+## 启动
+
+在仓库根目录使用 Python 3.11 或更高版本（须包含 Tk）：
+
+```powershell
+python -m venv .venv
+.venv/Scripts/python.exe -m pip install -r requirements.txt
+.venv/Scripts/python.exe run_promptsmith.py
+```
+
+界面中填写服务、协议、接口地址、模型 ID 和自己的 API Key。支持 OpenAI Chat Completions、OpenAI Responses、Anthropic Messages。连接测试通过只说明探测请求成功，正式结构化生成仍需验证服务支持。
+
+```powershell
+.venv/Scripts/python.exe run_promptsmith.py --smoke-test
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1
+```
+
+构建产物为 `dist/PromptSmith.exe`。EXE、虚拟环境、运行日志和个人会话不提交 Git；分发软件时使用 GitHub Release 或团队共享文件。默认用户数据在 `%LOCALAPPDATA%/PromptSmith/`，运行时密钥不随会话保存。
+
+## 仓库结构
+
+```text
+HANDOFF.md / README.md       当前交接和导航
+CONTRIBUTING.md / AGENTS.md  人员与 AI 协作约定
+src/promptsmith/             UI、业务逻辑、模型与检索实现
+resources/prompts/          M1–M5 提示、Schema、兼容资源和测试样例
+resources/skill_catalog/    内置参考目录及来源说明
+tests/                      自动化测试
+scripts/                    构建、离线验证及显式真实 API 检查
+docs/                       架构、UI、开发、踩坑说明
+  competition/              比赛规则、研究基础、包装与答辩规划
+  archive/                  历史设计、计划和验收文字记录
+  maintenance/              本次整理清单和进度
+verification/               经整理的基线与本次验证结论
+local_artifacts/            本地历史原始证据压缩档（忽略）
+```
+
+运行资源已从旧 `output/prompt/_design/` 移到 `resources/prompts/`。旧文件位置可通过 [迁移清单](docs/maintenance/migration_manifest.json) 查询。
+
+## 当前状态
+
+功能基线为 2026-10-08 的 Skill 交接修复版：最终提示带 Skill 名称、来源、本地路径及对应工作/步骤，供下游 AI 获取、阅读和使用。程序不会安装或执行检索到的 Skill。
+
+前一轮有 155 项相关检查分批通过；同时仍存在已单列的 12 项历史测试/契约不一致。真实模型全链内容质量、真实用户效果与跨机兼容性需要补充验收。**当前仓库不宣称全量测试全绿。** 本次整理的验证结果见 [交接验证](verification/repository_handoff_20261008/results.md)。
+
+参赛方向为 2026 第八届全球校园人工智能算法精英大赛“AI+软件创新”。技术、功能与方案完整性需要实际证据支撑；比赛资料中的后续 UI 和演示方案属于待执行计划。

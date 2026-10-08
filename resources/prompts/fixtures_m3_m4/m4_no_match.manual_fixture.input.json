@@ -1,0 +1,6 @@
+{
+  "schema_version": "m4.v0.1", "request_id": "fixture-m4-empty-001", "task_id": "fixture-task-001",
+  "source_basis": {"plan_id": "fixture-plan-01", "plan_version": 1, "requirement_version": 1, "task_id": "fixture-task-001"},
+  "baseline": {"task_text": "写摄影社活动通知", "requirements": [{"item_id": "r1", "text": "不超过500字"}], "plan": {"plan_id": "fixture-plan-01", "plan_version": 1}, "unknowns": [{"unknown_id": "u1", "description": "时间和联系人待补"}]},
+  "bindings": [], "key_work": [], "steps": [], "suggestion_decisions": [], "target_environment": {"known": [], "unknown": ["活动时间"], "forbidden_actions": []}
+}

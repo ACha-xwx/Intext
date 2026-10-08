@@ -1,0 +1,49 @@
+{
+  "path": "C:\\Users\\yph\\Documents\\ChatGPT\\aicomp\\dist\\PromptSmith_20261008_skill_handoff\\PromptSmith.exe",
+  "built_at": "2026-10-08T00:31:32.818600+08:00",
+  "size_bytes": 14237576,
+  "sha256": "16218c4c63e3472d6a1c6147442fe8c2a23a755944d175c9fb4cc8301ee92c03",
+  "bundled_assets": {
+    "M3": {
+      "source_matches_bundle": true,
+      "accepted_statuses": [
+        "remote_recorded",
+        "network_unverified",
+        "metadata_only",
+        "search_result_only",
+        "source_read",
+        "source_verified"
+      ]
+    },
+    "M4": {
+      "source_matches_bundle": true,
+      "accepted_statuses": [
+        "remote_recorded",
+        "network_unverified",
+        "metadata_only",
+        "search_result_only",
+        "source_read",
+        "source_verified"
+      ]
+    },
+    "M4_prompt": "M4_system_v0.2"
+  },
+  "smoke_tests": [
+    {
+      "name": "project",
+      "path": "C:\\Users\\yph\\Documents\\ChatGPT\\aicomp\\dist\\PromptSmith_20261008_skill_handoff\\PromptSmith.exe",
+      "exit_code": 0,
+      "stderr": ""
+    },
+    {
+      "name": "isolated",
+      "path": "C:\\Users\\yph\\AppData\\Local\\Temp\\PromptSmith_skill_handoff_20261008_st29vzyv\\PromptSmith.exe",
+      "exit_code": 0,
+      "stderr": ""
+    }
+  ],
+  "isolated_files": [
+    "PromptSmith.exe"
+  ],
+  "passed": true
+}

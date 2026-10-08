@@ -1,0 +1,1292 @@
+........................................................................ [  9%]
+....................................................................F... [ 19%]
+...........................................................F...F.....F.. [ 28%]
+............F........................................................... [ 38%]
+.........s....F.....F............................................F.F.... [ 48%]
+F...................FFF................................................. [ 57%]
+........................................................................ [ 67%]
+............................................F..F..F.F..F................ [ 77%]
+......................................................F.F............... [ 86%]
+..............................F....F.FFFF...F.....FFFFFFF..........F.... [ 96%]
+..........................                                               [100%]
+================================== FAILURES ===================================
+_ test_primary_action_navigates_to_current_delivery_work_without_model_call[selected_skill-\u6574\u5408\u6240\u9009 Agent Skill-2-skill_integrate_button] _
+
+case = 'selected_skill', expected_action = '������ѡ Agent Skill', tab_index = 2
+focus_widget = 'skill_integrate_button'
+tk_window = <tkinter.Toplevel object .!toplevel31>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000025E53C33790>
+
+    @pytest.mark.parametrize(
+        ("case", "expected_action", "tab_index", "focus_widget"),
+        [
+            ("no_skill", "������ʾ", 3, None),
+            ("selected_skill", "������ѡ Agent Skill", 2, "skill_integrate_button"),
+            ("final_review", "�鿴��������ʾ", 3, None),
+            ("upstream_stale", "��ȫģ������", 0, "api_key_entry"),
+        ],
+    )
+    def test_primary_action_navigates_to_current_delivery_work_without_model_call(
+        case: str,
+        expected_action: str,
+        tab_index: int,
+        focus_widget: str | None,
+        tk_window,
+        monkeypatch,
+    ) -> None:
+        from tests.test_final_delivery import confirmed_plan_session
+    
+        session = confirmed_plan_session()
+        if case == "selected_skill":
+            from tests.test_ui_delivery_interactions import _candidate
+    
+            _candidate_row, binding_row = _candidate()
+            session.skill_state.update(
+                {
+                    "status": "selected",
+                    "basis": {
+                        "task_id": session.task_id,
+                        "requirement_version": session.requirement_version,
+                        "plan_id": session.plan["plan_id"],
+                        "plan_version": session.plan["plan_version"],
+                    },
+                    "bindings": [binding_row],
+                }
+            )
+        elif case == "final_review":
+            session.final_result.update(
+                {
+                    "revision": 1,
+                    "status": "draft",
+                    "canonical_body": "�����˵����ղݸ�",
+                    "content": {"pending_changes": []},
+                    "review_required_ids": ["review-fixture"],
+                }
+            )
+        elif case == "upstream_stale":
+            session.confirmed_requirements_version = None
+            session.requirements[0]["confirmation"] = "review_needed"
+            session.pending_review_item_ids = ["r1"]
+            session.plan["status"] = "stale"
+            session.final_result["status"] = "stale"
+    
+        app = PromptSmithApp(tk_window, session=session)
+        try:
+            calls: list[tuple[object, ...]] = []
+            app.widgets["task_text"].insert("1.0", session.task_text)
+            monkeypatch.setattr(app, "_submit", lambda *args: calls.append(args))
+            tk_window.deiconify()
+            tk_window.focus_force()
+            tk_window.update_idletasks()
+            tk_window.update()
+    
+            action = app._primary_action()
+>           assert expected_action in action.label
+E           AssertionError: assert '������ѡ Agent Skill' in '���ɷ���'
+E            +  where '���ɷ���' = PrimaryAction(kind='integrate_skills', label='���ɷ���', reason='����ѡ Skill �������շ�����', enabled=True).label
+
+tests\test_experience_iteration.py:620: AssertionError
+_ test_fixed_case_uses_full_production_contract_then_trial_save_reopen_export[D2] _
+
+tmp_path = WindowsPath('C:/Users/yph/AppData/Local/Temp/pytest-of-yph/pytest-1822/test_fixed_case_uses_full_prod1')
+case_id = 'D2'
+
+    @pytest.mark.parametrize("case_id", ["D1", "D2"])
+    def test_fixed_case_uses_full_production_contract_then_trial_save_reopen_export(tmp_path, case_id):
+        client = FixedClient(m1_question=case_id == "D1", m4_change=case_id == "D2")
+        run = runner.DemoRun(config(), tmp_path / case_id, [case_id], client=client, evidence_mode="offline_fixture")
+        stages = []
+        for _ in range(12):
+            result = run.advance()
+>           assert result["status"] != "failed", result["cases"][case_id].get("failure")
+E           AssertionError: {'at': '2026-10-08T08:54:30+0800', 'error': 'Selected Skill source check failed: ���� to-spec �ı�����Դ�ļ������á�', 'error_type': 'SessionStateError', 'stage': 'm4_call'}
+E           assert 'failed' != 'failed'
+
+tests\test_fixed_demo_runner.py:202: AssertionError
+_______ test_m4_pending_change_cannot_be_bypassed_by_final_confirmation _______
+
+tmp_path = WindowsPath('C:/Users/yph/AppData/Local/Temp/pytest-of-yph/pytest-1822/test_m4_pending_change_cannot_0')
+
+    def test_m4_pending_change_cannot_be_bypassed_by_final_confirmation(tmp_path):
+        run = runner.DemoRun(config(), tmp_path / "pending", ["D2"],
+                             client=FixedClient(m4_change=True), evidence_mode="offline_fixture")
+        for _ in range(5):
+            result = run.advance()
+>           assert result["status"] == "needs_review", result
+E           AssertionError: {'base_url': 'https://example.invalid', 'budget_adjustments': [], 'call_limit': 14, 'calls_used': 3, ...}
+E           assert 'failed' == 'needs_review'
+E             
+E             - needs_review
+E             + failed
+
+tests\test_fixed_demo_runner.py:290: AssertionError
+_______ test_trial_failure_preserves_actual_input_raw_and_missing_usage _______
+
+tmp_path = WindowsPath('C:/Users/yph/AppData/Local/Temp/pytest-of-yph/pytest-1822/test_trial_failure_preserves_a0')
+
+    def test_trial_failure_preserves_actual_input_raw_and_missing_usage(tmp_path):
+        class FailingTrialClient(FixedClient):
+            def complete_text(self, *_args, **_kwargs):
+                raise ApiError("network", "Offline network failure fixture", latency_ms=7)
+        run = runner.DemoRun(config(), tmp_path / "trial-failure", ["D2"],
+                             client=FailingTrialClient(), evidence_mode="offline_fixture")
+        for _ in range(7):
+            result = run.advance()
+            if result["status"] == "failed":
+                break
+            decide(run, "D2", fixture_decision(run, "D2"))
+        case = result["cases"]["D2"]
+>       assert case["failure"]["stage"] == "trial_call"
+E       AssertionError: assert 'm4_call' == 'trial_call'
+E         
+E         - trial_call
+E         + m4_call
+
+tests\test_fixed_demo_runner.py:381: AssertionError
+_ test_module_timeout_preserves_business_state_and_releases_ui[m4-skill_integrate_button-Agent Skill \u6307\u4ee4\u6574\u5408] _
+
+delivery_app = (<promptsmith.ui.PromptSmithApp object at 0x0000025E55ED0410>, <tkinter.Toplevel object .!toplevel39>)
+tmp_path = WindowsPath('C:/Users/yph/AppData/Local/Temp/pytest-of-yph/pytest-1822/test_module_timeout_preserves_2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000025E55ED1F50>
+purpose = 'm4', button_name = 'skill_integrate_button'
+label = 'Agent Skill ָ������'
+
+    @pytest.mark.parametrize(
+        ("purpose", "button_name", "label"),
+        [
+            ("m2", "generate_plan_button", "��ʼ��������"),
+            ("m3", "skill_analyze_button", "��ѡ����"),
+            ("m4", "skill_integrate_button", "Agent Skill ָ������"),
+            ("m5", "m5_generate_button", "ʾ������"),
+        ],
+    )
+    def test_module_timeout_preserves_business_state_and_releases_ui(
+        delivery_app, tmp_path, monkeypatch, purpose, button_name, label
+    ):
+        app, window = delivery_app
+        _configure_delivery_client(app, monkeypatch, _DeliveryUiClient())
+        if purpose in {"m3", "m4"}:
+            candidate, binding = _candidate()
+            if purpose == "m3":
+                _set_candidate_batch(app, candidate)
+            else:
+                _set_binding(app, candidate, binding)
+            # Preserve a real previous analysis or final draft across the failed replacement.
+            app.widgets[button_name].invoke()
+            _pump_until(window, lambda: not app.delivery_busy)
+            assert not app.test_dialogs
+            if purpose == "m3":
+                assert app.session.skill_state["candidate_batch"]["m3_analysis"]
+            else:
+>               assert app.session.final_result["content"]
+E               assert None
+
+tests\test_generation_module_timeouts.py:61: AssertionError
+___________________ test_assets_load_exact_current_versions ___________________
+
+    def test_assets_load_exact_current_versions() -> None:
+        assets = M1Assets.load(DESIGN)
+    
+        assert "�����̸ģ��" in assets.system_prompt
+>       assert assets.prompt_version == "M1_system_v0.11"
+E       AssertionError: assert 'M1_system_v0.22' == 'M1_system_v0.11'
+E         
+E         - M1_system_v0.11
+E         ?              ^^
+E         + M1_system_v0.22
+E         ?              ^^
+
+tests\test_m1.py:26: AssertionError
+_______________ test_questions_are_rejected_when_budget_is_zero _______________
+
+    def test_questions_are_rejected_when_budget_is_zero() -> None:
+        assets = M1Assets.load(DESIGN, legacy=True)
+        payload = fixture("02_��ͻ��Ԥ��ľ�.input.json")
+        result = fixture("02_��ͻ��Ԥ��ľ�.expected.json")
+        result["questions"] = [
+            {
+                "question_id": "q1",
+                "gap_id": "g1",
+                "field": "constraints",
+                "scope": "������վ",
+                "text": "��ȷ��Ҫ����",
+                "options": [],
+                "reason": "�ظ�ȷ�ϡ�",
+                "depends_on": [],
+            }
+        ]
+    
+        with pytest.raises(M1ValidationError, match="Ԥ��"):
+>           parse_m1_response(json.dumps(result, ensure_ascii=False), payload, assets.output_schema)
+
+tests\test_m1.py:107: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\promptsmith\m1.py:867: in parse_m1_response
+    _semantic_validate(result, payload)
+src\promptsmith\m1.py:744: in _semantic_validate
+    _fail(bool(result["questions"]), "�û��Ѿ���ȷ�޸�ʱ�����ظ�׷��ͬһѡ��")
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+condition = True, message = '�û��Ѿ���ȷ�޸�ʱ�����ظ�׷��ͬһѡ��'
+
+    def _fail(condition: bool, message: str) -> None:
+        if condition:
+>           raise M1ValidationError(message)
+E           promptsmith.m1.M1ValidationError: �û��Ѿ���ȷ�޸�ʱ�����ظ�׷��ͬһѡ��
+
+src\promptsmith\m1.py:233: M1ValidationError
+
+During handling of the above exception, another exception occurred:
+
+    def test_questions_are_rejected_when_budget_is_zero() -> None:
+        assets = M1Assets.load(DESIGN, legacy=True)
+        payload = fixture("02_��ͻ��Ԥ��ľ�.input.json")
+        result = fixture("02_��ͻ��Ԥ��ľ�.expected.json")
+        result["questions"] = [
+            {
+                "question_id": "q1",
+                "gap_id": "g1",
+                "field": "constraints",
+                "scope": "������վ",
+                "text": "��ȷ��Ҫ����",
+                "options": [],
+                "reason": "�ظ�ȷ�ϡ�",
+                "depends_on": [],
+            }
+        ]
+    
+>       with pytest.raises(M1ValidationError, match="Ԥ��"):
+E       AssertionError: Regex pattern did not match.
+E        Regex: 'Ԥ��'
+E        Input: '�û��Ѿ���ȷ�޸�ʱ�����ظ�׷��ͬһѡ��'
+
+tests\test_m1.py:106: AssertionError
+_____ test_existing_output_without_interpretation_extension_remains_valid _____
+
+    def test_existing_output_without_interpretation_extension_remains_valid() -> None:
+        _, payload, result = interpretation_case()
+        result["proposals"][0].pop("interpretation_for")
+>       assert parse(payload, result) == result
+E       AssertionError: assert {'assistant_t...cts': [], ...} == {'assistant_t...cts': [], ...}
+E         
+E         Omitting 17 identical items, use -vv to show
+E         Left contains 1 more item:
+E         {'model_judgment': {'answer_assessment': 'partial',
+E                             'confidence': 'medium',
+E                             'continue_interview': True,
+E                             'critical_gap_ids': ['g-term'],
+E                             'reason': '���ݵ�ǰȱ�ں���һ�����鲹��ļ����жϣ�����ӦӦ�����ṩ��ȷ��ģ���жϡ�'}}
+E         Use -v to get more diff
+
+tests\test_m1_interpretation_guidance.py:130: AssertionError
+____ test_new_resources_keep_legacy_contract_and_do_not_encode_jgs_answer _____
+
+    def test_new_resources_keep_legacy_contract_and_do_not_encode_jgs_answer() -> None:
+        assets = M1Assets.load()
+        assert assets.contract_version == "m1.v0.2"
+>       assert assets.prompt_version == "M1_system_v0.11"
+E       AssertionError: assert 'M1_system_v0.22' == 'M1_system_v0.11'
+E         
+E         - M1_system_v0.11
+E         ?              ^^
+E         + M1_system_v0.22
+E         ?              ^^
+
+tests\test_m1_interpretation_guidance.py:144: AssertionError
+_______________ test_v08_assets_make_quality_decision_model_led _______________
+
+    def test_v08_assets_make_quality_decision_model_led() -> None:
+        assets = M1Assets.load(DESIGN)
+    
+>       assert assets.prompt_version == "M1_system_v0.18"
+E       AssertionError: assert 'M1_system_v0.22' == 'M1_system_v0.18'
+E         
+E         - M1_system_v0.18
+E         ?              ^^
+E         + M1_system_v0.22
+E         ?              ^^
+
+tests\test_m1_model_authority_v07.py:50: AssertionError
+_ test_second_round_truncation_preserves_answers_and_requires_explicit_compact_retry[retry-success] _
+
+app = <promptsmith.ui.PromptSmithApp object at 0x0000025E56B730D0>
+tmp_path = WindowsPath('C:/Users/yph/AppData/Local/Temp/pytest-of-yph/pytest-1822/test_second_round_truncation_p0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000025E56BF4690>
+retry_truncated = False
+
+    @pytest.mark.parametrize("retry_truncated", [False, True], ids=["retry-success", "retry-still-truncated"])
+    def test_second_round_truncation_preserves_answers_and_requires_explicit_compact_retry(
+        app, tmp_path, monkeypatch, retry_truncated
+    ):
+        received = []
+        request_entered = {2: threading.Event(), 3: threading.Event()}
+        release_response = {2: threading.Event(), 3: threading.Event()}
+        handler_errors = []
+    
+        class Handler(BaseHTTPRequestHandler):
+            def do_POST(self):
+                try:
+                    body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+                    payload = json.loads(body["messages"][1]["content"])
+                    received.append({"body": body, "payload": payload})
+                    call = len(received)
+                    if call in request_entered:
+                        request_entered[call].set()
+                        assert release_response[call].wait(timeout=3), "����û���ͷű��ؽض���Ӧ��"
+                    if call == 2 or (call == 3 and retry_truncated):
+                        raw = json.dumps({
+                            "id": f"truncated-{call}", "model": "local-truncation-model",
+                            "choices": [{"finish_reason": "length", "message": {"content": PARTIAL_JSON}}],
+                            "usage": PARTIAL_USAGE,
+                        }, ensure_ascii=False).encode("utf-8")
+                    else:
+                        raw = envelope(jgs_response(payload))
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(raw)))
+                    self.end_headers()
+                    self.wfile.write(raw)
+                except Exception as exc:
+                    handler_errors.append(repr(exc))
+    
+            def log_message(self, *_args):
+                pass
+    
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        thread = threading.Thread(target=lambda: server.serve_forever(poll_interval=0.01), daemon=True)
+        thread.start()
+        messages = []
+        monkeypatch.setattr("promptsmith.ui.messagebox.showerror", lambda *args, **_kwargs: messages.append(args))
+        app.api_base_var.set(f"http://127.0.0.1:{server.server_port}")
+        app.api_key_var.set("test-only-key")
+        try:
+            _start_and_answer(app)
+            assert not messages
+            before = deepcopy(app.session.to_dict())
+    
+            app.widgets["analyze_button"].invoke()
+            assert request_entered[2].wait(timeout=2)
+            assert app.busy and str(app.widgets["analyze_button"]["state"]) == "disabled"
+            app.run_primary_action()
+            app.start_analysis()
+            app.widgets["analyze_button"].invoke()
+            assert len(received) == 2
+            release_response[2].set()
+            pump(app.root, app)
+            _pump_idle(app)
+    
+            assert not handler_errors
+            assert len(received) == 2  # No automatic retry after a completed truncated response.
+            assert not app.busy and app.busy_kind is None
+            assert str(app.widgets["analyze_button"]["state"]) == "normal"
+            assert app.session.pending_requests == {}
+            _assert_preserved(before, app.session.to_dict())
+            assert app.primary_action_var.get() == "���Է���"
+            assert app._primary_action().kind == "retry_compact"
+            assert len(messages) == 1 and "�ض�" in messages[0][1]
+            assert "�ش�" in messages[0][1] and "����" in messages[0][1]
+            assert app.session.api_runs[-1]["status"] == "truncated"
+            assert app.session.api_runs[-1]["usage"] == PARTIAL_USAGE
+    
+            second_payload = received[1]["payload"]
+            assert second_payload["state"]["question_history"] == before["question_history"]
+            assert second_payload["sources"] == before["sources"]
+            failed, metadata, check = _evidence_by_request(tmp_path / "calls")[second_payload["request_id"]]
+            assert check["failure_kind"] == "truncated"
+            assert check["schema"] == check["semantic"] == "not_reached"
+            assert (failed / "response.raw.txt").read_text(encoding="utf-8") == PARTIAL_JSON
+            assert metadata["usage"] == PARTIAL_USAGE
+            assert metadata["provider_response_id"] == "truncated-2"
+            assert metadata["model"] == "local-truncation-model"
+            assert metadata["request_mode"] == "incremental"
+>           assert metadata["prompt_version"] == "M1_incremental_v0.4"
+E           AssertionError: assert 'M1_incremental_v0.15' == 'M1_incremental_v0.4'
+E             
+E             - M1_incremental_v0.4
+E             ?                   ^
+E             + M1_incremental_v0.15
+E             ?                   ^^
+
+tests\test_m1_truncation_ui.py:159: AssertionError
+_ test_second_round_truncation_preserves_answers_and_requires_explicit_compact_retry[retry-still-truncated] _
+
+app = <promptsmith.ui.PromptSmithApp object at 0x0000025E56CD2690>
+tmp_path = WindowsPath('C:/Users/yph/AppData/Local/Temp/pytest-of-yph/pytest-1822/test_second_round_truncation_p1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000025E56CD2850>
+retry_truncated = True
+
+    @pytest.mark.parametrize("retry_truncated", [False, True], ids=["retry-success", "retry-still-truncated"])
+    def test_second_round_truncation_preserves_answers_and_requires_explicit_compact_retry(
+        app, tmp_path, monkeypatch, retry_truncated
+    ):
+        received = []
+        request_entered = {2: threading.Event(), 3: threading.Event()}
+        release_response = {2: threading.Event(), 3: threading.Event()}
+        handler_errors = []
+    
+        class Handler(BaseHTTPRequestHandler):
+            def do_POST(self):
+                try:
+                    body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+                    payload = json.loads(body["messages"][1]["content"])
+                    received.append({"body": body, "payload": payload})
+                    call = len(received)
+                    if call in request_entered:
+                        request_entered[call].set()
+                        assert release_response[call].wait(timeout=3), "����û���ͷű��ؽض���Ӧ��"
+                    if call == 2 or (call == 3 and retry_truncated):
+                        raw = json.dumps({
+                            "id": f"truncated-{call}", "model": "local-truncation-model",
+                            "choices": [{"finish_reason": "length", "message": {"content": PARTIAL_JSON}}],
+                            "usage": PARTIAL_USAGE,
+                        }, ensure_ascii=False).encode("utf-8")
+                    else:
+                        raw = envelope(jgs_response(payload))
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(raw)))
+                    self.end_headers()
+                    self.wfile.write(raw)
+                except Exception as exc:
+                    handler_errors.append(repr(exc))
+    
+            def log_message(self, *_args):
+                pass
+    
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        thread = threading.Thread(target=lambda: server.serve_forever(poll_interval=0.01), daemon=True)
+        thread.start()
+        messages = []
+        monkeypatch.setattr("promptsmith.ui.messagebox.showerror", lambda *args, **_kwargs: messages.append(args))
+        app.api_base_var.set(f"http://127.0.0.1:{server.server_port}")
+        app.api_key_var.set("test-only-key")
+        try:
+            _start_and_answer(app)
+            assert not messages
+            before = deepcopy(app.session.to_dict())
+    
+            app.widgets["analyze_button"].invoke()
+            assert request_entered[2].wait(timeout=2)
+            assert app.busy and str(app.widgets["analyze_button"]["state"]) == "disabled"
+            app.run_primary_action()
+            app.start_analysis()
+            app.widgets["analyze_button"].invoke()
+            assert len(received) == 2
+            release_response[2].set()
+            pump(app.root, app)
+            _pump_idle(app)
+    
+            assert not handler_errors
+            assert len(received) == 2  # No automatic retry after a completed truncated response.
+            assert not app.busy and app.busy_kind is None
+            assert str(app.widgets["analyze_button"]["state"]) == "normal"
+            assert app.session.pending_requests == {}
+            _assert_preserved(before, app.session.to_dict())
+            assert app.primary_action_var.get() == "���Է���"
+            assert app._primary_action().kind == "retry_compact"
+            assert len(messages) == 1 and "�ض�" in messages[0][1]
+            assert "�ش�" in messages[0][1] and "����" in messages[0][1]
+            assert app.session.api_runs[-1]["status"] == "truncated"
+            assert app.session.api_runs[-1]["usage"] == PARTIAL_USAGE
+    
+            second_payload = received[1]["payload"]
+            assert second_payload["state"]["question_history"] == before["question_history"]
+            assert second_payload["sources"] == before["sources"]
+            failed, metadata, check = _evidence_by_request(tmp_path / "calls")[second_payload["request_id"]]
+            assert check["failure_kind"] == "truncated"
+            assert check["schema"] == check["semantic"] == "not_reached"
+            assert (failed / "response.raw.txt").read_text(encoding="utf-8") == PARTIAL_JSON
+            assert metadata["usage"] == PARTIAL_USAGE
+            assert metadata["provider_response_id"] == "truncated-2"
+            assert metadata["model"] == "local-truncation-model"
+            assert metadata["request_mode"] == "incremental"
+>           assert metadata["prompt_version"] == "M1_incremental_v0.4"
+E           AssertionError: assert 'M1_incremental_v0.15' == 'M1_incremental_v0.4'
+E             
+E             - M1_incremental_v0.4
+E             ?                   ^
+E             + M1_incremental_v0.15
+E             ?                   ^^
+
+tests\test_m1_truncation_ui.py:159: AssertionError
+_ test_nontruncation_failures_keep_distinct_kinds_and_do_not_offer_compact_retry[json_error] _
+
+app = <promptsmith.ui.PromptSmithApp object at 0x0000025E56D73FD0>
+tmp_path = WindowsPath('C:/Users/yph/AppData/Local/Temp/pytest-of-yph/pytest-1822/test_nontruncation_failures_ke0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000025E56D97190>
+failure_kind = 'json_error'
+
+    @pytest.mark.parametrize("failure_kind", ["json_error", "network", "timeout"])
+    def test_nontruncation_failures_keep_distinct_kinds_and_do_not_offer_compact_retry(
+        app, tmp_path, monkeypatch, failure_kind
+    ):
+        received = []
+        malformed = '{"schema_version":'
+    
+        class Handler(BaseHTTPRequestHandler):
+            def do_POST(self):
+                body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+                payload = json.loads(body["messages"][1]["content"])
+                received.append(payload)
+                if len(received) == 1:
+                    raw = envelope(jgs_response(payload))
+                else:
+                    raw = json.dumps({
+                        "id": "malformed-completed", "model": "malformed-fixture",
+                        "choices": [{"finish_reason": "stop", "message": {"content": malformed}}],
+                        "usage": {"total_tokens": 30},
+                    }).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(raw)))
+                self.end_headers()
+                self.wfile.write(raw)
+    
+            def log_message(self, *_args):
+                pass
+    
+        class FailingClient:
+            def __init__(self):
+                self.calls = 0
+    
+            def complete_json(self, *_args):
+                self.calls += 1
+                if failure_kind == "timeout":
+                    raise ApiError("timeout", "fixture timeout", latency_ms=120001, timeout_seconds=120)
+                raise ApiError("network", "�޷�����ģ�ͽӿڣ��������硣", latency_ms=20)
+    
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        thread = threading.Thread(target=lambda: server.serve_forever(poll_interval=0.01), daemon=True)
+        thread.start()
+        messages = []
+        monkeypatch.setattr("promptsmith.ui.messagebox.showerror", lambda *args, **_kwargs: messages.append(args))
+        app.api_base_var.set(f"http://127.0.0.1:{server.server_port}")
+        app.api_key_var.set("test-only-key")
+        try:
+            _start_and_answer(app)
+            before = deepcopy(app.session.to_dict())
+            fake = FailingClient()
+            if failure_kind != "json_error":
+                monkeypatch.setattr(app, "_client", lambda _config: fake)
+            app.widgets["analyze_button"].invoke()
+            pump(app.root, app)
+            _pump_idle(app)
+            _assert_preserved(before, app.session.to_dict())
+            assert not app.busy and app.busy_kind is None
+            assert app.session.pending_requests == {}
+            assert app.primary_action_var.get() == "���Է���"
+            assert app._primary_action().kind == "analyze_answer"
+            assert app.session.api_runs[-1]["status"] == failure_kind
+            assert app.session.errors[-1]["kind"] == failure_kind
+            assert len(messages) == 1
+            assert "�ض�" not in messages[0][1]
+            last = app.session.api_runs[-1]
+            failed = Path(last["evidence_dir"])
+            check = json.loads((failed / "check.json").read_text(encoding="utf-8"))
+            assert check["failure_kind"] == failure_kind
+            if failure_kind == "json_error":
+>               assert len(received) == 2
+E               AssertionError: assert 4 == 2
+E                +  where 4 = len([{'base_version': 1, 'category_config': {'category_fields': {'coding': ['use_context', 'features', 'runtime', 'existin...context_coverage': 'complete', 'current_date': '2026-10-08', 'max_questions': 3, ...}, 'current_source_id': 'u3', ...}])
+
+tests\test_m1_truncation_ui.py:305: AssertionError
+_________ test_catalog_loads_real_records_and_verifies_source_hashes __________
+
+    def test_catalog_loads_real_records_and_verifies_source_hashes() -> None:
+        catalog = SkillCatalog.load(CATALOG, source_root=ROOT, verify_sources=True)
+    
+        assert catalog.schema_version == "catalog.v0.1"
+        assert [row["skill_id"] for row in catalog.records] == [
+            "to-spec",
+            "domain-modeling",
+            "goal-prompt",
+        ]
+        assert catalog.snapshot_hash
+        verification = catalog.verify_sources(ROOT)
+>       assert all(row["source_exists"] for row in verification.values())
+E       assert False
+E        +  where False = all(<generator object test_catalog_loads_real_records_and_verifies_source_hashes.<locals>.<genexpr> at 0x0000025E57496E90>)
+
+tests\test_skill_catalog.py:26: AssertionError
+_________________ test_matching_is_deterministic_and_bounded __________________
+
+    def test_matching_is_deterministic_and_bounded() -> None:
+        catalog = SkillCatalog.load(CATALOG, source_root=ROOT, verify_sources=True)
+        work = {
+            "key_work_id": "kw-spec",
+            "title": "���������������",
+            "goal": "�������û����¡�ʵ�־����Ͳ��Բ��������ɹ���ĵ�",
+            "inputs": ["��ȷ������", "��Χ�߽�"],
+            "outputs": ["���ع���ĵ�"],
+            "checkpoints": ["ÿ��Ҫ���ж�Ӧ���Ծ���"],
+            "step_ids": ["step-spec"],
+        }
+    
+        first = catalog.match([work])
+        second = catalog.match([work])
+    
+>       assert first.status == "ok"
+E       AssertionError: assert 'incompatible' == 'ok'
+E         
+E         - ok
+E         + incompatible
+
+tests\test_skill_catalog.py:76: AssertionError
+__ test_domain_modeling_matches_explicit_domain_terms_and_relationship_work ___
+
+    def test_domain_modeling_matches_explicit_domain_terms_and_relationship_work() -> None:
+        catalog = SkillCatalog.load(CATALOG, source_root=ROOT, verify_sources=True)
+        work = {
+            "key_work_id": "kw-domain",
+            "title": "���屨��ϵͳ����������ʵ���ϵ",
+            "goal": "�γɳ�Ա���������֮�g�Ĺ�ϵ˵���������",
+            "inputs": ["��ȷ�ϵı�������"],
+            "outputs": ["���������", "ʵ���ϵ˵��"],
+            "checkpoints": ["ҵ�����͹�ϵ������Դ˵��"],
+        }
+    
+        result = catalog.match([work])
+    
+>       assert result.status == "ok"
+E       AssertionError: assert 'incompatible' == 'ok'
+E         
+E         - ok
+E         + incompatible
+
+tests\test_skill_catalog.py:136: AssertionError
+______ test_software_spec_candidate_explains_the_specific_matching_work _______
+
+    def test_software_spec_candidate_explains_the_specific_matching_work() -> None:
+        catalog = SkillCatalog.load(CATALOG, source_root=ROOT, verify_sources=True)
+        work = {
+            "key_work_id": "kw-registration-spec",
+            "title": "������������ϵͳ���",
+            "goal": "����ȷ�ϵ����������������û����¡�ʵ�־����Ͳ��Ծ���",
+            "inputs": ["��ȷ�ϵ�������������", "��Χ�߽�"],
+            "outputs": ["������������ĵ�"],
+            "checkpoints": ["ÿ������Ҫ���ж�Ӧ���Ծ���"],
+        }
+    
+        result = catalog.match([work])
+    
+>       assert result.status == "ok"
+E       AssertionError: assert 'incompatible' == 'ok'
+E         
+E         - ok
+E         + incompatible
+
+tests\test_skill_catalog.py:174: AssertionError
+_____ test_confirmed_registration_tool_context_matches_each_d2_spec_work ______
+
+    def test_confirmed_registration_tool_context_matches_each_d2_spec_work() -> None:
+        catalog = SkillCatalog.load(CATALOG, source_root=ROOT, verify_sources=True)
+        works = [
+            {
+                "key_work_id": "k1",
+                "title": "�����������д",
+                "goal": "�ѳ�Ա������Ա�����뱨����������Ϊ�ṹ������",
+                "inputs": ["��ȷ������", "��Χ�߽�"],
+                "outputs": ["�������������"],
+                "checkpoints": ["ÿ��ܺ͹�����ж�Ӧ������Ŀ"],
+            },
+            {
+                "key_work_id": "k2",
+                "title": "����Ҫ���д",
+                "goal": "Ϊ��ȷ�ϵĹ��ܺ͹��������ɺ˶ԵĲ���Ҫ�㡣",
+                "inputs": ["�������������"],
+                "outputs": ["����Ҫ�����"],
+                "checkpoints": ["����Ҫ����������Ŀһһ��Ӧ"],
+            },
+            {
+                "key_work_id": "k3",
+                "title": "�����߿���������ʾ��׼����",
+                "goal": "���˹��Ͳ���Ҫ���ܷ�֧�ſ������������ʾ��",
+                "inputs": ["������", "����Ҫ��"],
+                "outputs": ["����������޶���"],
+                "checkpoints": ["�������̿�֧����ʾ", "���Գ̶ȷ��ϱ�����λ"],
+            },
+        ]
+        task_context = "Ϊ���Ż�������������ɹ�������ʹ�õ������������Ҫ�㡣"
+    
+        result = catalog.match(works, context_text=task_context)
+    
+>       assert result.status == "ok"
+E       AssertionError: assert 'incompatible' == 'ok'
+E         
+E         - ok
+E         + incompatible
+
+tests\test_skill_catalog.py:247: AssertionError
+_____________ test_status_label_matches_the_loaded_prompt_assets ______________
+
+    def test_status_label_matches_the_loaded_prompt_assets() -> None:
+        text = _status_label_text()
+    
+>       assert text == "M1 v0.11 / m1.v0.2 �� M2 v0.2 / m2.v0.1 �� M5 v0.2 / m5.v0.1"
+E       AssertionError: assert 'M1 v0.22 / m...0.2 / m5.v0.1' == 'M1 v0.11 / m...0.2 / m5.v0.1'
+E         
+E         Skipping 41 identical trailing characters in diff, use -v to show
+E         - M1 v0.11 / m1.v0.
+E         ?       ^^
+E         + M1 v0.22 / m1.v0.
+E         ?       ^^
+
+tests\test_status_version_label.py:40: AssertionError
+_____ test_m1_current_prompt_file_exists_and_matches_the_declared_version _____
+
+    def test_m1_current_prompt_file_exists_and_matches_the_declared_version() -> None:
+        design = ROOT / "resources" / "prompts"
+    
+>       assert M1Assets.prompt_version == "M1_system_v0.11"
+E       AssertionError: assert 'M1_system_v0.22' == 'M1_system_v0.11'
+E         
+E         - M1_system_v0.11
+E         ?              ^^
+E         + M1_system_v0.22
+E         ?              ^^
+
+tests\test_status_version_label.py:59: AssertionError
+________ test_ui_local_skill_can_be_selected_cancelled_and_integrated _________
+
+tk_window = <tkinter.Toplevel object .!toplevel101>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000025E57C74610>
+
+    def test_ui_local_skill_can_be_selected_cancelled_and_integrated(tk_window, monkeypatch) -> None:
+        session = confirmed_plan_session()
+        session.plan["content"]["key_work"][0]["title"] = "Ϊ���������ϵͳ������������û�����"
+        app = PromptSmithApp(tk_window, session=session)
+        try:
+            app.find_skills()
+            _pump_until(tk_window, lambda: not app._skill_search_busy)
+            candidate = next(row for row in app._candidate_rows() if row["skill_id"] == "to-spec")
+            candidates_tree = app.widgets["skill_candidates_tree"]
+            candidates_tree.selection_set(candidate["candidate_id"])
+            app.select_skill_candidates()
+            assert len(app.session.skill_state["bindings"]) == 1
+>           assert app.session.skill_state["status"] == "selected"
+E           AssertionError: assert 'stale' == 'selected'
+E             
+E             - selected
+E             + stale
+
+tests\test_ui_contract.py:352: AssertionError
+_________ test_explicit_candidate_analysis_uses_delivery_m3_workflow __________
+
+delivery_app = (<promptsmith.ui.PromptSmithApp object at 0x0000025E5922B050>, <tkinter.Toplevel object .!toplevel106>)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000025E5922B850>
+
+    def test_explicit_candidate_analysis_uses_delivery_m3_workflow(delivery_app, monkeypatch) -> None:
+        app, window = delivery_app
+        candidate, _binding = _candidate()
+        _set_candidate_batch(app, candidate)
+        client = _DeliveryUiClient()
+        _configure_delivery_client(app, monkeypatch, client)
+    
+        app.widgets["skill_analyze_button"].invoke()
+        _pump_until(window, lambda: not app.delivery_busy)
+    
+        analysis = app.session.skill_state["candidate_batch"]["m3_analysis"]
+        assert client.payloads[0]["schema_version"] == "m3.v0.1"
+        assert analysis["result"]["assessments"][0]["candidate_id"] == candidate["candidate_id"]
+        assert app.session.skill_state["bindings"] == []
+        app.widgets["skill_candidates_tree"].selection_set(candidate["candidate_id"])
+        app.select_skill_candidates()
+        assert len(app.session.skill_state["bindings"]) == 1
+        app.widgets["skill_integrate_button"].invoke()
+        _pump_until(window, lambda: not app.delivery_busy)
+>       assert client.payloads[1]["schema_version"] == "m4.v0.1"
+               ^^^^^^^^^^^^^^^^^^
+E       IndexError: list index out of range
+
+tests\test_ui_delivery_interactions.py:311: IndexError
+______ test_selected_prerequisite_is_updated_as_user_reported_before_m4 _______
+
+delivery_app = (<promptsmith.ui.PromptSmithApp object at 0x0000025E592F6590>, <tkinter.Toplevel object .!toplevel108>)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000025E591EE450>
+
+    def test_selected_prerequisite_is_updated_as_user_reported_before_m4(delivery_app, monkeypatch) -> None:
+        app, window = delivery_app
+        candidate, binding = _candidate()
+        _set_binding(app, candidate, binding)
+        client = _DeliveryUiClient()
+        _configure_delivery_client(app, monkeypatch, client)
+    
+        app.widgets["skill_selected_tree"].selection_set(binding["binding_id"])
+        app._show_selected_skill_binding()
+        app.widgets["skill_prerequisites_tree"].selection_set(
+            binding["precondition_assessments"][0]["prerequisite_id"]
+        )
+        app.widgets["skill_prerequisite_status_combo"].set("������")
+        app.widgets["skill_update_prerequisite_button"].invoke()
+        app.widgets["skill_integrate_button"].invoke()
+        _pump_until(window, lambda: not app.delivery_busy)
+    
+        assessment = app.session.skill_state["bindings"][0]["precondition_assessments"][0]
+        assert assessment["status"] == "satisfied"
+        assert assessment["source"] == "user_reported"
+>       assert client.payloads[0]["schema_version"] == "m4.v0.1"
+               ^^^^^^^^^^^^^^^^^^
+E       IndexError: list index out of range
+
+tests\test_ui_delivery_interactions.py:355: IndexError
+________ test_m4_missing_key_preserves_selected_binding_and_skip_path _________
+
+delivery_app = (<promptsmith.ui.PromptSmithApp object at 0x0000025E59577810>, <tkinter.Toplevel object .!toplevel109>)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000025E592F6D90>
+
+    def test_m4_missing_key_preserves_selected_binding_and_skip_path(delivery_app, monkeypatch) -> None:
+        app, _window = delivery_app
+        candidate, binding = _candidate()
+        _set_binding(app, candidate, binding)
+        app.api_key_var.set("")
+        notices: list[tuple] = []
+        monkeypatch.setattr("promptsmith.ui.messagebox.showinfo", lambda *args, **kwargs: notices.append(args))
+        monkeypatch.setattr("promptsmith.ui.messagebox.showerror", lambda *args, **kwargs: notices.append(args))
+        before_final = deepcopy(app.session.final_result)
+    
+        app.widgets["skill_integrate_button"].invoke()
+    
+>       assert notices
+E       assert []
+
+tests\test_ui_delivery_interactions.py:371: AssertionError
+_ test_selected_binding_is_integrated_by_m4_and_changes_are_decided_individually _
+
+delivery_app = (<promptsmith.ui.PromptSmithApp object at 0x0000025E595E9590>, <tkinter.Toplevel object .!toplevel110>)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000025E595E9310>
+
+    def test_selected_binding_is_integrated_by_m4_and_changes_are_decided_individually(
+        delivery_app, monkeypatch
+    ) -> None:
+        app, window = delivery_app
+        candidate, binding = _candidate()
+        _set_binding(app, candidate, binding)
+        changes = [
+            {
+                "change_id": "change-extra-checklist",
+                "binding_ids": [binding["binding_id"]],
+                "kind": "scope",
+                "description": "����һ�ݼ���嵥��",
+                "reason": "�ùؼ�������ڸ��ˡ�",
+                "affects_hard_constraints": False,
+            },
+            {
+                "change_id": "change-ignore-no-payment",
+                "binding_ids": [binding["binding_id"]],
+                "kind": "scope",
+                "description": "����һ����ȷ�ϵ�ӲԼ����",
+                "reason": "����ӲԼ���߽硣",
+                "affects_hard_constraints": True,
+            },
+        ]
+        client = _DeliveryUiClient(changes=changes)
+        _configure_delivery_client(app, monkeypatch, client)
+    
+        app.widgets["skill_integrate_button"].invoke()
+        _pump_until(window, lambda: not app.delivery_busy)
+    
+        final = app.session.final_result
+>       assert client.payloads[0]["schema_version"] == "m4.v0.1"
+               ^^^^^^^^^^^^^^^^^^
+E       IndexError: list index out of range
+
+tests\test_ui_delivery_interactions.py:413: IndexError
+_____ test_m4_error_and_user_cancel_do_not_replace_existing_final_result ______
+
+delivery_app = (<promptsmith.ui.PromptSmithApp object at 0x0000025E59478E90>, <tkinter.Toplevel object .!toplevel111>)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000025E59479D90>
+
+    def test_m4_error_and_user_cancel_do_not_replace_existing_final_result(delivery_app, monkeypatch) -> None:
+        app, window = delivery_app
+        candidate, binding = _candidate()
+        _set_binding(app, candidate, binding)
+        client = _DeliveryUiClient()
+        _configure_delivery_client(app, monkeypatch, client)
+        app.widgets["skill_integrate_button"].invoke()
+        _pump_until(window, lambda: not app.delivery_busy)
+        previous_final = deepcopy(app.session.final_result)
+    
+        client.response_override = {}
+        app.widgets["skill_integrate_button"].invoke()
+        _pump_until(window, lambda: not app.delivery_busy)
+        assert app.session.final_result == previous_final
+    
+        entered, release = Event(), Event()
+        client.response_override = None
+        client.entered, client.release = entered, release
+        app.widgets["skill_integrate_button"].invoke()
+>       assert entered.wait(timeout=2)
+E       assert False
+E        +  where False = wait(timeout=2)
+E        +    where wait = <threading.Event at 0x25e594e1810: unset>.wait
+
+tests\test_ui_delivery_interactions.py:459: AssertionError
+_ test_cancel_binding_then_skip_removes_old_skill_content_and_preserves_independent_note _
+
+delivery_app = (<promptsmith.ui.PromptSmithApp object at 0x0000025E59651AD0>, <tkinter.Toplevel object .!toplevel115>)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000025E597D76D0>
+
+    def test_cancel_binding_then_skip_removes_old_skill_content_and_preserves_independent_note(
+        delivery_app, monkeypatch
+    ) -> None:
+        app, window = delivery_app
+        candidate, binding = _candidate()
+        _set_binding(app, candidate, binding)
+        client = _DeliveryUiClient()
+        _configure_delivery_client(app, monkeypatch, client)
+        app.widgets["skill_integrate_button"].invoke()
+        _pump_until(window, lambda: not app.delivery_busy)
+>       edit_final_note(app.session, "note-independent", "��������������ע��")
+
+tests\test_ui_delivery_interactions.py:536: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+session = SessionState(schema_version='promptsmith.session.v0.2', task_id='task-b72eb9250d034ea0aae29359424315c2', created_at='2...tion': None, 'candidate_pending': False, 'last_error': None}, m5_examples=[], m5_feedback=[], trial_runs=[], errors=[])
+note_id = 'note-independent', text = '��������������ע��', depends_on_binding_ids = None
+
+    def edit_final_note(session: SessionState, note_id: str, text: str, depends_on_binding_ids: list[str] | None = None) -> None:
+        clean = str(text).strip()
+        if not clean:
+            raise DeliveryValidationError("��ע����Ϊ�ա�")
+        result = session.final_result
+        if result.get("status") not in {"draft", "confirmed"} or not isinstance(result.get("content"), dict):
+>           raise DeliveryValidationError("��ǰû�пɱ༭�����ղݸ塣")
+E           promptsmith.finalization.DeliveryValidationError: ��ǰû�пɱ༭�����ղݸ塣
+
+src\promptsmith\finalization.py:689: DeliveryValidationError
+___________ test_canceling_binding_clearly_marks_final_result_stale ___________
+
+delivery_app = (<promptsmith.ui.PromptSmithApp object at 0x0000025E59C9E710>, <tkinter.Toplevel object .!toplevel121>)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000025E59986990>
+
+    def test_canceling_binding_clearly_marks_final_result_stale(delivery_app, monkeypatch) -> None:
+        app, window = delivery_app
+        errors: list[tuple] = []
+        monkeypatch.setattr("promptsmith.ui.messagebox.showerror", lambda *args, **kwargs: errors.append(args))
+        candidate, binding = _candidate()
+        app.session.set_skill_state(
+            status="selected",
+            basis=app._delivery_basis(),
+            candidate_batch={"result": {"candidates": [candidate]}},
+            bindings=[binding],
+        )
+        app.refresh()
+        client = _DeliveryUiClient()
+        _configure_delivery_client(app, monkeypatch, client)
+        app.integrate_selected_skills()
+        _pump_until(window, lambda: not app.delivery_busy)
+>       assert not errors
+E       AssertionError: assert not [('Agent Skill ѡ���ѹ���', '����ڵ�ǰ��ȷ�Ϸ�������ɸѡ��ѡ�� Agent Skill��')]
+
+tests\test_ui_delivery_interactions.py:689: AssertionError
+_ test_selected_catalog_record_change_marks_final_stale_and_blocks_confirmation _
+
+delivery_app = (<promptsmith.ui.PromptSmithApp object at 0x0000025E59D3B550>, <tkinter.Toplevel object .!toplevel122>)
+tmp_path = WindowsPath('C:/Users/yph/AppData/Local/Temp/pytest-of-yph/pytest-1822/test_selected_catalog_record_c0')
+
+    def test_selected_catalog_record_change_marks_final_stale_and_blocks_confirmation(delivery_app, tmp_path) -> None:
+        app, _window = delivery_app
+        binding = _select_to_spec_binding(app, tmp_path)
+>       _stage_confirmed_skill_draft(app, binding)
+
+tests\test_ui_delivery_interactions.py:702: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_ui_delivery_interactions.py:287: in _stage_confirmed_skill_draft
+    draft = build_final_draft(app.session, selected_contributions=[contribution])
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\promptsmith\finalization.py:530: in build_final_draft
+    live_bindings = _validate_skill_bindings(session)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+session = SessionState(schema_version='promptsmith.session.v0.2', task_id='task-95c9d9df18194c408fca4c3189c5053b', created_at='2...tion': None, 'candidate_pending': False, 'last_error': None}, m5_examples=[], m5_feedback=[], trial_runs=[], errors=[])
+
+    def _validate_skill_bindings(session: SessionState) -> set[str]:
+        state = session.skill_state
+        bindings = state.get("bindings", [])
+        if not bindings:
+            return set()
+        expected_plan_basis = {
+            "task_id": session.task_id,
+            "requirement_version": session.requirement_version,
+            "plan_id": session.plan.get("plan_id"),
+            "plan_version": session.plan.get("plan_version"),
+        }
+        if state.get("status") != "selected" or state.get("basis") != expected_plan_basis:
+>           raise DeliveryValidationError("��ѡ Agent Skill ���Ծ�����򷽰���������ɸѡ��ѡ�á�")
+E           promptsmith.finalization.DeliveryValidationError: ��ѡ Agent Skill ���Ծ�����򷽰���������ɸѡ��ѡ�á�
+
+src\promptsmith\finalization.py:365: DeliveryValidationError
+______ test_unrelated_catalog_record_change_keeps_selected_final_current ______
+
+delivery_app = (<promptsmith.ui.PromptSmithApp object at 0x0000025E59B8B990>, <tkinter.Toplevel object .!toplevel123>)
+tmp_path = WindowsPath('C:/Users/yph/AppData/Local/Temp/pytest-of-yph/pytest-1822/test_unrelated_catalog_record_0')
+
+    def test_unrelated_catalog_record_change_keeps_selected_final_current(delivery_app, tmp_path) -> None:
+        app, _window = delivery_app
+        binding = _select_to_spec_binding(app, tmp_path)
+>       _stage_confirmed_skill_draft(app, binding)
+
+tests\test_ui_delivery_interactions.py:717: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_ui_delivery_interactions.py:287: in _stage_confirmed_skill_draft
+    draft = build_final_draft(app.session, selected_contributions=[contribution])
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\promptsmith\finalization.py:530: in build_final_draft
+    live_bindings = _validate_skill_bindings(session)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+session = SessionState(schema_version='promptsmith.session.v0.2', task_id='task-ba00ca44079949399b7a8053d97b6b72', created_at='2...tion': None, 'candidate_pending': False, 'last_error': None}, m5_examples=[], m5_feedback=[], trial_runs=[], errors=[])
+
+    def _validate_skill_bindings(session: SessionState) -> set[str]:
+        state = session.skill_state
+        bindings = state.get("bindings", [])
+        if not bindings:
+            return set()
+        expected_plan_basis = {
+            "task_id": session.task_id,
+            "requirement_version": session.requirement_version,
+            "plan_id": session.plan.get("plan_id"),
+            "plan_version": session.plan.get("plan_version"),
+        }
+        if state.get("status") != "selected" or state.get("basis") != expected_plan_basis:
+>           raise DeliveryValidationError("��ѡ Agent Skill ���Ծ�����򷽰���������ɸѡ��ѡ�á�")
+E           promptsmith.finalization.DeliveryValidationError: ��ѡ Agent Skill ���Ծ�����򷽰���������ɸѡ��ѡ�á�
+
+src\promptsmith\finalization.py:365: DeliveryValidationError
+_ test_unavailable_catalog_preserves_selected_snapshot_and_allows_explicit_skip _
+
+delivery_app = (<promptsmith.ui.PromptSmithApp object at 0x0000025E59BC3310>, <tkinter.Toplevel object .!toplevel124>)
+tmp_path = WindowsPath('C:/Users/yph/AppData/Local/Temp/pytest-of-yph/pytest-1822/test_unavailable_catalog_prese0')
+
+    def test_unavailable_catalog_preserves_selected_snapshot_and_allows_explicit_skip(delivery_app, tmp_path) -> None:
+        app, _window = delivery_app
+        binding = _select_to_spec_binding(app, tmp_path)
+>       _stage_confirmed_skill_draft(app, binding)
+
+tests\test_ui_delivery_interactions.py:730: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_ui_delivery_interactions.py:287: in _stage_confirmed_skill_draft
+    draft = build_final_draft(app.session, selected_contributions=[contribution])
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\promptsmith\finalization.py:530: in build_final_draft
+    live_bindings = _validate_skill_bindings(session)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+session = SessionState(schema_version='promptsmith.session.v0.2', task_id='task-ed8064aafa73442d8d4cc664eb14c2fa', created_at='2...tion': None, 'candidate_pending': False, 'last_error': None}, m5_examples=[], m5_feedback=[], trial_runs=[], errors=[])
+
+    def _validate_skill_bindings(session: SessionState) -> set[str]:
+        state = session.skill_state
+        bindings = state.get("bindings", [])
+        if not bindings:
+            return set()
+        expected_plan_basis = {
+            "task_id": session.task_id,
+            "requirement_version": session.requirement_version,
+            "plan_id": session.plan.get("plan_id"),
+            "plan_version": session.plan.get("plan_version"),
+        }
+        if state.get("status") != "selected" or state.get("basis") != expected_plan_basis:
+>           raise DeliveryValidationError("��ѡ Agent Skill ���Ծ�����򷽰���������ɸѡ��ѡ�á�")
+E           promptsmith.finalization.DeliveryValidationError: ��ѡ Agent Skill ���Ծ�����򷽰���������ɸѡ��ѡ�á�
+
+src\promptsmith\finalization.py:365: DeliveryValidationError
+_________ test_selected_skill_source_change_marks_final_stale[modify] _________
+
+delivery_app = (<promptsmith.ui.PromptSmithApp object at 0x0000025E59E03910>, <tkinter.Toplevel object .!toplevel125>)
+tmp_path = WindowsPath('C:/Users/yph/AppData/Local/Temp/pytest-of-yph/pytest-1822/test_selected_skill_source_cha0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000025E59BC1310>
+change = 'modify'
+
+    @pytest.mark.parametrize("change", ["modify", "remove"])
+    def test_selected_skill_source_change_marks_final_stale(delivery_app, tmp_path, monkeypatch, change) -> None:
+        app, _window = delivery_app
+        binding = _select_to_spec_binding(app, tmp_path)
+>       _stage_confirmed_skill_draft(app, binding)
+
+tests\test_ui_delivery_interactions.py:750: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_ui_delivery_interactions.py:287: in _stage_confirmed_skill_draft
+    draft = build_final_draft(app.session, selected_contributions=[contribution])
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\promptsmith\finalization.py:530: in build_final_draft
+    live_bindings = _validate_skill_bindings(session)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+session = SessionState(schema_version='promptsmith.session.v0.2', task_id='task-e658e64290694a6e876314029eeb0180', created_at='2...tion': None, 'candidate_pending': False, 'last_error': None}, m5_examples=[], m5_feedback=[], trial_runs=[], errors=[])
+
+    def _validate_skill_bindings(session: SessionState) -> set[str]:
+        state = session.skill_state
+        bindings = state.get("bindings", [])
+        if not bindings:
+            return set()
+        expected_plan_basis = {
+            "task_id": session.task_id,
+            "requirement_version": session.requirement_version,
+            "plan_id": session.plan.get("plan_id"),
+            "plan_version": session.plan.get("plan_version"),
+        }
+        if state.get("status") != "selected" or state.get("basis") != expected_plan_basis:
+>           raise DeliveryValidationError("��ѡ Agent Skill ���Ծ�����򷽰���������ɸѡ��ѡ�á�")
+E           promptsmith.finalization.DeliveryValidationError: ��ѡ Agent Skill ���Ծ�����򷽰���������ɸѡ��ѡ�á�
+
+src\promptsmith\finalization.py:365: DeliveryValidationError
+_________ test_selected_skill_source_change_marks_final_stale[remove] _________
+
+delivery_app = (<promptsmith.ui.PromptSmithApp object at 0x0000025E59B009D0>, <tkinter.Toplevel object .!toplevel126>)
+tmp_path = WindowsPath('C:/Users/yph/AppData/Local/Temp/pytest-of-yph/pytest-1822/test_selected_skill_source_cha1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000025E59B01410>
+change = 'remove'
+
+    @pytest.mark.parametrize("change", ["modify", "remove"])
+    def test_selected_skill_source_change_marks_final_stale(delivery_app, tmp_path, monkeypatch, change) -> None:
+        app, _window = delivery_app
+        binding = _select_to_spec_binding(app, tmp_path)
+>       _stage_confirmed_skill_draft(app, binding)
+
+tests\test_ui_delivery_interactions.py:750: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_ui_delivery_interactions.py:287: in _stage_confirmed_skill_draft
+    draft = build_final_draft(app.session, selected_contributions=[contribution])
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\promptsmith\finalization.py:530: in build_final_draft
+    live_bindings = _validate_skill_bindings(session)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+session = SessionState(schema_version='promptsmith.session.v0.2', task_id='task-da96e5382b6c414591a3545742304218', created_at='2...tion': None, 'candidate_pending': False, 'last_error': None}, m5_examples=[], m5_feedback=[], trial_runs=[], errors=[])
+
+    def _validate_skill_bindings(session: SessionState) -> set[str]:
+        state = session.skill_state
+        bindings = state.get("bindings", [])
+        if not bindings:
+            return set()
+        expected_plan_basis = {
+            "task_id": session.task_id,
+            "requirement_version": session.requirement_version,
+            "plan_id": session.plan.get("plan_id"),
+            "plan_version": session.plan.get("plan_version"),
+        }
+        if state.get("status") != "selected" or state.get("basis") != expected_plan_basis:
+>           raise DeliveryValidationError("��ѡ Agent Skill ���Ծ�����򷽰���������ɸѡ��ѡ�á�")
+E           promptsmith.finalization.DeliveryValidationError: ��ѡ Agent Skill ���Ծ�����򷽰���������ɸѡ��ѡ�á�
+
+src\promptsmith\finalization.py:365: DeliveryValidationError
+________ test_selected_skill_catalog_only_runtime_keeps_final_current _________
+
+delivery_app = (<promptsmith.ui.PromptSmithApp object at 0x0000025E5A16A050>, <tkinter.Toplevel object .!toplevel127>)
+tmp_path = WindowsPath('C:/Users/yph/AppData/Local/Temp/pytest-of-yph/pytest-1822/test_selected_skill_catalog_on0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000025E5A1685D0>
+
+    def test_selected_skill_catalog_only_runtime_keeps_final_current(delivery_app, tmp_path, monkeypatch) -> None:
+        app, _window = delivery_app
+        binding = _select_to_spec_binding(app, tmp_path)
+>       _stage_confirmed_skill_draft(app, binding)
+
+tests\test_ui_delivery_interactions.py:775: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_ui_delivery_interactions.py:287: in _stage_confirmed_skill_draft
+    draft = build_final_draft(app.session, selected_contributions=[contribution])
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\promptsmith\finalization.py:530: in build_final_draft
+    live_bindings = _validate_skill_bindings(session)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+session = SessionState(schema_version='promptsmith.session.v0.2', task_id='task-39361623cc51401793498da88716b62a', created_at='2...tion': None, 'candidate_pending': False, 'last_error': None}, m5_examples=[], m5_feedback=[], trial_runs=[], errors=[])
+
+    def _validate_skill_bindings(session: SessionState) -> set[str]:
+        state = session.skill_state
+        bindings = state.get("bindings", [])
+        if not bindings:
+            return set()
+        expected_plan_basis = {
+            "task_id": session.task_id,
+            "requirement_version": session.requirement_version,
+            "plan_id": session.plan.get("plan_id"),
+            "plan_version": session.plan.get("plan_version"),
+        }
+        if state.get("status") != "selected" or state.get("basis") != expected_plan_basis:
+>           raise DeliveryValidationError("��ѡ Agent Skill ���Ծ�����򷽰���������ɸѡ��ѡ�á�")
+E           promptsmith.finalization.DeliveryValidationError: ��ѡ Agent Skill ���Ծ�����򷽰���������ɸѡ��ѡ�á�
+
+src\promptsmith\finalization.py:365: DeliveryValidationError
+________ test_m4_fallback_review_navigates_to_affected_binding_cancel _________
+
+delivery_app = (<promptsmith.ui.PromptSmithApp object at 0x0000025E5B7B9290>, <tkinter.Toplevel object .!toplevel138>)
+
+    def test_m4_fallback_review_navigates_to_affected_binding_cancel(delivery_app) -> None:
+        app, _window = delivery_app
+        candidate, binding = _candidate()
+        _set_binding(app, candidate, binding)
+>       _stage_confirmed_skill_draft(app, binding)
+
+tests\test_ui_delivery_interactions.py:1006: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_ui_delivery_interactions.py:287: in _stage_confirmed_skill_draft
+    draft = build_final_draft(app.session, selected_contributions=[contribution])
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src\promptsmith\finalization.py:530: in build_final_draft
+    live_bindings = _validate_skill_bindings(session)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+session = SessionState(schema_version='promptsmith.session.v0.2', task_id='task-8c212bbbccf1451089e95050d9cebaae', created_at='2...tion': None, 'candidate_pending': False, 'last_error': None}, m5_examples=[], m5_feedback=[], trial_runs=[], errors=[])
+
+    def _validate_skill_bindings(session: SessionState) -> set[str]:
+        state = session.skill_state
+        bindings = state.get("bindings", [])
+        if not bindings:
+            return set()
+        expected_plan_basis = {
+            "task_id": session.task_id,
+            "requirement_version": session.requirement_version,
+            "plan_id": session.plan.get("plan_id"),
+            "plan_version": session.plan.get("plan_version"),
+        }
+        if state.get("status") != "selected" or state.get("basis") != expected_plan_basis:
+>           raise DeliveryValidationError("��ѡ Agent Skill ���Ծ�����򷽰���������ɸѡ��ѡ�á�")
+E           promptsmith.finalization.DeliveryValidationError: ��ѡ Agent Skill ���Ծ�����򷽰���������ɸѡ��ѡ�á�
+
+src\promptsmith\finalization.py:365: DeliveryValidationError
+- generated xml file: C:\Users\yph\Documents\GitHub\PromptSmith\verification\repository_handoff_20261008\pytest.xml -
+=========================== short test summary info ===========================
+FAILED tests/test_experience_iteration.py::test_primary_action_navigates_to_current_delivery_work_without_model_call[selected_skill-\u6574\u5408\u6240\u9009 Agent Skill-2-skill_integrate_button]
+FAILED tests/test_fixed_demo_runner.py::test_fixed_case_uses_full_production_contract_then_trial_save_reopen_export[D2]
+FAILED tests/test_fixed_demo_runner.py::test_m4_pending_change_cannot_be_bypassed_by_final_confirmation
+FAILED tests/test_fixed_demo_runner.py::test_trial_failure_preserves_actual_input_raw_and_missing_usage
+FAILED tests/test_generation_module_timeouts.py::test_module_timeout_preserves_business_state_and_releases_ui[m4-skill_integrate_button-Agent Skill \u6307\u4ee4\u6574\u5408]
+FAILED tests/test_m1.py::test_assets_load_exact_current_versions - AssertionE...
+FAILED tests/test_m1.py::test_questions_are_rejected_when_budget_is_zero - As...
+FAILED tests/test_m1_interpretation_guidance.py::test_existing_output_without_interpretation_extension_remains_valid
+FAILED tests/test_m1_interpretation_guidance.py::test_new_resources_keep_legacy_contract_and_do_not_encode_jgs_answer
+FAILED tests/test_m1_model_authority_v07.py::test_v08_assets_make_quality_decision_model_led
+FAILED tests/test_m1_truncation_ui.py::test_second_round_truncation_preserves_answers_and_requires_explicit_compact_retry[retry-success]
+FAILED tests/test_m1_truncation_ui.py::test_second_round_truncation_preserves_answers_and_requires_explicit_compact_retry[retry-still-truncated]
+FAILED tests/test_m1_truncation_ui.py::test_nontruncation_failures_keep_distinct_kinds_and_do_not_offer_compact_retry[json_error]
+FAILED tests/test_skill_catalog.py::test_catalog_loads_real_records_and_verifies_source_hashes
+FAILED tests/test_skill_catalog.py::test_matching_is_deterministic_and_bounded
+FAILED tests/test_skill_catalog.py::test_domain_modeling_matches_explicit_domain_terms_and_relationship_work
+FAILED tests/test_skill_catalog.py::test_software_spec_candidate_explains_the_specific_matching_work
+FAILED tests/test_skill_catalog.py::test_confirmed_registration_tool_context_matches_each_d2_spec_work
+FAILED tests/test_status_version_label.py::test_status_label_matches_the_loaded_prompt_assets
+FAILED tests/test_status_version_label.py::test_m1_current_prompt_file_exists_and_matches_the_declared_version
+FAILED tests/test_ui_contract.py::test_ui_local_skill_can_be_selected_cancelled_and_integrated
+FAILED tests/test_ui_delivery_interactions.py::test_explicit_candidate_analysis_uses_delivery_m3_workflow
+FAILED tests/test_ui_delivery_interactions.py::test_selected_prerequisite_is_updated_as_user_reported_before_m4
+FAILED tests/test_ui_delivery_interactions.py::test_m4_missing_key_preserves_selected_binding_and_skip_path
+FAILED tests/test_ui_delivery_interactions.py::test_selected_binding_is_integrated_by_m4_and_changes_are_decided_individually
+FAILED tests/test_ui_delivery_interactions.py::test_m4_error_and_user_cancel_do_not_replace_existing_final_result
+FAILED tests/test_ui_delivery_interactions.py::test_cancel_binding_then_skip_removes_old_skill_content_and_preserves_independent_note
+FAILED tests/test_ui_delivery_interactions.py::test_canceling_binding_clearly_marks_final_result_stale
+FAILED tests/test_ui_delivery_interactions.py::test_selected_catalog_record_change_marks_final_stale_and_blocks_confirmation
+FAILED tests/test_ui_delivery_interactions.py::test_unrelated_catalog_record_change_keeps_selected_final_current
+FAILED tests/test_ui_delivery_interactions.py::test_unavailable_catalog_preserves_selected_snapshot_and_allows_explicit_skip
+FAILED tests/test_ui_delivery_interactions.py::test_selected_skill_source_change_marks_final_stale[modify]
+FAILED tests/test_ui_delivery_interactions.py::test_selected_skill_source_change_marks_final_stale[remove]
+FAILED tests/test_ui_delivery_interactions.py::test_selected_skill_catalog_only_runtime_keeps_final_current
+FAILED tests/test_ui_delivery_interactions.py::test_m4_fallback_review_navigates_to_affected_binding_cancel
+35 failed, 710 passed, 1 skipped in 109.05s (0:01:49)

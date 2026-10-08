@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "m4.output.v0.1",
+  "title": "M4 output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "request_id", "task_id", "status", "contributions", "proposed_changes", "error"],
+  "properties": {
+    "schema_version": {"const": "m4.v0.1"},
+    "request_id": {"type": "string", "minLength": 1},
+    "task_id": {"type": "string", "minLength": 1},
+    "status": {"enum": ["ok", "error"]},
+    "contributions": {"type": "array", "items": {"$ref": "#/$defs/contribution"}},
+    "proposed_changes": {"type": "array", "items": {"$ref": "#/$defs/proposedChange"}},
+    "error": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/error"}]}
+  },
+  "allOf": [
+    {"if": {"properties": {"status": {"const": "error"}}, "required": ["status"]}, "then": {"properties": {"contributions": {"maxItems": 0}, "proposed_changes": {"maxItems": 0}, "error": {"$ref": "#/$defs/error"}}}},
+    {"if": {"properties": {"status": {"const": "ok"}}, "required": ["status"]}, "then": {"properties": {"error": {"type": "null"}}}}
+  ],
+  "$defs": {
+    "stringList": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+    "contribution": {
+      "type": "object", "additionalProperties": false,
+      "required": ["binding_id", "step_id", "capability_ids", "method_actions", "planned_inputs", "expected_outputs", "checkpoints", "prerequisite_ids", "fallback_actions", "proposed_change_ids"],
+      "properties": {
+        "binding_id": {"type": "string", "minLength": 1}, "step_id": {"type": "string", "minLength": 1},
+        "capability_ids": {"$ref": "#/$defs/stringList"},
+        "method_actions": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "planned_inputs": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "expected_outputs": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "checkpoints": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "prerequisite_ids": {"$ref": "#/$defs/stringList"},
+        "fallback_actions": {"$ref": "#/$defs/stringList"},
+        "proposed_change_ids": {"$ref": "#/$defs/stringList"}
+      }
+    },
+    "proposedChange": {
+      "type": "object", "additionalProperties": false,
+      "required": ["change_id", "binding_ids", "kind", "description", "reason", "affects_hard_constraints"],
+      "properties": {
+        "change_id": {"type": "string", "minLength": 1},
+        "binding_ids": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+        "kind": {"enum": ["scope", "cost", "permission", "assumption"]},
+        "description": {"type": "string", "minLength": 1}, "reason": {"type": "string", "minLength": 1},
+        "affects_hard_constraints": {"type": "boolean"}
+      }
+    },
+    "error": {
+      "type": "object", "additionalProperties": false,
+      "required": ["code", "message", "recovery_action"],
+      "properties": {
+        "code": {"enum": ["insufficient_input", "unsupported_input", "contract_issue", "constraint_conflict"]},
+        "message": {"type": "string", "minLength": 1}, "recovery_action": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}

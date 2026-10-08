@@ -1,0 +1,10 @@
+{
+  "schema_version": "m4.v0.1", "request_id": "fixture-m4-001", "task_id": "fixture-task-001",
+  "source_basis": {"plan_id": "fixture-plan-01", "plan_version": 1, "requirement_version": 1, "task_id": "fixture-task-001"},
+  "baseline": {"task_text": "整理软件需求规格", "requirements": [{"item_id": "r1", "text": "交付本地规格，不发布 issue"}], "plan": {"plan_id": "fixture-plan-01", "plan_version": 1}, "unknowns": [{"unknown_id": "u1", "description": "仓库实现细节尚未提供"}]},
+  "bindings": [{"binding_id": "binding-fixture-spec-01", "skill_id": "to-spec", "key_work_id": "kw-spec-01", "record_hash": "c1257134105bcd9a66bb893f6e3beb725ae45b5a6926bfa77e129a548acbf980", "usage_mode": "method_adaptation", "step_ids": ["s-spec-01"], "capability_ids": ["cap-spec-structure"], "method_adaptation_allowed": true, "adaptation_summary": "本地规格整理", "prerequisite_assessments": [{"prerequisite_id": "adapt-confirmed-requirements", "description": "已有用户确认的需求。", "status": "satisfied", "source": "user_reported", "blocking": true}]}],
+  "key_work": [{"key_work_id": "kw-spec-01", "title": "整理软件开发规格", "goal": "形成含测试策略与范围边界的本地规格文档", "inputs": ["已确认需求"], "outputs": ["规格文档"], "checkpoints": ["每条要求有测试决定"], "step_ids": ["s-spec-01"]}],
+  "steps": [{"step_id": "s-spec-01", "title": "编写规格", "purpose": "组织确认的要求", "inputs": ["已确认需求"], "actions": ["整理问题和用户故事"], "outputs": ["规格草稿"], "completion_criteria": ["覆盖测试和排除范围"]}],
+  "suggestion_decisions": [{"suggestion_id": "sug1", "status": "pending", "description": "待用户决定是否增加术语表"}],
+  "target_environment": {"known": ["本地文档"], "unknown": ["仓库内容"], "forbidden_actions": ["发布 issue"]}
+}
