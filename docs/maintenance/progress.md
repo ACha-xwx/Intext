@@ -670,3 +670,13 @@ Debug最终机械检查185项通过，errors空；CodeGraph更新后210files/534
 Web编辑W1/W2闭合：真实隐藏弹窗红灯→非阻塞Web需求/方案编辑绿，14初版定向绿；空值、依赖、复核、附注、会话切换覆盖。实际WebView2真实Bridge16通过；Tab焦点及旧投影合同4项复验绿。当前最终相邻与深色原生/双轴收尾。
 
 收尾：JUnit XML 按唯一 class/name 聚合得到146个最新节点全绿；两批定向套件134/134和47/47有重叠；实际WebView2浅/深各16项通过、零自动日志。Spec与Standards终审均0项。真实冲突确认通过生产Controller验证。CodeGraph 已同步。7个缓存目录、23个本轮临时验收工件及前端审查原始日志已移出仓库；本地历史归档也已移至仓库外，报告保留。提交458个项目文件，未发现密钥/个人路径/设置/会话/日志/构建产物；GitHub `main` 已与本地提交 `60bed8d81c933953fcdbffe945b306b00414c0ec` 对齐，工作区干净。
+
+2026-10-12 跨机启动诊断：用户提供队员 Python 导入 webview 失败输出，确定缺 pywebview。既有 auto 回退单节点通过，本机实际 WebView2 预检通过。沿用 diagnosing-bugs/TDD/planning-with-files/任务拆解与 code-review，准备公开 cmd 启动边界红绿。工具差异：CodeGraph CLI 无 context 命令，改用 explore；docs/agents/issue-tracker.md 不存在，本轮以用户报告及维护计划为审查规范，不安装无关工作流。
+
+L1/L2：实际 cmd 从外部目录执行旧 batch 红灯（找不到入口）→修复后绿；缺依赖 subprocess -S 红灯（缺准确修复命令）→补充后绿；启动/既有诊断10项通过。追加用户 GPT400，按官方文档发现 strict 与实际业务 Schema 不兼容，准备公开本地HTTP反馈环。技能首次路径误用 r0 已更正为 .system/openai-docs；两个不存在的猜测客户端路径搜索已用 CodeGraph 定位 api.py纠正，files --prefix CLI不存在已停止该用法。
+
+GPT：本地HTTP以实际M1 Schema复现同类text.format.schema 400→JSON模式选择后绿；83项首批78绿/5旧不合法strict夹具失败，补齐夹具的封闭/必填条件后，API/Schema/流式/截断/token相邻137项通过。原有非格式400单请求规则保留。一次离线Schema巡检脚本空dict递归错误已修正，不是产品错误。用户追加全模型，核对官方文档后发现Claude业务Schema与显示摘要、DeepSeek Messages格式三个相邻问题，准备各自红绿。
+
+全模型：Claude实际M1原生Schema触发本地HTTP400红→保留完整system契约绿，公开摘要参数同步。19预设矩阵首次遇到4个配置拒绝（实际会省略的temperature/top_p被提前校验）及4个旧预算格式合同失败；修复已知模型采样适配、更新预算合同，54项通过。实际默认run.bat WebView2打开/自动关闭退出0，隔离目录无自动日志；API/streaming/截断/token/启动及M1/M2/交付相邻167项通过。准备最终两轴审查。
+
+跨机启动与全部模型收尾：最终13模块233项定向及相邻回归通过（45.37s），包括19预设×四档×三动作的228次本地合成HTTP请求。默认run.bat实际WebView2烟测退出0，1800ms窗口停留、总11.45s且无自动日志。7文件AST、144文档相对链接及diff空白检查通过；规范与需求终审各0待修，CodeGraph同步成功。L/G/A所有任务关闭，交接与维护同步。没有真实付费接口、个人配置/会话写入、EXE或本轮提交推送，队员尚未复测。

@@ -1,5 +1,11 @@
 # 开发、检查与打包
 
+2026-10-12 团队启动修复：`run.bat` 固定项目目录、优先 `.venv/Scripts/python.exe`、默认传入 `--renderer web`，并保留参数、失败信息和退出码。缺 pywebview 时错误给出当前解释器的安装命令；不再通过此入口静默退回旧界面。直接 Python 的 auto 模式和显式 `--renderer tk` 仍保留。详见[跨机启动与 GPT 400 修复](maintenance/startup_responses_20261012.md)。
+
+2026-10-12 GPT Responses：业务输出 Schema 中的可选属性、开放对象及不支持的组合关键字，在发送前选择 `text.format.type=json_object`，完整 Schema 放入 instructions，由原有本地解析处理；兼容 Schema 保留原生 strict 模式。仅当服务明确拒绝输出格式时允许一次无原生格式兼容请求，其他400不重试。GPT 原始思考不可见不影响正文；不向 GPT 添加 DeepSeek 的 thinking 参数。验证为本地 HTTP 合成服务，无真实模型调用。
+
+同轮全模型检查覆盖19个预设与四档，Claude按独立Schema子集选择native或system契约，并显式请求公开摘要；DeepSeek Messages不发送不支持的Claude原生format。已知思考模型不再被实际会省略的采样组合提前阻止，未知模型检查仍保留。改动模型目录/协议参数后同时运行 `tests/test_provider_requests.py`、`tests/test_responses_schema_compatibility.py`、`tests/test_api.py` 与 streaming/预算相邻检查；不要把本地HTTP通过写成真实账号验收。
+
 2026-10-11 访谈可靠性：新增 `tests/test_interview_reliability.py` 覆盖等待日志、判重/同 gap答案、提示规模及三协议完整请求；修改M1契约时同时运行当前资源、增量重试、来源/冲突与访谈完成相邻检查。请求诊断记录UTF-8字节和服务usage，字节降幅不是token或服务提速实测值。默认思考强度、max_tokens、timeout保持用户配置，不能通过降档或截断缩短等待。最新300节点296通过/4既有差异及其before复现见[验收](../verification/interview_reliability_20261011/results.md)；本轮无新真实请求或EXE。
 
 2026-10-11 历史会话：新增 `session_history.py`、`history_workspace.py` 和 workspace/history.js；使用 `tests/test_session_history.py`、`tests/test_history_workspace.py` 验证索引懒加载、原子失败、旧导入、草稿和完整步骤恢复。后台历史文件会自动保存，Debug运行日志仍手动保存，两种合同不能混淆。spec已收集workspace整个目录，新增JS随源码资源进入打包声明；没有构建EXE。见[维护](maintenance/history_sidebar_20261011.md)和[验收](../verification/history_sidebar_20261011/results.md)。
@@ -26,10 +32,10 @@
 python -m venv .venv
 .venv/Scripts/python.exe -m pip install -r requirements.txt
 .venv/Scripts/python.exe -m tkinter
-.venv/Scripts/python.exe run_promptsmith.py
+.venv/Scripts/python.exe run_promptsmith.py --renderer web
 ```
 
-`-m tkinter` 是可选的 Tk 安装检查，会打开测试窗口。依赖包括 jsonschema、Pillow、pytest、PyInstaller；本地环境不提交 Git。无需从开发者机器复制虚拟环境。
+`-m tkinter` 是可选的 Tk 安装检查，会打开测试窗口。依赖包括 jsonschema、Pillow、pywebview（Windows，附带 pythonnet）、pytest、PyInstaller；电脑还需安装 Microsoft Edge WebView2 Runtime。本地环境不提交 Git，无需从开发者机器复制虚拟环境。安装完成后可使用根目录 `run.bat`，其参数可覆盖默认模式，例如 `run.bat --renderer tk`。
 
 ## 模型与数据
 

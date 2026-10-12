@@ -528,3 +528,11 @@ Debug收尾：长记录内裁剪Web跳123.98px、Tk multi-15→multi-20分别补
 
 
 根因确认：真实Web返回需求→修改产生不可见Tk Toplevel，grab/wait未返回；不是模型处理慢。迁移不等待原生弹窗，临时editor id+owner+basis隔离保存，真实SessionState写入，无正文/Key诊断。实际WebView216项通过。初版键盘测试外部bridge全部失败造成draft flush拦截已修；随后Tab焦点逃逸有独立红绿。
+
+2026-10-12 跨机启动：队员确认 PATH Python 3.11 导入 webview 得到 ModuleNotFoundError。本机相同入口 WebView2 预检通过，说明依赖环境差异；已有 auto 预检回退测试通过。旧 run.bat 仅一行 python run_promptsmith.py，不选择 .venv、不固定目录、不显式 web。修复优先解决入口可见失败，保留显式 Tk 兼容模式；无证据表明队员缺系统 Runtime，安装 Python 依赖后如仍报 Runtime 再按实证排查。
+
+2026-10-12 GPT 400：截图 error param=text.format.schema。OpenAIResponsesClient 将原始业务 Schema 直接以 strict=true 发送；当前 M1 输出含可选 model_judgment/interpretation_for/options，M2 含 oneOf，M3/M4 含 allOf/if/then。官方 Structured Outputs 文档已在线获取，确认 strict 要求所有字段 required、object additionalProperties=false、根不能 anyOf，部分组合关键字不支持。官方 reasoning 文档确认原始 reasoning 不返回；公开摘要与原始思考不同。修复选择发送前 JSON 模式兼容，避免枚举式修改语义/无效400后重试，保留本地业务 Schema。来源：https://developers.openai.com/api/docs/guides/structured-outputs 和 https://developers.openai.com/api/docs/guides/reasoning 。
+
+全部模型审查：Google OpenAI兼容接口支持 reasoning_effort，Grok4.7/4.6支持xhigh、4.5映射high，DeepSeek支持low/high/max及top_p下限0.95，当前映射吻合官方文档。Claude允许可选属性（不能套OpenAI全必填规则），但不支持数值/minLength等原始业务约束；当前直接output_config.format发送会有同类400风险。新版Claude需 thinking.display=summarized 才公开思考摘要；adaptive/low-medium-high-max均被当前四个Claude预设支持。DeepSeek Anthropic兼容仅支持output_config.effort，不支持Claude format。来源见本轮维护文档。官方抓取未设置UA的两次Claude请求403，改明确UA后成功；首次网页摘录终端GBK字符错误已改UTF-8，未涉及产品。
+
+模型调用最终证据：已按供应商独立选择结构化格式，保留完整业务契约和本地解析；已知模型遗留采样值按实际请求适配，不在配置层提前误拒绝。233项定向/相邻回归、默认run.bat实际WebView2启动烟测及规范/需求终审均通过。19预设×四档×三动作是228次本地合成HTTP请求，不代表228个独立测试或真实供应商成功；真实账号、网关与队员环境未复测。完整结果见[startup_responses_20261012.md](startup_responses_20261012.md)。

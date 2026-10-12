@@ -28,13 +28,20 @@ def main(argv: list[str] | None = None) -> int:
     root = None
     app = None
     try:
+        logging.getLogger(__name__).info("Runtime environment: Python=%s platform=%s executable=%s cwd=%s frozen=%s renderer=%s",
+                                         platform.python_version(), platform.platform(), sys.executable,
+                                         os.getcwd(), bool(getattr(sys, "frozen", False)), args.renderer)
         if not args.smoke_test and (args.renderer == "web" or (args.renderer == "auto" and os.name == "nt")):
             try:
                 import webview
-            except ImportError:
+            except ImportError as exc:
                 if args.renderer == "web":
-                    raise RuntimeError("请先安装项目依赖，以启用 WebView2 对话工作区。")
-                logging.getLogger(__name__).warning("WebView2 dependency unavailable; using Tk renderer")
+                    raise RuntimeError(
+                        "当前 Python 缺少 WebView2 所需依赖。请在项目根目录运行：\n"
+                        f'"{sys.executable}" -m pip install -r requirements.txt\n'
+                        "安装后重新启动；不要将依赖安装到另一个 Python 环境。"
+                    ) from exc
+                logging.getLogger(__name__).warning("WebView2 dependency unavailable; using Tk renderer", exc_info=True)
             else:
                 from .web_workspace import run_web_workspace, WebRendererUnavailable
                 try:
@@ -48,9 +55,6 @@ def main(argv: list[str] | None = None) -> int:
                     logging.getLogger(__name__).info("Continuing startup with Tk renderer after WebView2 preflight failure")
         import tkinter as tk
 
-        logging.getLogger(__name__).info("Runtime environment: Python=%s platform=%s executable=%s cwd=%s frozen=%s",
-                                         platform.python_version(), platform.platform(), sys.executable,
-                                         os.getcwd(), bool(getattr(sys, "frozen", False)))
         from .ui import PromptSmithApp
         from .display import enable_dpi_awareness
 

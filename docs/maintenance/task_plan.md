@@ -743,3 +743,29 @@ W1 真实复现与需求编辑 complete；W2 完整方案/附注 complete；W3 �
 - [x] 归档本轮结果和独立审查，核对完整工作树中的资源/隐私/构建产物。
 - [x] 移除项目内缓存与临时验证数据，保留源码、资源、测试、维护/验收文档及必要构建配置。
 - [x] 检查暂存差异和远端关系，提交完整项目成果并推送，核实 GitHub commit。
+
+## 2026-10-12 跨机启动错误回退
+
+根因：队员启动所用 Python 未安装 pywebview；旧 run.bat 使用 PATH Python 且 renderer=auto，导入失败后进入 Tk。源码相同不包含虚拟环境/系统运行时。
+
+|任务|文件/范围|验收|状态|
+|---|---|---|---|
+|L1 启动入口|run.bat、公开批处理回归|固定仓库目录，优先 .venv，默认显式 web，转发参数，失败保留输出和退出码|complete|
+|L2 启动诊断|main.py、公开 CLI 回归|Web 失败记录实际解释器及完整原因，提示同解释器安装依赖；不自动写日志|complete|
+|L3 团队交接|README、development、定向回归与 diff 审查|区分 Python 包与系统 WebView2 Runtime，当前安装/启动说明一致|complete|
+
+测试边界沿用公开 CLI/批处理入口；实际 cmd 执行临时入口和隔离虚拟环境，缺依赖用 Python -S 隔离模拟，不调用模型、不读写个人设置、不构建 EXE。基线 bee1563；不自动安装任何依赖。
+
+### 追加：GPT Responses 400
+
+|任务|文件/范围|验收|状态|
+|---|---|---|---|
+|G1 结构兼容|api.py、公开 HTTP 回归|真实 M1/M2/M3/M4 Schema 不发送不合法 strict 请求；完整契约保留且一次成功；兼容简单 Schema 仍严格|complete|
+|G2 错误/协议隔离|API/streaming 定向相邻测试|不向 GPT 发送 DeepSeek thinking 参数；思考为空可正常完成；非格式400不盲目重试|complete|
+|G3 收尾|诊断/文档/两轴审查|日志仅记录格式选择原因，不含正文/Key；安装与 GPT 问题分别说明证据范围|complete|
+
+### 追加：全部模型调用审查
+
+用户要求检查其它模型。A1 核对五家官方协议与全部19个预设（complete）；A2 Claude/DeepSeek Messages 的结构化约束与公开思考摘要修复（complete）；A3 全预设连接/文本/结构生成、四档参数及三协议流式/错误相邻回归（complete）。不调用付费接口，不以合成服务冒充真实账号验证。
+
+完成：233项定向及相邻回归通过，19预设矩阵包含228次本地合成HTTP请求；默认run.bat实际WebView2烟测退出0且无自动日志。7文件AST、144文档相对链接及diff空白检查通过，规范/需求两轴各0待修，CodeGraph已同步。未构建EXE或提交推送，队员与真实服务未复测。详见[维护报告](startup_responses_20261012.md)。

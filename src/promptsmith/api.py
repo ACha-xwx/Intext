@@ -94,13 +94,15 @@ class ApiConfig:
             raise ValueError("timeout_seconds必须大于0。")
         if self.max_tokens is not None and (isinstance(self.max_tokens, bool) or not isinstance(self.max_tokens, int) or not 1 <= self.max_tokens <= 262144):
             raise ValueError("max_tokens必须是1到262144之间的整数，或使用自动值。")
-        for name, maximum in (("temperature", 1 if normalized_protocol == ANTHROPIC_MESSAGES_PROTOCOL else 2), ("top_p", 1)):
+        model = find_model(self.model)
+        sampling_adapted = bool(model and model.provider in {"OpenAI", "Anthropic", "DeepSeek"})
+        for name, maximum in (("temperature", 1 if normalized_protocol == ANTHROPIC_MESSAGES_PROTOCOL and not sampling_adapted else 2), ("top_p", 1)):
             value = getattr(self, name)
             if value is None or (name == "temperature" and value == "auto"):
                 continue
             if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not 0 <= value <= maximum:
                 raise ValueError(f"{name}必须在0到{maximum}之间，或留空使用服务端默认。")
-        if normalized_protocol == ANTHROPIC_MESSAGES_PROTOCOL and self.temperature not in (None, "auto") and self.top_p is not None:
+        if normalized_protocol == ANTHROPIC_MESSAGES_PROTOCOL and not sampling_adapted and self.temperature not in (None, "auto") and self.top_p is not None:
             raise ValueError("Anthropic Messages 请只设置 temperature 或 top_p 中的一项。")
         if self.reasoning_effort not in {"auto", "omit", "low", "medium", "high", "max"}:
             raise ValueError("推理强度无效。")
@@ -185,7 +187,7 @@ def reasoning_request_parameters(config: ApiConfig) -> dict[str, Any]:
         return {"reasoning": {"effort": actual}}
     if config.protocol == ANTHROPIC_MESSAGES_PROTOCOL:
         thinking = {"thinking": {"type": "enabled"}} if model and model.provider == "DeepSeek" else (
-            {"thinking": {"type": "adaptive"}} if model and model.adaptive else {})
+            {"thinking": {"type": "adaptive", "display": "summarized"}} if model and model.adaptive else {})
         return {**thinking, "output_config": {"effort": actual}}
     thinking = {"thinking": {"type": "enabled"}} if model and model.provider == "DeepSeek" else {}
     return {**thinking, "reasoning_effort": actual}
@@ -644,6 +646,51 @@ class ChatCompletionsClient(_HttpClient):
         )
 
 
+def _native_json_schema_issue(schema: Any, *, dialect: str = "openai", root: bool = True) -> str | None:
+    """Select a conservative native subset for each API's own schema rules.
+
+    Business schemas remain unchanged. Optional fields and conditional rules
+    belong in the JSON-mode prompt and the existing local parsers instead.
+    """
+    if not isinstance(schema, dict):
+        return "boolean_or_non_object_schema"
+    if root and (schema.get("type") != "object" or (dialect == "openai" and "anyOf" in schema)):
+        return "root_must_be_object"
+    supported = {
+        "$schema", "$id", "$defs", "$ref", "title", "description", "type",
+        "properties", "required", "additionalProperties", "items", "anyOf",
+        "enum", "const", "format", "minItems",
+    }
+    if dialect == "openai":
+        supported.update({"pattern", "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "multipleOf", "maxItems"})
+    else:
+        supported.update({"default", "definitions"})
+    if set(schema) - supported:
+        return "unsupported_schema_keyword"
+    properties = schema.get("properties", {})
+    if schema.get("type") == "object" or "properties" in schema:
+        if schema.get("additionalProperties") is not False:
+            return "object_must_be_closed"
+        if dialect == "openai" and set(schema.get("required", [])) != set(properties):
+            return "optional_object_properties"
+    if dialect == "anthropic":
+        if schema.get("minItems", 0) not in (0, 1):
+            return "unsupported_array_minimum"
+        if "format" in schema and schema["format"] not in {
+            "date-time", "time", "date", "duration", "email", "hostname", "uri", "ipv4", "ipv6", "uuid",
+        }:
+            return "unsupported_string_format"
+    children = [*properties.values(), *schema.get("$defs", {}).values(),
+                *schema.get("definitions", {}).values(), *schema.get("anyOf", [])]
+    if "items" in schema:
+        children.append(schema["items"])
+    for child in children:
+        issue = _native_json_schema_issue(child, dialect=dialect, root=False)
+        if issue:
+            return issue
+    return None
+
+
 class OpenAIResponsesClient(_HttpClient):
     protocol_name = "OpenAI Responses"
 
@@ -686,20 +733,29 @@ class OpenAIResponsesClient(_HttpClient):
     ) -> ApiResult:
         system_prompt, input_text = prepare_json_input(system_prompt, payload, output_schema)
         request_parameters = structured_request_parameters(self.config)
+        schema_text = json.dumps(output_schema, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
+        contract_instructions = (
+            f"{system_prompt}\n\n【应用提供的输出结构契约】\n"
+            "只输出符合以下JSON Schema的JSON对象：\n"
+            f"{schema_text}"
+        )
+        schema_issue = _native_json_schema_issue(output_schema)
+        if schema_issue:
+            output_format = {"type": "json_object"}
+            logging.getLogger(__name__).info(
+                "Responses JSON mode selected before request: reason=%s; original contract retained for local parsing",
+                schema_issue,
+            )
+        else:
+            output_format = {"type": "json_schema", "name": "promptsmith_result", "schema": output_schema, "strict": True}
+            logging.getLogger(__name__).debug("Responses native strict JSON schema selected")
         body = {
             "model": self.config.model.strip(),
-            "instructions": system_prompt,
+            "instructions": contract_instructions if schema_issue else system_prompt,
             "input": input_text,
             **request_parameters,
             **sampling_request_parameters(self.config),
-            "text": {
-                "format": {
-                    "type": "json_schema",
-                    "name": "promptsmith_result",
-                    "schema": output_schema,
-                    "strict": True,
-                }
-            },
+            "text": {"format": output_format},
         }
         try:
             return self._post(body)
@@ -708,7 +764,7 @@ class OpenAIResponsesClient(_HttpClient):
             # authorization error. Only explicit format incompatibility merits
             # one fallback request; malformed schemas remain visible failures.
             detail = exc.error_detail.lower()
-            format_name = r"(?:\bjson_schema\b|\bstructured outputs?\b|\btext\.format\b|\bresponse_format\b)"
+            format_name = r"(?:\bjson_schema\b|\bjson_object\b|\bstructured outputs?\b|\btext\.format\b|\bresponse_format\b)"
             quoted_format = rf"['\"`]?{format_name}(?![\w.])['\"`]?"
             incompatible = bool(re.search(
                 rf"{quoted_format}\s+(?:(?:is|are)\s+)?(?:not supported|unsupported|not implemented)\b"
@@ -723,14 +779,9 @@ class OpenAIResponsesClient(_HttpClient):
                 raise
             # Some Responses proxies lack native structured outputs. Keep the
             # same contract in the instructions for local parser validation.
-            schema_text = json.dumps(output_schema, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
             fallback_body = {
                 **body,
-                "instructions": (
-                    f"{system_prompt}\n\n【应用提供的输出结构契约】\n"
-                    "只输出符合以下JSON Schema的JSON对象：\n"
-                    f"{schema_text}"
-                ),
+                "instructions": contract_instructions,
             }
             fallback_body.pop("text", None)
             logging.getLogger(__name__).warning(
@@ -911,7 +962,24 @@ class AnthropicMessagesClient(_HttpClient):
     ) -> ApiResult:
         system_prompt, input_text = prepare_json_input(system_prompt, payload, output_schema)
         parameters = structured_request_parameters(self.config)
-        output_config = {**parameters.pop("output_config", {}), "format": {"type": "json_schema", "schema": output_schema}}
+        output_config = parameters.pop("output_config", {})
+        model = find_model(self.config.model)
+        schema_issue = ("provider_has_no_native_format" if model and model.provider == "DeepSeek" else
+                        _native_json_schema_issue(output_schema, dialect="anthropic"))
+        if schema_issue:
+            schema_text = json.dumps(output_schema, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
+            system_prompt = (
+                f"{system_prompt}\n\n【应用提供的输出结构契约】\n"
+                "只输出符合以下JSON Schema的JSON对象：\n"
+                f"{schema_text}"
+            )
+            logging.getLogger(__name__).info(
+                "Anthropic prompt JSON contract selected before request: reason=%s; original contract retained for local parsing",
+                schema_issue,
+            )
+        else:
+            output_config["format"] = {"type": "json_schema", "schema": output_schema}
+            logging.getLogger(__name__).debug("Anthropic native JSON schema selected")
         return self._post(
             {
                 "model": self.config.model.strip(),
@@ -924,7 +992,7 @@ class AnthropicMessagesClient(_HttpClient):
                 ],
                 **parameters,
                 **sampling_request_parameters(self.config),
-                "output_config": output_config,
+                **({"output_config": output_config} if output_config else {}),
             }
         )
 

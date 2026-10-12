@@ -582,9 +582,8 @@ def test_openai_responses_uses_its_endpoint_body_and_output_shape(server) -> Non
         timeout_seconds=3,
     )
 
-    result = OpenAIResponsesClient(config).complete_json(
-        "system prompt", {"task": "demo"}, {"type": "object", "properties": {}}
-    )
+    schema = {"type": "object", "properties": {}, "required": [], "additionalProperties": False}
+    result = OpenAIResponsesClient(config).complete_json("system prompt", {"task": "demo"}, schema)
 
     assert result.content == '{"status":"ok"}'
     assert result.usage["total_tokens"] == 11
@@ -596,7 +595,7 @@ def test_openai_responses_uses_its_endpoint_body_and_output_shape(server) -> Non
     assert Handler.seen["body"]["text"]["format"] == {
         "type": "json_schema",
         "name": "promptsmith_result",
-        "schema": {"type": "object", "properties": {}},
+        "schema": schema,
         "strict": True,
     }
 
@@ -642,7 +641,8 @@ def test_openai_responses_retries_json_completion_without_schema_after_http_400(
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     thread.start()
     try:
-        schema = {"type": "object", "properties": {"status": {"type": "string"}}}
+        schema = {"type": "object", "properties": {"status": {"type": "string"}},
+                  "required": ["status"], "additionalProperties": False}
         client = OpenAIResponsesClient(
             ApiConfig(
                 base_url=f"http://127.0.0.1:{httpd.server_port}/v1",
@@ -792,9 +792,8 @@ def test_anthropic_messages_uses_protocol_headers_body_and_text_blocks(server) -
         timeout_seconds=3,
     )
 
-    result = AnthropicMessagesClient(config).complete_json(
-        "system prompt", {"task": "demo"}, {"type": "object", "properties": {}}
-    )
+    schema = {"type": "object", "properties": {}, "additionalProperties": False}
+    result = AnthropicMessagesClient(config).complete_json("system prompt", {"task": "demo"}, schema)
 
     assert result.content == '{"status":"ok"}'
     assert result.usage == {"input_tokens": 8, "output_tokens": 3}
@@ -809,7 +808,7 @@ def test_anthropic_messages_uses_protocol_headers_body_and_text_blocks(server) -
     ]
     assert Handler.seen["body"]["output_config"]["format"] == {
         "type": "json_schema",
-        "schema": {"type": "object", "properties": {}},
+        "schema": schema,
     }
 
 

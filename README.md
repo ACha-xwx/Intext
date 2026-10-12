@@ -2,7 +2,7 @@
 
 需求引导式提示构建助手：将模糊想法整理为明确需求、执行方案和可交给其他 AI 使用的提示，并按任务选配 Agent Skill。
 
-Python / Tkinter Windows 桌面应用。AI 功能调用用户配置的模型接口；软件提供需求确认、方案管理、Skill 检索与选择、保存和导出。
+Python / WebView2 Windows 桌面应用，Tk 保留为业务线程与兼容界面。AI 功能调用用户配置的模型接口；软件提供需求确认、方案管理、Skill 检索与选择、保存和导出。
 
 ## 接手入口
 
@@ -24,8 +24,12 @@ Python / Tkinter Windows 桌面应用。AI 功能调用用户配置的模型接�
 ```powershell
 python -m venv .venv
 .venv/Scripts/python.exe -m pip install -r requirements.txt
-.venv/Scripts/python.exe run_promptsmith.py
+.venv/Scripts/python.exe run_promptsmith.py --renderer web
 ```
+
+首次使用还需要安装 [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/)。以后可双击根目录 `run.bat`：它自动切到项目目录，优先使用 `.venv`，默认明确启动 WebView2。缺依赖时显示错误和安装命令，不自动切换到 Tk；`run.bat --renderer tk` 可显式打开兼容界面。直接运行 `python run_promptsmith.py` 仍为 auto 模式，环境不满足时会回退 Tk。
+
+源码相同不代表 Python 环境相同。若看到 `No module named 'webview'`，用启动脚本显示的那个 Python 执行 `-m pip install -r requirements.txt`；安装到其他 Python 或虚拟环境不会生效。
 
 界面中填写服务、协议、接口地址、模型 ID 和自己的 API Key。支持 OpenAI Chat Completions、OpenAI Responses、Anthropic Messages。连接测试通过只说明探测请求成功，正式结构化生成仍需验证服务支持。
 
@@ -33,6 +37,8 @@ python -m venv .venv
 .venv/Scripts/python.exe run_promptsmith.py --smoke-test
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1
 ```
+
+`--smoke-test` 仅检查 Tk 构造，不代表 WebView2 启动验收。
 
 构建产物为 `dist/PromptSmith.exe`。EXE、虚拟环境、运行日志和个人会话不提交 Git；分发软件时使用 GitHub Release 或团队共享文件。默认用户数据在 `%LOCALAPPDATA%/PromptSmith/`，运行时密钥不随会话保存。
 

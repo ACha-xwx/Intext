@@ -44,12 +44,16 @@ def test_official_deepseek_actual_json_body_keeps_contract_and_budget(
     assert body[limit_field] == 65536
     assert body[effort_field] == ("low" if effort_field == "reasoning_effort" else
                                   {"effort": "low"} if effort_field == "reasoning" else
-                                  {"effort": "low", "format": {"type": "json_schema", "schema": schema}})
+                                  {"effort": "low"})
     if protocol == PROTOCOL_ID:
         assert body["response_format"] == {"type": "json_object"}
         assert json.loads(body["messages"][1]["content"]) == {"task": "demo"}
     elif protocol == OPENAI_RESPONSES_PROTOCOL:
-        assert body["text"]["format"]["schema"] == schema
+        assert body["text"]["format"] == {"type": "json_object"}
+        assert json.dumps(schema, ensure_ascii=False, separators=(",", ":")) in body["instructions"]
+    else:
+        assert "format" not in body["output_config"]
+        assert json.dumps(schema, ensure_ascii=False, separators=(",", ":")) in body["system"]
     assert result.finish_reason == stop
 
 

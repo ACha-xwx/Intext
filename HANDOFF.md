@@ -1,5 +1,7 @@
 # PromptSmith 团队交接
 
+2026-10-12 跨机启动与全部模型调用修复：队员 PATH Python 未安装 pywebview 导致 auto 模式回退 Tk。`run.bat` 现固定仓库目录、优先项目 .venv、明确启动 WebView2，失败保留输出及同解释器安装命令；兼容 Tk 需显式指定。五家19个预设已核对：GPT/Grok Responses 与 Claude Messages 按各自 Schema 子集选择原生格式或完整提示契约；DeepSeek Messages不传Claude格式，Claude公开思考摘要与已知模型采样适配同步。保留本地解析、用户强度/预算与非格式400不重试规则；诊断记录解释器及格式选择，不自动保存日志。233项定向/相邻回归、默认run.bat实际WebView2烟测及双轴终审通过；没有真实付费接口、队员环境或EXE验证，本轮未提交推送。详情见[维护与验证](docs/maintenance/startup_responses_20261012.md)。
+
 Web 编辑迁移已完成：146个不同最新自动化节点通过，真实 WebView2 浅深各16项通过，Spec/Standards终审均0待修。迁移范围、卡死根因与边界见下方维护记录和验收报告。
 
 2026-10-12 Web 编辑窗口迁移：需求/候选修改、完整方案目标与受众范围、步骤/栏目/关键工作及复核、最终附注和需求冲突核对全部使用主 WebView2 内的编辑面板。修复隐藏 Tk 根窗口的 transient/grab/wait 导致修改框不可见、桥接持续等待的卡死；正常 Web 导航始终隐藏 Tk root。编辑打开/保存/取消即时返回，SessionState 继续负责确认失效/依赖/版本，旧会话/旧编辑拒绝写入；错误面板与 Debug 生命周期同步，草稿可继续修改。隐藏 Tk 业务线程及显式 Tk 回退保留，系统文件/目录选择仍属 OS 交互。详情和验证边界见[维护](docs/maintenance/web_editors_20261012.md)与[验收](verification/web_editors_20261012/results.md)。以下早期“复杂编辑显示原生兼容窗”说明为历史。
