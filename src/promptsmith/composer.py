@@ -14,7 +14,7 @@ from PIL import Image, ImageDraw, ImageTk
 
 from .model_catalog import (EFFORTS, EFFORT_LABELS, PROVIDERS, PROVIDER_LABELS,
                             PROVIDER_PRESETS, effort_note, find_model,
-                            picker_models, search_models)
+                            search_models)
 from .paths import resource_root
 from .typography import ui_font
 from .display import display_scale
@@ -517,19 +517,25 @@ class PromptComposer(tk.Canvas):
         if self.app._conversation_locked():
             return
         app = self.app
-        previous_model = app.api_model_var.get().strip()
         confirmed, connection = app._model_settings_confirmed(), app._connection_snapshot()
         # A custom gateway may host several model families under one service.
-        # Only official service switches use presets and clear the old key.
+        # Fetched IDs carry their source service so the matching profile wins.
+        # Legacy choices without a source keep the official preset behavior.
         host = (urlsplit(app.api_base_var.get()).hostname or "").lower()
         official = {urlsplit(p["base_url"]).hostname for p in PROVIDER_PRESETS.values()}
-        if model.provider in PROVIDER_PRESETS and (host in official or not host):
+        switched = bool(model.service_provider and model.service_provider != app.provider_var.get())
+        if switched:
+            app.provider_var.set(model.service_provider)
+            confirmed, connection = app._model_settings_confirmed(), app._connection_snapshot()
+        elif not model.service_provider and model.provider in PROVIDER_PRESETS and (host in official or not host):
             if app.provider_var.get() != model.provider:
                 app.provider_var.set(model.provider)
-        if previous_model != model.id or app.preference_vars["reasoning_effort"].get() not in EFFORTS:
+        if app.api_model_var.get().strip() != model.id or app.preference_vars["reasoning_effort"].get() not in EFFORTS:
             app.api_model_var.set(model.id)
             app.preference_vars["reasoning_effort"].set(model.default_effort)
             LOG.info("Composer model selected: provider=%s model=%s", model.provider, model.id)
+            self._finish_choice(confirmed, connection)
+        elif switched:
             self._finish_choice(confirmed, connection)
         self.refresh()
 
@@ -587,10 +593,12 @@ class ModelPicker:
         self.window.overrideredirect(True)
         self.window.transient(self.root)
         self.window.configure(bg=self.composer.cget("bg"))
-        self.models = picker_models(self.app.api_model_var.get(), self.app.widgets["api_model_combo"].cget("values"))
+        self.models = self.app.available_picker_models()
         current = find_model(self.app.api_model_var.get())
         self.provider = current.provider if current else "custom" if self.app.api_model_var.get().strip() else "DeepSeek"
         self.providers = tuple(p for p in (*PROVIDERS, "custom") if any(m.provider == p for m in self.models))
+        if self.providers and self.provider not in self.providers:
+            self.provider = self.providers[0]
         self.query = tk.StringVar(master=self.window)
         self.rows = ()
         self.row_widgets = []
@@ -767,6 +775,8 @@ class ModelPicker:
             chips.grid(row=0, column=3, rowspan=2, sticky="e", padx=(5, 0))
             row._chips = chips
             row._image_capability = model.image
+            row._reasoning_capability = model.reasoning
+            row._model_service = model.service_provider
             row._name = name
             row._full_name = model.name
             description = tk.Label(content, text=model.description, font=description_font, bg=BG,
@@ -804,7 +814,8 @@ class ModelPicker:
 
     def _paint_row(self, row, hover=False):
         BG, MUTED, BORDER, INK, SUBTLE = self.palette.base
-        color = MUTED if hover or row._model_id == self.app.api_model_var.get().strip() else BG
+        selected = row._model_id == self.app.api_model_var.get().strip() and (not row._model_service or row._model_service == self.app.provider_var.get())
+        color = MUTED if hover or selected else BG
         signature = (color, row.winfo_width(), row.winfo_height())
         if signature == getattr(row, "_paint_signature", None):
             return
@@ -820,6 +831,8 @@ class ModelPicker:
         chips = row._chips
         chips.configure(bg=color)
         chips.delete("all")
+        if not row._reasoning_capability and not row._image_capability:
+            return
         width = 52 if row._image_capability else 30
         rounded(chips, (1, 1, width-1, 23), 11, fill=color, outline=BORDER)
         violet = "#a78bfa" if self.composer.theme_name == "dark" else "#8b5cf6"
@@ -844,12 +857,13 @@ class ModelPicker:
             return
         current_id = self.app.api_model_var.get().strip()
         effort = self.app.preference_vars["reasoning_effort"].get()
-        signature = (current_id, effort, self.provider, self.query.get())
+        signature = (current_id, self.app.provider_var.get(), effort, self.provider, self.query.get())
         if signature == getattr(self, "_selection_signature", None):
             return
         self._selection_signature = signature
         for row in self.row_widgets:
-            row._check.itemconfigure("check", state="normal" if row._model_id == current_id else "hidden")
+            selected = row._model_id == current_id and (not row._model_service or row._model_service == self.app.provider_var.get())
+            row._check.itemconfigure("check", state="normal" if selected else "hidden")
             self._paint_row(row)
         for provider, button in self.provider_buttons.items():
             button.selected = provider == self.provider and not self.query.get().strip()
@@ -958,10 +972,12 @@ class ModelPicker:
     def reopen(self):
         started = time.perf_counter()
         self._closed = False
-        self.models = picker_models(self.app.api_model_var.get(), self.app.widgets["api_model_combo"].cget("values"))
+        self.models = self.app.available_picker_models()
         current = find_model(self.app.api_model_var.get())
         provider = current.provider if current else "custom"
         available = tuple(p for p in (*PROVIDERS, "custom") if any(m.provider == p for m in self.models))
+        if available and provider not in available:
+            provider = available[0]
         if available != self.providers:
             self._closed = True
             self.window.destroy()

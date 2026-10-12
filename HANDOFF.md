@@ -1,5 +1,7 @@
 # PromptSmith 团队交接
 
+2026-10-13 供应商档案：OpenAI、Anthropic、xAI、Google、DeepSeek各自保存接口、API Key、模型参数、显式确认及已获取目录；下拉切换暂存当前草稿，保存仅保存当前家，启动自动恢复。Key仍用当前Windows用户DPAPI，浏览器仅看到是否已配置。输入区只列各家实际获取模型，本地目录仅匹配介绍/能力，未知ID保留且不猜测标签；同ID按来源接口选择。下拉保留复刻动画与键盘。264个不同本地自动化节点最新通过，真实WebView2隔离验收与双轴审查见[维护](docs/maintenance/provider_profiles_20261013.md)；4项旧Tk基线失败另列。本轮未进行真实模型或EXE验证。
+
 2026-10-12 设置预设与JSON输入追加：服务名称/模型ID不再依赖原生datalist，使用可输入建议列表；字段或箭头展开所有预设，输入过滤，列表在表单内展开不遮盖协议，键盘/分类/忙态/离页关闭与自定义保存保持。手动输入完整预设名再点同名项也应用联动；同一已保存项重选不清密钥。队员报告明确旧json_object报param=input；本地保留当前复杂Schema无强制format策略，追加input可见JSON指令和独立原业务块，strict初始/文本/强度/预算不变。255个不同自动化节点及20项实际WebView2检查通过，双轴0待修，Debug/CodeGraph同步。本机未调用真实中转/构建EXE/提交；见[维护](docs/maintenance/settings_choice_interaction_20261012.md)。下面原生datalist说明为前轮历史。
 
 2026-10-12 设置下拉显示：统一select及服务名称/模型ID可输入建议列表的细线箭头，按字段垂直居中，修正原生倒三角偏低；保留原生选择、键盘、自定义输入和保存/确认逻辑。Debug仅在表单重建时记录字段数；17项浏览器/设置相邻检查及双轴审查通过，CodeGraph同步。本轮未进行真实WebView2/EXE验收，展开列表仍为原生控件。见[维护](docs/maintenance/settings_dropdown_20261012.md)。

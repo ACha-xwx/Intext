@@ -2,7 +2,22 @@
 
 import pytest
 
-from tests.test_frontend_review_regressions import browser, page, load
+from tests.test_frontend_review_regressions import browser, page as browser_page, load
+
+
+@pytest.fixture
+def page(browser_page):
+    browser_page.evaluate("""() => {pywebview.api.dispatch=async(action,data)=>{
+      calls.push({action,data});
+      if(action==='settings_provider'){
+        const current=promptsmithSettings.current;
+        return {ok:true,data:{settings:{...current,
+          connection:{provider:data.target,...current.providers[data.target]},
+          has_key:false,confirmed:false,available_models:[],revision:'switched-'+data.target}}};
+      }
+      return {ok:true};
+    }}""")
+    return browser_page
 
 
 def test_filled_provider_opens_all_presets_and_protocol_remains_clickable(page):
@@ -120,7 +135,9 @@ def test_clicking_exact_typed_preset_applies_linked_fields_without_clearing_same
     assert page.get_by_label("接口地址", exact=True).input_value() == "https://api.deepseek.com"
     page.get_by_role("button", name="保存设置", exact=True).click()
     page.wait_for_function("calls.some(c=>c.action==='settings_save')")
-    assert page.evaluate("calls.find(c=>c.action==='settings_save').data.key_action") == "clear"
+    # The new provider has its own empty credential; keep no longer means reuse
+    # the old provider's key. The source profile was preserved by the switch.
+    assert page.evaluate("calls.find(c=>c.action==='settings_save').data.key_action") == "keep"
 
     # A fresh form with a saved preset must not invalidate its credential just
     # because the same preset is selected again.

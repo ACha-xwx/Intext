@@ -30,6 +30,7 @@ class SettingsSuggestions {
   }
   open(filtered){
     if(this.control.disabled)return;
+    clearTimeout(this.closeTimer);this.list.classList.remove("closing");this.list.inert=false;this.list.removeAttribute("aria-hidden");
     this.filtered=filtered;this.signature=null;this.render();
     this.list.hidden=false;this.control.setAttribute("aria-expanded","true");this.toggle.setAttribute("aria-expanded","true");
     if(!this.expanded)diagnostic("debug","settings suggestions opened",this.control.id);
@@ -38,11 +39,17 @@ class SettingsSuggestions {
   render(){
     const query=this.filtered?this.control.value.trim().toLocaleLowerCase():"";
     const values=this.values().filter(value=>!query||value.toLocaleLowerCase().includes(query));
-    const signature=JSON.stringify([values,this.control.value]);if(signature===this.signature)return;this.signature=signature;
+    const signature=JSON.stringify([values,this.control.value,state?.theme]);if(signature===this.signature)return;this.signature=signature;
     this.list.replaceChildren();this.options=[];this.active=-1;this.control.removeAttribute("aria-activedescendant");
     for(const value of values){
       const option=button(value,()=>this.choose(value),"settings-suggestion");option.id=this.list.id+"-"+this.options.length;option.tabIndex=-1;
       option.setAttribute("role","option");option.setAttribute("aria-selected",String(value===this.control.value));
+      option.dataset.value=value;
+      if(this.control.id==="settings-field-connection-provider"){
+        option.classList.add("settings-provider-option");
+        const img=providerImage(value);if(img){img.alt="";img.setAttribute("aria-hidden","true");option.prepend(img);}
+        if(value===this.control.value){const check=icon("check");check.classList.add("check");option.append(check);}
+      }
       option.addEventListener("pointerdown",event=>event.preventDefault());this.options.push(option);this.list.append(option);
     }
     if(!values.length)this.list.append(node("p","settings-suggestions-empty","没有匹配的预设，可直接输入自定义值。"));
@@ -60,12 +67,15 @@ class SettingsSuggestions {
   }
   close(reason){
     if(!this.expanded)return;
-    this.expanded=false;this.list.hidden=true;this.active=-1;this.control.removeAttribute("aria-activedescendant");
+    this.expanded=false;this.list.inert=true;this.list.setAttribute("aria-hidden","true");this.active=-1;this.control.removeAttribute("aria-activedescendant");
+    clearTimeout(this.closeTimer);
+    if(["busy","category","leave","rebuild"].includes(reason)||matchMedia("(prefers-reduced-motion: reduce)").matches)this.list.hidden=true;
+    else {this.list.classList.add("closing");this.closeTimer=setTimeout(()=>{this.list.hidden=true;this.list.classList.remove("closing");},230);}
     this.control.setAttribute("aria-expanded","false");this.toggle.setAttribute("aria-expanded","false");
     diagnostic("debug","settings suggestions closed",this.control.id+" reason="+reason);
   }
   sync(){this.toggle.disabled=this.control.disabled;if(this.control.disabled)this.close("busy");else if(this.expanded)this.render();}
-  dispose(){this.close("rebuild");this.events.abort();}
+  dispose(){this.close("rebuild");clearTimeout(this.closeTimer);this.events.abort();}
 }
 class SettingsPage {
   constructor() {
@@ -148,10 +158,7 @@ class SettingsPage {
     this.element.append(this.tabs,this.scroll);
     const provider=this.field("connection.provider","服务名称",{},null);
     this.editableChoice(provider,"服务名称",()=>Object.keys(this.current.providers));
-    provider.addEventListener("change",()=>{
-      const preset=this.current.providers[provider.value];if(preset)for(const key of ["base_url","protocol","model"]){this.controls.get("connection."+key).value=preset[key];this.dirty.add("connection."+key);}
-      this.clearCredentialInput();this.keyAction="clear";this.refreshEnabled();
-    });
+    provider.addEventListener("change",()=>this.switchProvider(provider.value));
     this.field("connection.protocol","协议",{},settings.protocols.map(p=>[p,p]));this.field("connection.base_url","接口地址");
     const model=this.field("connection.model","模型 ID");
     this.editableChoice(model,"模型 ID",()=>this.current.available_models);
@@ -159,7 +166,8 @@ class SettingsPage {
     keyLabel.htmlFor="settings-key";this.keyInput=node("input");this.keyInput.id="settings-key";this.keyInput.type="password";this.keyInput.autocomplete="off";this.keyInput.spellcheck=false;
     this.clearKey=button("清空密钥",()=>{this.keyInput.value="";this.key="";this.keyAction="clear";this.update(this.current,true);});
     const row=node("div","settings-input-row");row.append(this.keyInput,this.clearKey);this.keyNote=node("p","settings-key-note");keyBox.append(row,this.keyNote);modelForm.append(keyLabel,keyBox);
-    this.keyInput.addEventListener("input",()=>{this.key=this.keyInput.value;this.keyAction=this.key?"replace":"keep";this.refreshEnabled();});
+    this.keyInput.addEventListener("input",()=>{this.key=this.keyInput.value;this.keyAction=this.key?"replace":this.keyAction==="clear"?"clear":"keep";this.refreshEnabled();});
+    modelForm.append(node("p","settings-full settings-profile-note","各供应商独立保存接口、密钥和模型列表。切换时暂存未保存输入；保存设置仅保存当前供应商。"));
     const actions=node("div","settings-full settings-model-actions");this.modelButtons=[];
     for(const [label,action] of [["获取模型","settings_models"],["测试连接","settings_test"],["确认","settings_confirm"]]){const b=button(label,()=>this.submit(action));this.modelButtons.push(b);if(action==="settings_confirm")this.confirmButton=b;actions.append(b);}
     this.confirmation=node("p","settings-full settings-status");modelForm.append(actions,this.confirmation);
@@ -180,11 +188,28 @@ class SettingsPage {
   }
   selectCategory(category){for(const choice of this.suggestions)choice.close("category");this.category=category;for(const [key,form] of this.forms)form.hidden=key!==category;for(const tab of this.tabs.children){const selected=tab.dataset.category===category;tab.setAttribute("aria-selected",String(selected));tab.tabIndex=selected?0:-1;}this.scroll.scrollTop=0;diagnostic("debug","settings category",category);}
   restore(){for(const [key,spec] of Object.entries(this.current.fields))if(spec.category===this.category){const c=this.controls.get(key);if(c.type==="checkbox")c.checked=spec.default;else c.value=spec.default;this.dirty.add(key);}this.refreshEnabled();}
-  async submit(action){
+  payload(){
     const connection={},values={};for(const [name,c] of this.controls){const value=c.type==="checkbox"?c.checked:c.value;if(name.startsWith("connection."))connection[name.slice(11)]=value;else values[name]=value;}
+    return {revision:this.current.revision,connection,values,key_action:this.keyAction,key:this.key};
+  }
+  clearModelDraft(){for(const name of [...this.dirty])if(name.startsWith("connection.")||this.current.fields[name]?.category==="模型")this.dirty.delete(name);this.clearCredentialInput();}
+  async switchProvider(target){
+    if(!this.current||target===this.current.connection.provider)return;
+    if(!this.current.providers[target]){
+      // Preserve the existing editable service name for custom gateways.
+      this.clearCredentialInput();this.keyAction="clear";this.refreshEnabled();return;
+    }
+    const data=this.payload();data.connection.provider=this.current.connection.provider;data.target=target;
+    this.errorStatus.textContent="";
+    const result=await command("settings_provider",data);
+    if(result?.settings){this.clearModelDraft();this.update(result.settings,true);}
+    else{this.controls.get("connection.provider").value=this.current.connection.provider;this.dirty.delete("connection.provider");this.errorStatus.textContent="供应商未切换，输入仍保留，请重试。";}
+    this.refreshEnabled();
+  }
+  async submit(action){
     this.errorStatus.textContent="";
     // Key is never stored in a browser snapshot, localStorage or exported data.
-    const result=await command(action,{revision:this.current.revision,connection,values,key_action:this.keyAction,key:this.key});
+    const result=await command(action,this.payload());
     if(result?.settings){
       const all=action==="settings_save";
       for(const name of [...this.dirty])if(all||name.startsWith("connection.")||this.current.fields[name]?.category==="模型")this.dirty.delete(name);

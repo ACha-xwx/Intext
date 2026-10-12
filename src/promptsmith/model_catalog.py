@@ -3,7 +3,7 @@
 These are suggestions, not evidence that the user's API account has access.
 Service URLs and credentials remain managed by the existing settings flow.
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 
 EFFORTS = ("low", "medium", "high", "max")
@@ -20,6 +20,8 @@ class ModelPreset:
     image: bool = True
     effort_map: tuple[str, ...] = EFFORTS
     adaptive: bool = False
+    reasoning: bool = True
+    service_provider: str = ""
 
     def map_effort(self, effort: str) -> str:
         return self.effort_map[EFFORTS.index(effort)] if effort in EFFORTS else effort
@@ -61,16 +63,18 @@ def find_model(model_id: str) -> ModelPreset | None:
     return next((model for model in MODELS if model.id == model_id.strip()), None)
 
 
-def picker_models(current_id: str, discovered_ids=()) -> tuple[ModelPreset, ...]:
-    """Preserve custom IDs and the current service's fetched directory."""
-    known = {model.id for model in MODELS}
-    extra = []
-    for value in (current_id, *discovered_ids):
+def picker_models(current_id: str, discovered_ids=(), *, service_provider="") -> tuple[ModelPreset, ...]:
+    """Decorate actual fetched IDs with local metadata, never add suggestions."""
+    seen = set()
+    models = []
+    for value in discovered_ids:
         model_id = str(value).strip()
-        if model_id and model_id not in known:
-            known.add(model_id)
-            extra.append(ModelPreset(model_id, model_id, "custom", "当前接口的模型，可在设置中修改", image=False))
-    return (*MODELS, *extra)
+        if model_id and model_id not in seen:
+            seen.add(model_id)
+            preset = find_model(model_id) or ModelPreset(model_id, model_id, "custom",
+                "当前接口返回的模型；暂无本地介绍与能力资料", image=False, reasoning=False)
+            models.append(replace(preset, service_provider=service_provider))
+    return tuple(models)
 
 
 def search_models(models, provider: str, query: str):

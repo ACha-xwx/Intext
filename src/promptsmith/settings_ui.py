@@ -7,7 +7,7 @@ from pathlib import Path
 from tkinter import filedialog, ttk
 
 from .debug_console import load_debug_preference
-from .preferences import FIELDS, load_settings, normalize_value, save_preferences, update_debug_preference, validate_preferences
+from .preferences import FIELDS, LoadedSettings, load_settings, normalize_value, save_preferences, update_debug_preference, validate_preferences
 from .typography import ui_font
 
 
@@ -18,8 +18,12 @@ class SettingsMixin:
         self.preferences, self._saved_connection = loaded.preferences, loaded.connection
         self._saved_api_key = loaded.api_key
         self._saved_model_confirmed = loaded.model_confirmed
+        self._provider_profiles = loaded.model_profiles
+        self._saved_model_ids = loaded.model_ids
         self._settings_load_warning = loaded.warning
         self.runtime_log.register_secret(loaded.api_key)
+        for profile in self._provider_profiles.values():
+            self.runtime_log.register_secret(profile.api_key)
         legacy_path = Path(data_root) / "diagnostics.json"
         if not loaded.has_debug_preference and legacy_path.exists():
             self.preferences["debug_console_enabled"] = load_debug_preference(legacy_path)
@@ -42,6 +46,48 @@ class SettingsMixin:
     def _public_model_connection(self):
         return {"provider": self.provider_var.get().strip(), "protocol": self.protocol_var.get().strip(),
                 "base_url": self.api_base_var.get().strip(), "model": self.api_model_var.get().strip()}
+
+    def _capture_provider_profile(self, provider=None, *, confirmed=None):
+        """Keep drafts on the Tk thread; never project keys into the browser."""
+        connection = self._public_model_connection()
+        if provider is not None:
+            connection["provider"] = provider
+        values = dict(self.preferences)
+        values.update({key: variable.get() for key, variable in self.preference_vars.items() if FIELDS[key].category == "模型"})
+        if confirmed is None:
+            confirmed = self._confirmed_connection_state is not None and self._confirmed_connection_state == self._connection_state
+        profile = LoadedSettings(values, connection, api_key=self.api_key_var.get(), model_confirmed=confirmed,
+            model_ids=tuple(self.widgets["api_model_combo"].cget("values")))
+        self._provider_profiles[connection["provider"]] = profile
+        return profile
+
+    def _apply_provider_profile(self, provider):
+        from .model_catalog import PROVIDER_PRESETS
+        from .ui import PROTOCOL_NAMES
+        profile = self._provider_profiles.get(provider)
+        preset = PROVIDER_PRESETS.get(provider)
+        connection = profile.connection if profile else ({"provider": provider, **preset,
+            "protocol": PROTOCOL_NAMES[preset["protocol"]]} if preset else {"provider": provider})
+        for key, variable in (("base_url", self.api_base_var), ("protocol", self.protocol_var), ("model", self.api_model_var)):
+            if key in connection:
+                variable.set(connection[key])
+        for key, spec in FIELDS.items():
+            if spec.category == "模型":
+                self.preference_vars[key].set(profile.preferences[key] if profile else spec.default)
+        self.api_key_var.set(profile.api_key if profile else "")
+        self.widgets["api_model_combo"].configure(values=profile.model_ids if profile else ())
+        self.model_directory_version += 1
+        self._model_directory_state = self._model_directory_snapshot()
+        return profile
+
+    def available_picker_models(self):
+        from .model_catalog import picker_models
+        current = self.provider_var.get().strip()
+        models = list(picker_models(self.api_model_var.get(), self.widgets["api_model_combo"].cget("values"), service_provider=current))
+        for provider, profile in self._provider_profiles.items():
+            if provider != current:
+                models.extend(picker_models("", profile.model_ids, service_provider=provider))
+        return tuple(models)
 
     def _restore_model_settings_confirmation(self):
         if not self._saved_model_confirmed:
@@ -220,7 +266,8 @@ class SettingsMixin:
                 self._draft_api_config()
             connection = self._public_model_connection()
             save_preferences(self._preferences_path, values, connection, api_key=self.api_key_var.get(),
-                             model_confirmed=confirm_model or self._model_settings_confirmed())
+                             model_confirmed=confirm_model or self._model_settings_confirmed(),
+                             model_ids=tuple(self.widgets["api_model_combo"].cget("values")))
         except (ValueError, OSError) as exc:
             logging.getLogger(__name__).exception("Cannot save settings")
             self.settings_status_var.set(f"设置未保存：{exc} 请修改后重试。")
@@ -229,6 +276,7 @@ class SettingsMixin:
             return False
         changed = [key for key, value in values.items() if value != self.preferences[key]]
         self.preferences = values
+        self._capture_provider_profile(confirmed=confirm_model or self._model_settings_confirmed())
         self._settings_load_warning = ""
         self.skill_search_timeout = values["search_timeout"]
         if "skill_search_url" in changed:

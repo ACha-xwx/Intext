@@ -98,6 +98,11 @@ def test_changing_confirmed_config_requires_explicit_reconfirmation(app, field, 
     assert not app._model_settings_confirmed()
     assert app.connection_version > version
     variable.set(original)
+    if field == "provider_var":
+        # Switching back now restores that provider's explicitly saved profile.
+        assert app._model_settings_confirmed()
+        assert app._api_config().api_key == "offline-fixture-key"
+        return
     assert not app._model_settings_confirmed()
     with pytest.raises(ValueError, match="确认"):
         app._api_config()

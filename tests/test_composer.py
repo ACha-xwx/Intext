@@ -66,6 +66,10 @@ def test_official_provider_switch_clears_key_and_uses_latest_preset(app):
 
 
 def test_picker_search_categories_selection_and_deepseek_chips(app):
+    # Presets supply metadata only. Actual selectable IDs now come from a
+    # previously fetched service directory, including gateway-hosted families.
+    from promptsmith.model_catalog import MODELS
+    app.widgets["api_model_combo"].configure(values=tuple(m.id for m in MODELS))
     widget = composer(app)
     widget.toggle_picker()
     picker = widget.picker
@@ -120,7 +124,7 @@ def test_autogrow_and_placeholder_are_not_sent_text(app):
 
 
 def test_custom_directory_preserves_current_and_searches_all_providers():
-    models = picker_models("private-model", ("private-model", "other-private"))
+    models = picker_models("private-model", ("private-model", "other-private", "deepseek-flash"))
     assert [m.id for m in search_models(models, "custom", "")] == ["private-model", "other-private"]
     assert len([m for m in models if m.id == "private-model"]) == 1
     assert {m.provider for m in search_models(models, "DeepSeek", "方案")} >= {"DeepSeek"}

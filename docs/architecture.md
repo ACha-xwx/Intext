@@ -1,5 +1,7 @@
 # 架构与内在逻辑
 
+2026-10-13 独立供应商设置：version2保留顶层活动connection/credentials/confirmation以兼容旧文件，新增model_profiles保存各家的接口、DPAPI密钥、模型参数、确认依据及目录。每次保存先同步旧活动投影，避免已清钥/撤确认被副本恢复；读取I/O失败中止保存并保留原文件。切换在Tk线程暂存/恢复档案并更新连接版本，Web settings_provider只返回公开快照。模型目录绑定provider/protocol/base_url/密钥身份，接口或Key变动清空；已保存同身份获取后缓存目录，不隐式保存草稿或确认。底部仅装饰获取ID，并携service_provider保证跨家相同ID不串凭据。本地MODELS不再提供未获取候选。详见[维护与验收](maintenance/provider_profiles_20261013.md)。
+
 2026-10-12 Responses网关兼容：三个请求入口统一标准消息列表input及store=false；复杂业务Schema用完整提示JSON契约，合法简单Schema保留原生strict。无原生format时不重复兼容请求；非流式/缓冲JSON的failed状态也传播服务原因/request_id。用户模型/思考强度/预算与其它协议保留。验证边界见[维护](maintenance/responses_gateway_20261012.md)。
 
 2026-10-12 流式失败诊断：`consume_sse()`保留服务原始stream_error及response.failed最新元数据；`api.py`共用HTTP/SSE错误字段提取与脱敏，将完整说明记录Debug、短说明传播既有ApiError/失败事件。服务错误不变成成功，不编造HTTP状态，不新增自动重试；运行日志仍手动落盘。见[复诊](maintenance/stream_service_error_20261012.md)。

@@ -60,6 +60,7 @@ let popup=null, popupKind=null, reviewKind=null, provider=null, toastTimer=null;
 let reviewSignature=null;
 let popupAnchor=null, popupObserver=null, popupLayoutFrame=null;
 let popupReturnFocus=null;
+let refreshModelMenu=null;
 const rendered=new Map(), drafts=new Map(), traces=new Map();
 const viewport=$("#viewport"), timeline=$("#timeline"), message=$("#message");
 $("#send").append(icon("send"));
@@ -109,7 +110,7 @@ async function drainChoices() {
     while(choiceQueue.length){const item=choiceQueue.shift();
       if(item.session!==state.session)continue;
       try{const result=await window.pywebview.api.dispatch(item.action,item.data,state.stamp);if(item.session!==state.session)continue;if(!result.ok)toast(result.error);
-        if(result.ok&&result.data){state.effort=result.data.effort;state.model=result.data.model;}
+        if(result.ok&&result.data){state.effort=result.data.effort;state.model=result.data.model;state.active_service=result.data.active_service;}
         await poll();syncEffort();}
       catch(error){toast("选择未应用，请重试。");diagnostic("error","model choice failed",String(error));}
     }
@@ -121,7 +122,7 @@ function syncEffort(){
   if(track){track.style.setProperty("--effort-index",index);for(const b of track.querySelectorAll("button")){const active=b.dataset.effort===effort;b.setAttribute("aria-checked",String(active));b.tabIndex=active?0:-1;}}
   for(const meter of document.querySelectorAll(".effort-indicator"))for(const [i,bar] of [...meter.children].entries())bar.classList.toggle("filled",i<=index);
   for(const b of document.querySelectorAll(".model-row")){
-    const selected=b.dataset.model===state.model;b.classList.toggle("selected",selected);
+    const selected=b.dataset.model===state.model&&(!b.dataset.service||b.dataset.service===state.active_service);b.classList.toggle("selected",selected);
     if(selected&&!b.querySelector(".check")){const check=icon("check");check.classList.add("check");b.querySelector(".model-name").append(check);}
     if(!selected)b.querySelector(".check")?.remove();
   }
@@ -343,12 +344,13 @@ function applySnapshot(next) {
   }
   for(const [key,view] of rendered)if(!keys.has(key)){view.el.remove();traces.get(key)?.close();traces.delete(key);rendered.delete(key);}
   let reanswer=$("#reanswer-context");if(state.reanswer) {if(!reanswer){reanswer=node("div","notice");reanswer.id="reanswer-context";timeline.append(reanswer);}reanswer.replaceChildren(node("p","",state.reanswer_text),button("取消补答",()=>command("cancel_reanswer")));}else reanswer?.remove();
-  const model=state.models.find(m=>m.id===state.model),modelButton=$("#model-button"),modelSignature=JSON.stringify([state.model,state.theme]);
+  const model=state.model_info||state.models.find(m=>m.id===state.model),modelButton=$("#model-button"),modelSignature=JSON.stringify([state.model,state.theme,model,state.active_service]);
   if(modelButton.dataset.signature!==modelSignature){modelButton.dataset.signature=modelSignature;modelButton.replaceChildren();
     const img=providerImage(model?.provider);if(img)modelButton.append(img);modelButton.append(node("span","",model?.name||state.model||"选择模型"));
     modelButton.append(effortMeter(),node("span","chevron"));}
   modelButton.classList.toggle("picker-open",popupKind==="model");
   syncEffort();
+  refreshModelMenu?.();
   const above=$("#composer-actions"),aboveKeys=[];
   const recovery=$("#recovery"),recoveryKeys=[];
   if(state.cards[0]?.kind!=="welcome"&&state.buttons.primary?.text!=="先输入任务"&&state.buttons.primary?.enabled&&!state.locked&&!state.cards.some(c=>c.kind==="question")&&!state.buttons.confirm_requirements&&!state.buttons.confirm_plan&&!state.buttons.copy&&!state.buttons.continue_stage)(state.buttons.primary.text==="继续整理回答"?aboveKeys:recoveryKeys).push("primary");
@@ -380,6 +382,7 @@ function restoreFocus(target){
   (element||$("#history-search"))?.focus({preventScroll:true});
 }
 function closePopup(immediate=false) {
+  refreshModelMenu=null;
   popupObserver?.disconnect();popupObserver=null;
   if(popupLayoutFrame!==null)cancelAnimationFrame(popupLayoutFrame);popupLayoutFrame=null;popupAnchor=null;
   $("#model-button").classList.remove("picker-open");
@@ -474,7 +477,7 @@ function modelPicker() {
   const layout=node("div","picker-layout"),providers=node("div","providers"),models=node("div","models"),providerIndicator=node("span","provider-indicator"),column=node("div","picker-column"),modelSurface=node("div","model-surface"),modelHeading=node("div","model-heading");
   providerIndicator.setAttribute("aria-hidden","true");providers.setAttribute("role","tablist");providers.setAttribute("aria-label","模型供应商");providers.setAttribute("aria-orientation","vertical");providers.append(providerIndicator);
   modelSurface.append(modelHeading,models);column.append(search,modelSurface);layout.append(providers,column);box.append(layout);
-  provider=state.models.find(m=>m.id===state.model)?.provider||"OpenAI";
+  provider=state.models.find(m=>m.id===state.model&&(!m.service_provider||m.service_provider===state.active_service))?.provider||state.models[0]?.provider||"OpenAI";
   const efforts=node("div","efforts"),label=node("div","thinking-label");label.append(effortMeter(),node("span","","思考强度"));efforts.append(label);const choices=node("div","thinking-track"),indicator=node("span","thinking-indicator");
   choices.setAttribute("role","radiogroup");choices.setAttribute("aria-label","思考强度");indicator.setAttribute("aria-hidden","true");choices.append(indicator);
   const levels=["low","medium","high","max"];
@@ -486,14 +489,24 @@ function modelPicker() {
     models.classList.remove("provider-enter");requestAnimationFrame(()=>models.classList.add("provider-enter"));
     const query=input.value.trim().toLocaleLowerCase();const list=state.models.filter(m=>(query||m.provider===provider)&&(!query||(m.name+" "+m.description).toLocaleLowerCase().includes(query)));
     modelHeading.textContent=query?`${list.length} 个结果`:provider;clear.hidden=!query;
-    for(const m of list){const b=button("",()=>{choosePreference("model",{id:m.id});},"model-row"+(m.id===state.model?" selected":""));b.dataset.model=m.id;const content=node("div","model-content"),name=node("div","model-name");name.append(node("strong","",m.name));content.append(name,node("small","",m.description));
-      const tags=node("div","capabilities");for(const [name,label] of [["brain","推理"],...(m.image?[["image","图像"]]:[])]){const tag=node("span","capability "+name);tag.title=label;tag.setAttribute("aria-label",label);tag.append(icon(name));tags.append(tag);}b.append(content,tags);if(m.id===state.model){const check=icon("check");check.classList.add("check");name.append(check);}models.append(b);}
-    if(!list.length)models.append(node("p","notice","没有匹配的模型。"));
+    for(const m of list){const selected=m.id===state.model&&(!m.service_provider||m.service_provider===state.active_service);
+      const b=button("",()=>{choosePreference("model",{id:m.id,...(m.service_provider?{service:m.service_provider}:{})});},"model-row"+(selected?" selected":""));b.dataset.model=m.id;b.dataset.service=m.service_provider||"";const content=node("div","model-content"),name=node("div","model-name");name.append(node("strong","",m.name));content.append(name,node("small","",m.description));
+      if(m.service_provider&&m.service_provider!==m.provider)content.append(node("small","","接口："+m.service_provider));
+      const tags=node("div","capabilities");for(const [name,label] of [...(m.reasoning!==false?[["brain","推理"]]:[]),...(m.image?[["image","图像"]]:[])]){const tag=node("span","capability "+name);tag.title=label;tag.setAttribute("aria-label",label);tag.append(icon(name));tags.append(tag);}b.append(content,tags);if(selected){const check=icon("check");check.classList.add("check");name.append(check);}models.append(b);}
+    if(!list.length)models.append(node("p","notice",state.models.length?"没有匹配的模型。":"请先在设置中为供应商获取模型列表。"));
   }
-  const providerNames=[...new Set(state.models.map(m=>m.provider))];
+  let directorySignature=null;
+  function refreshDirectory(){
+    const signature=JSON.stringify([state.models,state.active_service,state.theme]);if(signature===directorySignature)return;directorySignature=signature;
+    for(const b of providers.querySelectorAll("button"))b.remove();
+    const providerNames=[...new Set(state.models.map(m=>m.provider))];
+    if(!providerNames.includes(provider))provider=providerNames[0]||"OpenAI";
   for(const [index,name] of providerNames.entries()){const b=button("",()=>{provider=name;input.value="";renderModels();});b.dataset.provider=name;b.title=name;b.setAttribute("aria-label",name);b.setAttribute("role","tab");
     b.addEventListener("keydown",event=>{let next=null;if(event.key==="ArrowDown")next=(index+1)%providerNames.length;else if(event.key==="ArrowUp")next=(index+providerNames.length-1)%providerNames.length;else if(event.key==="Home")next=0;else if(event.key==="End")next=providerNames.length-1;if(next!==null){event.preventDefault();provider=providerNames[next];input.value="";renderModels();providers.querySelectorAll("button")[next].focus();}});
-    const img=providerImage(name);if(img)b.append(img);else b.textContent=name;providers.append(b);}input.addEventListener("input",renderModels);
+    const img=providerImage(name);if(img)b.append(img);else b.textContent=name;providers.append(b);}
+    renderModels();
+  }
+  refreshModelMenu=refreshDirectory;refreshDirectory();input.addEventListener("input",renderModels);
   input.addEventListener("keydown",event=>{if(event.isComposing||event.keyCode===229)return;if(event.key==="ArrowDown"){event.preventDefault();models.querySelector("button")?.focus();}else if(event.key==="Enter"){event.preventDefault();models.querySelector("button")?.click();}else if(event.key==="Escape"&&input.value){event.stopPropagation();input.value="";renderModels();}});
   renderModels();input.focus();
 }

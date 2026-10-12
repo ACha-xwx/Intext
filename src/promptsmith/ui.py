@@ -83,7 +83,7 @@ from .workflow import M1CallFailure, M1CallOutcome, M2CallFailure, M2CallOutcome
 from .guided_flow import GuidedFlowMixin
 from .debug_console import DebugConsole
 from .runtime_log import RuntimeLog
-from .preferences import FIELDS, update_debug_preference
+from .preferences import FIELDS, LoadedSettings, update_debug_preference
 from .credentials import credential_context
 from .model_catalog import PROVIDER_PRESETS
 from .typography import Typography, ui_font
@@ -360,7 +360,9 @@ class PromptSmithApp(GuidedFlowMixin):
         self._apply_visual_preferences()
         self._connection_state = self._generation_snapshot()
         self._model_directory_state = self._model_directory_snapshot()
-        self.provider_var.trace_add("write", self._on_provider_changed)
+        if (self._public_model_connection() == self._saved_connection and self.api_key_var.get()
+                == self._provider_profiles.get(self.provider_var.get(), LoadedSettings({}, {})).api_key):
+            self.widgets["api_model_combo"].configure(values=self._saved_model_ids)
         for variable in (
             self.provider_var,
             self.protocol_var,
@@ -369,6 +371,9 @@ class PromptSmithApp(GuidedFlowMixin):
             self.api_key_var,
         ):
             variable.trace_add("write", self._on_connection_changed)
+        # Tcl invokes newest traces first: capture the old provider draft before
+        # the generic connection trace can invalidate its key/directory.
+        self.provider_var.trace_add("write", self._on_provider_changed)
         for key, variable in self.preference_vars.items():
             if FIELDS[key].category == "模型":
                 variable.trace_add("write", self._on_connection_changed)
@@ -1173,21 +1178,30 @@ class PromptSmithApp(GuidedFlowMixin):
         provider = self.provider_var.get().strip()
         if provider == self._last_provider:
             return
+        self._capture_provider_profile(self._last_provider)
         self._last_provider = provider
         self._suppress_provider_callback = True
         try:
-            self.api_key_var.set("")
-            if "api_model_combo" in self.widgets:
-                self.widgets["api_model_combo"].configure(values=())
-            preset = PROVIDER_PRESETS.get(provider)
-            if preset:
-                self.api_base_var.set(preset["base_url"])
-                self.protocol_var.set(PROTOCOL_NAMES[preset["protocol"]])
-                self.api_model_var.set(preset["model"])
+            profile = self._apply_provider_profile(provider)
         finally:
             self._suppress_provider_callback = False
+        self._on_connection_changed()
+        if profile and profile.model_confirmed and self.api_key_var.get().strip():
+            try:
+                self._draft_api_config()
+            except ValueError:
+                logging.getLogger(__name__).warning("Provider confirmation unavailable: invalid draft", exc_info=True)
+            else:
+                self._confirmed_connection_state = self._generation_snapshot()
+                self._refresh_model_confirmation()
+                self._refresh_primary_action()
+        self.settings_status_var.set("已切换供应商；各家的未保存输入暂存，保存设置仅保存当前供应商。")
+        logging.getLogger(__name__).info("Provider profile switched: provider=%s credential_present=%s models=%s confirmed=%s",
+            provider, bool(self.api_key_var.get().strip()), len(self.widgets["api_model_combo"].cget("values")), self._model_settings_confirmed())
 
     def _on_connection_changed(self, *_args: Any) -> None:
+        if self._suppress_provider_callback:
+            return
         current = self._generation_snapshot()
         directory_current = self._model_directory_snapshot()
         if self._connection_state is None or self._model_directory_state is None:
@@ -1272,8 +1286,17 @@ class PromptSmithApp(GuidedFlowMixin):
             self._set_busy(False, "连接配置已变化，已忽略旧模型列表；可重新获取。")
             return
         self.widgets["api_model_combo"].configure(values=tuple(result.model_ids))
+        self._capture_provider_profile()
+        try:
+            from .preferences import save_model_directory
+            cached = save_model_directory(self._preferences_path, self._public_model_connection(),
+                                          self.api_key_var.get(), result.model_ids)
+        except (OSError, ValueError):
+            cached = False
+            logging.getLogger(__name__).exception("Fetched directory usable in memory but could not be saved")
+        logging.getLogger(__name__).info("Model directory ready: count=%s persisted=%s", len(result.model_ids), cached)
         if result.model_ids:
-            text = f"已获取 {len(result.model_ids)} 个模型 ID；当前手填值保持不变。"
+            text = f"已获取 {len(result.model_ids)} 个模型 ID；当前手填值保持不变。" + ("已记住列表。" if cached else "保存当前供应商设置后可记住列表。")
         else:
             text = "供应商返回空模型列表；可继续手动填写模型 ID。"
         self._set_busy(False, text)

@@ -121,7 +121,7 @@ class WorkspaceController:
             app.set_debug_console_enabled()
             LOG.info("Web settings Debug toggle: enabled=%s", data["enabled"])
             return
-        if action not in {"settings_save", "settings_confirm", "settings_test", "settings_models"}:
+        if action not in {"settings_save", "settings_confirm", "settings_test", "settings_models", "settings_provider"}:
             raise ValueError("设置操作不存在。")
         if app.busy:
             raise ValueError("正在处理当前请求，完成或取消后再提交设置。")
@@ -133,9 +133,19 @@ class WorkspaceController:
             raise ValueError("模型连接字段无效。")
         if connection["protocol"] not in PROTOCOL_LABELS:
             raise ValueError("协议不存在。")
-        validate_public_url(connection["base_url"])
+        if action == "settings_provider":
+            from .model_catalog import PROVIDERS
+            if data.get("target") not in PROVIDERS or connection["provider"] != current["connection"]["provider"]:
+                raise ValueError("供应商选择已变化，请重新核对后切换。")
+        else:
+            validate_public_url(connection["base_url"])
         if action == "settings_save":
             normalized = validate_preferences(values)
+        elif action == "settings_provider":
+            # Incomplete numeric drafts must not trap the user on this provider.
+            normalized = {key: values.get(key, current["values"][key]) for key, spec in FIELDS.items() if spec.category == "模型"}
+            if any(not isinstance(value, (str, int, float)) or len(str(value)) > 4096 for value in normalized.values()):
+                raise ValueError("模型参数草稿无效。")
         else:
             normalized = {key: normalize_value(key, values.get(key, current["values"][key]))
                           for key, spec in FIELDS.items() if spec.category == "模型"}
@@ -161,7 +171,9 @@ class WorkspaceController:
             roots.delete("1.0", "end")
             roots.insert("1.0", normalized["extra_skill_roots"])
         LOG.info("Web settings submitted: action=%s fields=%s credential_action=%s", action, list(normalized), key_action)
-        if action == "settings_save":
+        if action == "settings_provider":
+            app.provider_var.set(data["target"])
+        elif action == "settings_save":
             if not app.save_settings():
                 raise ValueError(app.settings_status_var.get())
         elif action == "settings_confirm":
@@ -201,7 +213,7 @@ class WorkspaceController:
     def snapshot(self):
         from dataclasses import asdict
         from .conversation import conversation_cards, conversation_plan_text
-        from .model_catalog import picker_models
+        from .model_catalog import find_model
         from .skill_browser import table_rows, visible_rows, source_group
         from .skill_recommendation import recommendation_score
         from .ui import FIELD_LABELS, KIND_LABELS
@@ -247,7 +259,9 @@ class WorkspaceController:
             status=app.status_var.get(), theme=app.preferences["composer_theme"],
             window_width=app.preferences["window_width"],
             font_size=app.preferences["font_size"], model=app.api_model_var.get(),
-            models=[asdict(m) for m in picker_models(app.api_model_var.get(), app.widgets["api_model_combo"].cget("values"))],
+            active_service=app.provider_var.get(),
+            model_info=asdict(find_model(app.api_model_var.get())) if find_model(app.api_model_var.get()) else None,
+            models=[asdict(m) for m in app.available_picker_models()],
             icons=self.icons, effort=app.preference_vars["reasoning_effort"].get(),
             category=app.category_var.get(), categories=list(app.category_by_label),
             depth=app.thinking_level_var.get(), depths=app._thinking_labels,
@@ -258,7 +272,7 @@ class WorkspaceController:
             reanswer=app._answer_target_id, reanswer_text=app.question_context_var.get())
 
     def dispatch(self, action, data, stamp):
-        from .model_catalog import picker_models, EFFORTS
+        from .model_catalog import EFFORTS
         app = self.app
         if not isinstance(data, dict):
             raise ValueError("操作参数格式不正确。")
@@ -363,8 +377,9 @@ class WorkspaceController:
             app._skip_inline_question(key, "skipped")
             app.session.control.setdefault("workspace_drafts", {}).setdefault("answers", {}).pop(key, None)
         elif action == "model":
-            models = picker_models(app.api_model_var.get(), app.widgets["api_model_combo"].cget("values"))
-            model = next((m for m in models if m.id == data.get("id")), None)
+            models = app.available_picker_models()
+            model = next((m for m in models if m.id == data.get("id") and
+                (not data.get("service") or m.service_provider == data["service"])), None)
             if model is None:
                 raise ValueError("模型不存在。")
             app.widgets["conversation_composer"].choose_model(model)
@@ -414,7 +429,7 @@ class WorkspaceController:
         else:
             raise ValueError("未知操作。")
         if action in {"model", "effort"}:
-            return dict(model=app.api_model_var.get(), effort=app.preference_vars["reasoning_effort"].get())
+            return dict(model=app.api_model_var.get(), effort=app.preference_vars["reasoning_effort"].get(), active_service=app.provider_var.get())
 
 
 class DesktopApi:

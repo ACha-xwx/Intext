@@ -840,3 +840,19 @@ R1–R3收尾：289个不同节点最新全绿（15模块246通过/2夹具失败
 |J2 回归与收尾|相邻API/流程、Debug/维护/独立双轴审查|原生strict/文本/供应商/输入去重/服务错误继续通过；无收费请求、个人设置或推送|complete|
 
 完成：D3/D4/J1/J2全部关闭，255个不同本地自动化节点最新通过，实际WebView2鼠标/键盘/真实设置桥接20项通过，Spec/Standards各0待修，CodeGraph已同步。队员报告中真实中转的input原因成立，但本机未发收费请求，保留当前无强制json_object策略；见[本轮维护](settings_choice_interaction_20261012.md)。
+
+
+## 2026-10-12 供应商独立配置与获取模型目录
+
+目标：五供应商分别保存接口/API Key和获取列表，底部只展示获取目录；匹配本地资料显示名称/介绍/能力，未知ID保留且不猜测能力。切换不串密钥、不新增确认/收费请求；旧单配置迁移，DPAPI和手动日志保持。
+
+沿用已授权测试边界：公开设置/客户端到本地HTTP、真实生产浏览器DOM、隔离WebView2，不访问个人设置。增量基线HEAD 44b6fc0，before副本在local_artifacts/provider_profiles_20261012/before。四技能及planning-with-files持续使用；用户请求为规范来源。
+
+|任务|范围|验收|依赖|状态|
+|---|---|---|---|---|
+|V1 独立配置|preferences/settings_ui/ui/Web桥接及公开设置回归|五家密钥独立DPAPI，切换/保存/重启/清钥/旧迁移/草稿隔离，确认规则保留；逐slice红绿|无|complete|
+|V2 获取目录驱动|获取完成/持久化、catalog/菜单及公开HTTP/DOM回归|只显示当前已获取ID，更新/重开恢复，匹配介绍，未知可选，旧响应隔离|V1|complete|
+|V3 供应商菜单|settings.js/CSS及DOM/WebView2|五图标、圆角阴影、.38s弹出与关闭动画；键盘/小窗/外点/忙态/草稿保护|V1|complete|
+|V4 收尾|相邻回归、Debug、双轴审查、交接与CodeGraph|无泄密/自动日志，相关检查通过，边界据实报告|V2/V3|complete|
+
+V1–V4完成：264个不同本地回归节点最新通过，真实WebView2隔离36项通过（仅5次localhost目录请求，零生成/个人配置读写/自动日志），Spec/Standards最终各0待修。4项旧Tk基线失败单列，未声明全套成功或真实服务/EXE质量；维护/交接已同步，见[本轮报告](provider_profiles_20261013.md)。

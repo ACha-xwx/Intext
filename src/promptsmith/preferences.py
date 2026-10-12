@@ -60,7 +60,7 @@ FIELDS = {
 }
 RETIRED_FONT_FIELDS = ("chinese_font", "latin_font", "split_fonts")
 CONNECTION_FIELDS = {"provider", "protocol", "base_url", "model"}
-MAX_SETTINGS_BYTES = 131072
+MAX_SETTINGS_BYTES = 1048576  # Five independent credentials and fetched directories.
 
 
 @dataclass
@@ -71,6 +71,8 @@ class LoadedSettings:
     warning: str = ""
     has_debug_preference: bool = False
     model_confirmed: bool = False
+    model_profiles: dict[str, LoadedSettings] = field(default_factory=dict)
+    model_ids: tuple[str, ...] = ()
 
 
 def defaults() -> dict[str, Any]:
@@ -172,12 +174,37 @@ def _load_public(document: dict) -> tuple[dict[str, Any], dict[str, str]]:
 def load_settings(path: Path, *, restore_credentials: bool = True) -> LoadedSettings:
     try:
         document = _read_document(path)
-        preferences, connection = _load_public(document)
+        _load_public(document)
     except FileNotFoundError:
         return LoadedSettings(defaults(), {})
     except (OSError, ValueError):
         logging.getLogger(__name__).warning("Cannot load desktop preferences; using defaults", exc_info=True)
         return LoadedSettings(defaults(), {}, warning="设置文件无法读取，已使用默认值。请在设置页重新保存。")
+    loaded = _load_connection_settings(document, restore_credentials=restore_credentials)
+    profiles = document.get("model_profiles", {})
+    if isinstance(profiles, dict):
+        for name, profile in profiles.items():
+            if not isinstance(name, str) or not isinstance(profile, dict):
+                continue
+            try:
+                values = dict(document.get("preferences", {}))
+                values.update(profile.get("model_values", {}))
+                record = _load_connection_settings({**profile, "preferences": values,
+                    "composer_defaults": document.get("composer_defaults")}, restore_credentials=restore_credentials)
+                if record.connection.get("provider") == name:
+                    loaded.model_profiles[name] = record
+            except (ValueError, TypeError):
+                logging.getLogger(__name__).warning("Cannot load a provider profile; other settings retained", exc_info=True)
+    # The legacy-compatible active projection remains authoritative, including
+    # tamper/error detection. Never replace it with a duplicate saved profile.
+    if loaded.connection.get("provider"):
+        from dataclasses import replace
+        loaded.model_profiles[loaded.connection["provider"]] = replace(loaded, model_profiles={})
+    return loaded
+
+
+def _load_connection_settings(document: dict, *, restore_credentials: bool) -> LoadedSettings:
+    preferences, connection = _load_public(document)
     loaded = LoadedSettings(preferences, connection,
                             has_debug_preference="debug_console_enabled" in document.get("preferences", {}))
     if restore_credentials and "credentials" in document:
@@ -208,6 +235,12 @@ def load_settings(path: Path, *, restore_credentials: bool = True) -> LoadedSett
                 loaded.warning = "已保存的模型确认与当前配置不符，请在设置页核对后点击“确认”。"
     elif restore_credentials:
         logging.getLogger(__name__).debug("No saved model confirmation; explicit confirmation required")
+    directory = document.get("model_directory")
+    if isinstance(directory, dict) and directory.get("fingerprint") == _directory_fingerprint(
+            connection, document.get("credentials", {}).get("api_key") if isinstance(document.get("credentials", {}), dict) else None):
+        ids = directory.get("ids")
+        if isinstance(ids, list) and all(isinstance(value, str) and 0 < len(value) < 4096 for value in ids):
+            loaded.model_ids = tuple(dict.fromkeys(ids))
     # Check the saved confirmation against its original parameters first.
     # Migrate only pre-picker defaults; preserve explicitly saved newer choices.
     if document.get("composer_defaults") != 1 and preferences["reasoning_effort"] in {"auto", "omit"}:
@@ -231,18 +264,90 @@ def _model_confirmation_fingerprint(values: Mapping[str, Any], connection: Mappi
     return hashlib.sha256(b"PromptSmith.model_confirmation.v1\0" + content).hexdigest()
 
 
+def _directory_fingerprint(connection: Mapping[str, str], credential: object) -> str:
+    basis = {"connection": {key: connection.get(key, "").strip() for key in ("provider", "protocol", "base_url")},
+             "credential": credential}
+    return hashlib.sha256(json.dumps(basis, sort_keys=True, ensure_ascii=True).encode("ascii")).hexdigest()
+
+
+def save_model_directory(path: Path, connection: Mapping[str, str], api_key: str, model_ids) -> bool:
+    """Cache a fetched directory only for an already saved credential identity.
+
+    Fetching never saves/approves other drafts, or changes the active profile.
+    New configurations acquire their directory when explicitly saved instead.
+    """
+    try:
+        document = _read_document(path)
+    except FileNotFoundError:
+        return False
+    provider = connection.get("provider")
+    profiles = document.get("model_profiles", {})
+    record = profiles.get(provider) if isinstance(profiles, dict) else None
+    active = document.get("connection", {}).get("provider") == provider
+    if active:
+        record = document
+    if not isinstance(record, dict):
+        return False
+    public = record.get("connection", {})
+    if any(public.get(key) != connection.get(key) for key in ("provider", "protocol", "base_url")):
+        return False
+    credential = record.get("credentials", {}).get("api_key")
+    saved_key = decrypt_api_key(credential, public) if credential else ""
+    if saved_key != api_key.strip():
+        return False
+    ids = list(dict.fromkeys(model_ids))
+    if any(not isinstance(value, str) or not value or len(value) >= 4096 for value in ids):
+        raise ValueError("模型列表格式无效，请重新获取。")
+    directory = {"ids": ids, "fingerprint": _directory_fingerprint(public, credential)}
+    record["model_directory"] = directory
+    if active and isinstance(profiles, dict) and isinstance(profiles.get(provider), dict):
+        profiles[provider]["model_directory"] = directory
+    _write_document(path, document)
+    logging.getLogger(__name__).info("Fetched model directory cached: count=%s", len(ids))
+    return True
+
+
 def save_preferences(path: Path, values: Mapping[str, Any], connection: Mapping[str, str], *, api_key: str = "",
-                     model_confirmed: bool = False) -> None:
+                     model_confirmed: bool = False, model_ids: tuple[str, ...] = ()) -> None:
     values = validate_preferences(values)
     public = {k: v.strip() for k, v in connection.items() if k in CONNECTION_FIELDS and isinstance(v, str)}
     if public.get("base_url"):
         validate_public_url(public["base_url"])
     document = {"version": 2, "composer_defaults": 1, "preferences": values, "connection": public}
+    try:
+        previous = _read_document(path)
+    except FileNotFoundError:
+        previous = {}
+    except ValueError:
+        logging.getLogger(__name__).warning("Cannot preserve previous provider profiles; saving repaired settings", exc_info=True)
+        previous = {}
+    profiles = previous.get("model_profiles", {})
+    profiles = dict(profiles) if isinstance(profiles, dict) else {}
+    # The legacy active projection stays authoritative, including a cleared
+    # credential or confirmation. Synchronize it before replacing the active
+    # provider, so an older duplicate profile cannot revive those fields.
+    old_connection = previous.get("connection", {})
+    old_provider = old_connection.get("provider") if isinstance(old_connection, dict) else None
+    if old_provider:
+        profiles[old_provider] = {key: previous[key] for key in
+            ("connection", "credentials", "model_confirmation", "model_directory") if key in previous}
+        profiles[old_provider]["model_values"] = {key: previous.get("preferences", {}).get(key, spec.default)
+            for key, spec in FIELDS.items() if spec.category == "模型"}
     if api_key.strip():
         document["credentials"] = {"api_key": encrypt_api_key(api_key.strip(), public)}
         if model_confirmed:
             document["model_confirmation"] = {"version": 1, "fingerprint": _model_confirmation_fingerprint(
                 values, public, document["credentials"]["api_key"])}
+    ids = tuple(dict.fromkeys(str(value).strip() for value in model_ids if str(value).strip()))
+    if any(len(value) >= 4096 for value in ids):
+        raise ValueError("模型 ID 过长，请重新获取模型列表。")
+    document["model_directory"] = {"ids": ids, "fingerprint": _directory_fingerprint(
+        public, document.get("credentials", {}).get("api_key"))}
+    if public.get("provider"):
+        profiles[public["provider"]] = {key: document[key] for key in
+            ("connection", "credentials", "model_confirmation", "model_directory") if key in document}
+        profiles[public["provider"]]["model_values"] = {key: value for key, value in values.items() if FIELDS[key].category == "模型"}
+    document["model_profiles"] = profiles
     _write_document(path, document)
     logging.getLogger(__name__).debug("Settings written atomically; encrypted API Key present=%s", bool(api_key.strip()))
     logging.getLogger(__name__).info("Model confirmation saved with settings: confirmed=%s", "model_confirmation" in document)
