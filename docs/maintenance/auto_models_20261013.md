@@ -36,4 +36,6 @@ python -m pytest tests/test_provider_profiles.py tests/test_custom_provider_prof
 
 清理：缓存及原始验收工件移出仓库，存入本机临时目录的可恢复清理归档；包含pytest缓存、src/tests字节码、local_artifacts以及966个未跟踪的verification临时工件（25,136,707字节）。保留正式Markdown报告、跟踪的基线证据、全部程序/测试/资源/文档和CodeGraph开发索引；不触碰LOCALAPPDATA下PromptSmith用户设置/Key/历史。新增gitignore防止未跟踪日志及根logs/runs进入提交。直接永久删除被工具执行策略拒绝，改为可恢复移动后完成清理。
 
-清理后232个当前交接相对链接、56个源码AST及运行资源目录核验通过。发布包括此前已完成的自定义供应商、历史补答、思考入口和设置错位修复；这些已有各自维护与验证记录。本轮发布状态待Git提交/推送核对。
+清理后232个当前交接相对链接、56个源码AST及运行资源目录核验通过。发布包括此前已完成的自定义供应商、历史补答、思考入口和设置错位修复；这些已有各自维护与验证记录。
+
+发布：功能与清理交付提交d1bdbd3（Automatically refresh saved provider models at startup），已正常推送origin/main；git ls-remote核对GitHub main完整SHA为d1bdbd37f749b4d6ae84bf3cf2b16ac8cd4ac846，与本地HEAD一致，工作树干净。此后仅补本交付记录与任务完成状态，再作普通文档提交推送，不修改应用或重复测试。
