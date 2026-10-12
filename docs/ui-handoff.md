@@ -1,5 +1,9 @@
 # UI 队员接手指南
 
+2026-10-12 设置预设交互修复：服务名称与模型ID现在是可输入combobox，HTML建议列表支持字段/箭头展开全部、键入过滤和自定义值，列表在表单内展开不遮盖下方协议；原生select保留。上下/Enter选择，Escape/Tab/外部点击及分类/忙态/离页关闭，重建清理监听；手动完整预设名也应用联动，已保存同项重选不清Key。设置10项+相邻12项通过，实际WebView2鼠标/键盘/设置保存20项通过，双轴0待修，Debug记录字段生命周期且不记录用户值。见[维护](maintenance/settings_choice_interaction_20261012.md)。下方datalist外观说明仅为上一轮历史。
+
+2026-10-12 设置下拉：`SettingsPage.decorateChoice()` 为select及服务名称/模型ID的input+datalist提供统一18px细线箭头，绝对定位垂直居中且不拦截指针/读屏；select保留键盘语义，datalist保留自定义输入和原生建议列表。关闭状态箭头、间距和焦点样式统一，展开列表未改为自定义菜单。17项浏览器/设置相邻检查通过，双轴0待修；Debug只在表单重建时记录字段数，不记录用户值。真实WebView2/EXE本轮未验收。见[维护](maintenance/settings_dropdown_20261012.md)。
+
 
 2026-10-12 当前 Web 编辑界面：需求/候选修改、完整方案编辑及目标/受众范围/步骤/栏目/关键工作复核、用户附注、需求冲突确认使用同一 WebView2 页面的 dialog；不弹 Tk 内容编辑窗口。方案分节折叠，关联依赖为复选项，子编辑保存/取消回到完整方案；普通 Enter 换行、Ctrl+Enter/Ctrl+S 保存、Escape 取消、Tab 在面板循环。重复快照保留编辑草稿，错误原位显示并解锁重试；浅深主题/小窗内滚动，原字体与动画规范延续。需求保存仍使下游旧成果失效，取消保持现状；Debug 记录生命周期与原因。见[维护](maintenance/web_editors_20261012.md)与[验收](../verification/web_editors_20261012/results.md)。旧原生兼容编辑说明仅适用于 `--renderer tk`。
 

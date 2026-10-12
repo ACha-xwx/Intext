@@ -71,6 +71,11 @@ def consume_sse(response, protocol, emit):
             raise StreamError("模型流式响应包含无法读取的数据，请重试。", snapshot()) from exc
         events += 1
         if item.get("error") or item.get("type") in {"error", "response.failed"}:
+            failed_response = item.get("response")
+            if isinstance(failed_response, dict):
+                for key in ("id", "model", "usage", "status", "error", "incomplete_details"):
+                    if failed_response.get(key) is not None:
+                        envelope[key] = failed_response[key]
             envelope["stream_error"] = item
             raise StreamError("模型服务在流式输出期间返回错误，请检查 Debug 并重试。", snapshot())
         if protocol == "openai_chat_completions":

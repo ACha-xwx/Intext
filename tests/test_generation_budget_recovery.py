@@ -49,7 +49,7 @@ def test_official_deepseek_actual_json_body_keeps_contract_and_budget(
         assert body["response_format"] == {"type": "json_object"}
         assert json.loads(body["messages"][1]["content"]) == {"task": "demo"}
     elif protocol == OPENAI_RESPONSES_PROTOCOL:
-        assert body["text"]["format"] == {"type": "json_object"}
+        assert "text" not in body
         assert json.dumps(schema, ensure_ascii=False, separators=(",", ":")) in body["instructions"]
     else:
         assert "format" not in body["output_config"]

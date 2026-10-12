@@ -284,7 +284,7 @@ def test_structured_output_limits_keep_protocol_specific_fields(protocol, expect
             OPENAI_RESPONSES_PROTOCOL,
             "/v1/responses",
             {"id": "text-2", "status": "completed", "model": "test-model", "output": [{"type": "message", "content": [{"type": "output_text", "text": "plain result"}]}], "usage": {"total_tokens": 8}},
-            lambda body: body["instructions"] == "system prompt" and body["input"] == "user request" and body["max_output_tokens"] == 24,
+            lambda body: body["instructions"] == "system prompt" and body["input"] == [{"role": "user", "content": [{"type": "input_text", "text": "user request"}]}] and body["store"] is False and body["max_output_tokens"] == 24,
         ),
         (
             ANTHROPIC_MESSAGES_PROTOCOL,
@@ -590,7 +590,8 @@ def test_openai_responses_uses_its_endpoint_body_and_output_shape(server) -> Non
     assert Handler.seen["path"] == "/v1/responses"
     assert Handler.seen["authorization"] == "Bearer response-secret"
     assert Handler.seen["body"]["instructions"] == "system prompt"
-    assert Handler.seen["body"]["input"] == '{"task":"demo"}'
+    assert Handler.seen["body"]["input"] == [{"role": "user", "content": [{"type": "input_text", "text": '{"task":"demo"}'}]}]
+    assert Handler.seen["body"]["store"] is False
     assert Handler.seen["body"]["max_output_tokens"] == 8192
     assert Handler.seen["body"]["text"]["format"] == {
         "type": "json_schema",
@@ -660,6 +661,9 @@ def test_openai_responses_retries_json_completion_without_schema_after_http_400(
         assert requests[0]["text"]["format"]["type"] == "json_schema"
         assert "text" not in requests[1]
         assert json.dumps(schema, ensure_ascii=False, separators=(",", ":")) in requests[1]["instructions"]
+        assert requests[0]["input"][0]["content"][-1] == requests[1]["input"][0]["content"][-1]
+        assert "JSON" in requests[1]["input"][0]["content"][0]["text"]
+        assert requests[0]["store"] is False and requests[1]["store"] is False
     finally:
         httpd.shutdown()
         thread.join(timeout=2)

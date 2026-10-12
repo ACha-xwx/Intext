@@ -1,6 +1,10 @@
 # 架构与内在逻辑
 
-2026-10-12 API兼容选择：`api.py` 对原业务Schema只读判断当前协议可安全原生接受的子集，Responses不兼容时用json_object+完整instructions，Messages不兼容时用完整system契约，Claude与OpenAI的可选字段规则分别处理；DeepSeek Messages仅保留effort。本地M1–M4解析及Schema不变，不为一般400扩大重试。Claude用adaptive/display=summarized公开摘要，GPT无公开思考正常完成；采样设置在已知模型请求适配，不再因会省略的组合阻止配置。默认源码batch明确Web模式及实际Python诊断，auto直接入口保留。见[维护](maintenance/startup_responses_20261012.md)。
+2026-10-12 Responses网关兼容：三个请求入口统一标准消息列表input及store=false；复杂业务Schema用完整提示JSON契约，合法简单Schema保留原生strict。无原生format时不重复兼容请求；非流式/缓冲JSON的failed状态也传播服务原因/request_id。用户模型/思考强度/预算与其它协议保留。验证边界见[维护](maintenance/responses_gateway_20261012.md)。
+
+2026-10-12 流式失败诊断：`consume_sse()`保留服务原始stream_error及response.failed最新元数据；`api.py`共用HTTP/SSE错误字段提取与脱敏，将完整说明记录Debug、短说明传播既有ApiError/失败事件。服务错误不变成成功，不编造HTTP状态，不新增自动重试；运行日志仍手动落盘。见[复诊](maintenance/stream_service_error_20261012.md)。
+
+2026-10-12 API兼容选择：`api.py` 对原业务Schema只读判断当前协议可安全原生接受的子集，Responses不兼容时仅用完整instructions JSON契约（不强加json_object），Messages不兼容时用完整system契约，Claude与OpenAI的可选字段规则分别处理；DeepSeek Messages仅保留effort。本地M1–M4解析及Schema不变，不为一般400扩大重试。Claude用adaptive/display=summarized公开摘要，GPT无公开思考正常完成；采样设置在已知模型请求适配，不再因会省略的组合阻止配置。默认源码batch明确Web模式及实际Python诊断，auto直接入口保留。见[维护](maintenance/startup_responses_20261012.md)。
 
 
 2026-10-12 编辑窗口迁移：`web_editors.WebEditors` 在 Tk owner thread 持有临时编辑 id/owner/basis，`WorkspaceController` 对外投影 editor 数据并接收独立打开/保存/取消操作，`resources/ui/workspace/editors.js` 用原生 HTML dialog 渲染浅深模态面板。所有业务写入使用 SessionState/finalization 原方法，取消不写；正常 Web 导航不再显示 Tk 编辑页或等待 Tk 编辑对话框。Tk 继续是业务线程和显式回退，不参与 Web 编辑界面绘制。系统文件/目录选择保留。见[维护](maintenance/web_editors_20261012.md)。

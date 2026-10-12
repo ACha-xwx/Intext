@@ -63,7 +63,7 @@ def test_ui_current_custom_service_and_protocol_select_real_m1_adapter(tmp_path,
         def do_POST(self) -> None:  # noqa: N802
             length = int(self.headers["Content-Length"])
             body = json.loads(self.rfile.read(length).decode("utf-8"))
-            payload = json.loads(body["input"])
+            payload = json.loads(body["input"][0]["content"][-1]["text"])
             payload_seen.update(path=self.path, authorization=self.headers.get("Authorization"), model=body["model"])
             result = json.loads(json.dumps(expected, ensure_ascii=False))
             for key in ("schema_version", "request_id", "task_id", "base_version"):

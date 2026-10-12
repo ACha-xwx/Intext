@@ -536,3 +536,29 @@ Debug收尾：长记录内裁剪Web跳123.98px、Tk multi-15→multi-20分别补
 全部模型审查：Google OpenAI兼容接口支持 reasoning_effort，Grok4.7/4.6支持xhigh、4.5映射high，DeepSeek支持low/high/max及top_p下限0.95，当前映射吻合官方文档。Claude允许可选属性（不能套OpenAI全必填规则），但不支持数值/minLength等原始业务约束；当前直接output_config.format发送会有同类400风险。新版Claude需 thinking.display=summarized 才公开思考摘要；adaptive/low-medium-high-max均被当前四个Claude预设支持。DeepSeek Anthropic兼容仅支持output_config.effort，不支持Claude format。来源见本轮维护文档。官方抓取未设置UA的两次Claude请求403，改明确UA后成功；首次网页摘录终端GBK字符错误已改UTF-8，未涉及产品。
 
 模型调用最终证据：已按供应商独立选择结构化格式，保留完整业务契约和本地解析；已知模型遗留采样值按实际请求适配，不在配置层提前误拒绝。233项定向/相邻回归、默认run.bat实际WebView2启动烟测及规范/需求终审均通过。19预设×四档×三动作是228次本地合成HTTP请求，不代表228个独立测试或真实供应商成功；真实账号、网关与队员环境未复测。完整结果见[startup_responses_20261012.md](startup_responses_20261012.md)。
+
+真实网关复诊：用户20261012_214045日志85–113行确认renderer=web、新版Responses JSON模式已启用，gpt-6.1-sol/high/max_output_tokens8192调用自定义网关/responses；1.899s于consume_sse.handle抛泛化StreamError，status=None，正文和思考未输出。不是120s超时，也无证据证明仍为旧strict Schema400。服务错误正文未进入日志，当前无法分辨格式/模型权限/网关上游故障；先通过已授权客户端HTTP边界复现细节丢失，不能靠猜测更改接口或重试策略。当前Git f473fd5已包含上一轮修复，工作树初始干净。
+
+流式诊断缺陷已独立修复：服务错误原始事件原先已保留在模型证据stream_error内，但未传播到异常文本；另有response.failed嵌套错误与最终metadata丢失。现共享HTTP/SSE错误字段提取与脱敏，界面短说明、Debug完整说明、失败id/model/usage及部分输出保留。172定向相邻与双轴各0待修；远端具体原因等待旧事件原文。详见[复诊记录](stream_service_error_20261012.md)。
+
+用户补充原始response.envelope.json：type=response.failed，response.error.code=invalid_request/type=invalid_request_error，message仅为The request could not be processed. Please check the request parameters.，无param、具体约束或HTTP状态。响应output为空。服务提供了request_id，但原文仍无法确定哪个字段无效，更不能断定密钥/额度或具体模型ID。先检查网关公开说明，不发收费请求；若无更详细公开规则，应由网关后台根据请求ID查上游原因，避免让用户盲目反复生成。
+
+公开只读检查：网关首页标题Sub2API - AI API Gateway，公开前端资源指向Wei-Shaw/sub2api仓库；/openapi.json返回同一SPA页面而非接口Schema。仅获取首页/公开JS，无模型调用、鉴权请求或Key。继续核对公开源码是否说明Responses兼容限制，公开仓库版本不等于该实例部署版本，不能直接当作已证实根因。
+
+
+Responses继续修复的可证伪假设：H1 网关只接受消息列表input，若改列表则该限制本地回放应通过；H2 网关要求store=false，显式传入应消除该限制失败；H3 原生strict不适用时额外json_object仍触发中转限制，完整提示契约而无text.format应通过；H4 模型/账号/上游故障与结构无关，则上述改动不能保证远端成功。用户事件无param，因此本地兼容验证不等于确认实例根因。公开网关源码与官方文档信息来源见前段记录。
+CodeGraph CLI explore不支持--depth，定位class成功后已直接读取确定的api.py片段，后续不重复该参数。
+
+本地限制独立验证：H1消息列表、H2 store=false、H3完整提示契约而非额外json_object均有独立红绿；没有证明实际中转实例具体拒绝字段。新增无format请求仍按HTTP400格式词重发的相邻回归，已阻止相同请求重复；合法原生strict被明确不支持时的一次兼容保留。当前公开API标准支持消息列表/store=false/默认text格式，预算与用户high不变。
+
+最终289个不同回归节点最新全绿，双轴0待修；Responses标准消息/关闭存储/复杂Schema提示契约三项兼容可复现验证。实际泛化invalid_request仍不能唯一定位源，保留模型/强度/预算且不自动重复生成，交接明确新版源码真实中转待复测。
+
+设置截图显示服务名称箭头偏低；当前字段是input[list]的原生datalist图标，字体/line-height排版不同于select。可证伪假设H1原生图标基线导致偏移（统一定位图标应居中）；H2字段高度/字号导致（需浅深/9–18/窄窗验证）；H3重复控件或刷新导致（重复snapshot不应重建或新增装饰）。原生控件保留可输入供应商/模型ID，避免把datalist改为封闭select。
+
+设置下拉修复结论：统一SVG装饰定位后，浅深主题及字号9/12/18、720/1440宽度下箭头居中，Chrome悬停截图无重复原生图标；原生控件/自定义值/预设联动/保存边界均保留。5项新增与12项相邻检查通过，需求/规范双轴0待修。Chromium私有picker的computedStyle不能可靠反映内部图标，隐藏效果以实际截图为证；不将Chrome验证写成真实WebView2或EXE验收。详见[维护](settings_dropdown_20261012.md)。
+
+用户澄清后的交互反馈环：`test_filled_provider_opens_all_presets_and_protocol_remains_clickable` 在生产DOM中已填DeepSeek后点击箭头，完整可选择预设列表断言失败（1 failed in 8.48s）。旧5项回归用fill+Tab，跳过了展开列表真实操作，不能证明预设可选。排序假设：H1原生datalist按已有值过滤（独立全预设按钮应解除限制）；H2原生弹层占据相邻协议命中区域（可控弹层在外部pointerdown关闭应允许点击）；H3忙态/控件重建（无busy固定快照和刷新应保持可用）。验证边界不读个人数据、不发模型请求。
+
+本轮真实交互结论：input+datalist替换为可输入HTML建议列表，字段/箭头打开完整预设、输入过滤，表单内展开避免遮盖下方协议。默认值、键盘、草稿及凭据规则保持；同名完整手动输入后选择的联动缺失另有独立红绿。实际WebView2点击/键盘/设置桥接20项通过；最终设置22、API159、业务74共255节点最新全绿，双轴各0待修。
+
+队员JSON报告给出明确param=input，旧json_object仅在instructions写JSON不满足该中转输入校验；本地流式/非流式同原文拒绝均可复现。当前本地复杂Schema已无强制json_object，保留该兼容策略，同时在复杂契约/原生格式不支持后的兼容请求input补短JSON指令，原wire独立完整。原生strict初始与普通文本保持原输入，模型/强度/预算不变；完整服务错误已有覆盖。官方文档说明JSON模式需明确JSON指令，服务input独立校验的具体证据来自队员报告，不以本地测试冒充真实中转成功。

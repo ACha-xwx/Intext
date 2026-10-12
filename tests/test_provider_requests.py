@@ -118,6 +118,8 @@ def test_all_presets_preserve_each_providers_request_contract(provider_service, 
                 assert request["authorization"] == "Bearer synthetic-key" and request["x_api_key"] is None
                 assert body["reasoning"] == {"effort": expected}
                 assert body["max_output_tokens"] == budget
+                assert body["store"] is False
+                assert isinstance(body["input"], list) and body["input"][0]["role"] == "user"
                 assert "thinking" not in body and "max_tokens" not in body
             else:
                 assert request["path"] == "/v1/chat/completions"

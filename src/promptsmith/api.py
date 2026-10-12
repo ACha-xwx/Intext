@@ -254,28 +254,35 @@ class _HttpClient:
         try:
             payload = json.loads(text)
         except (json.JSONDecodeError, TypeError):
-            detail = text
-        else:
-            mappings = []
-            if isinstance(payload, dict):
-                nested = payload.get("error")
-                if isinstance(nested, dict):
-                    mappings.append(nested)
-                mappings.append(payload)
-            parts: list[str] = []
-            for mapping in mappings:
-                for key in ("message", "detail", "code", "type", "param"):
-                    value = mapping.get(key)
-                    if isinstance(value, (str, int, float)) and str(value).strip():
-                        candidate = str(value).strip()
-                        if candidate not in parts:
-                            parts.append(candidate)
-            detail = "；".join(parts) if parts else text
+            payload = None
+        return self._provider_error_detail(payload, fallback=text)[:HTTP_ERROR_DETAIL_MAX_CHARS]
+
+    def _provider_error_detail(self, payload: Any, *, fallback: str = "") -> str:
+        """Extract error fields without logging a response's prompt or output."""
+        mappings = []
+        if isinstance(payload, dict):
+            for mapping in (payload.get("response"), payload):
+                if isinstance(mapping, dict):
+                    nested = mapping.get("error")
+                    if isinstance(nested, dict):
+                        mappings.append(nested)
+                    mappings.append(mapping)
+        parts: list[str] = []
+        for mapping in mappings:
+            for key in ("message", "detail", "code", "type", "param", "request_id"):
+                value = mapping.get(key)
+                if isinstance(value, (str, int, float)) and str(value).strip():
+                    candidate = str(value).strip()
+                    if key == "request_id":
+                        candidate = f"request_id={candidate}"
+                    if candidate not in parts:
+                        parts.append(candidate)
+        detail = "；".join(parts) if parts else fallback
         detail = " ".join(str(detail).split())
         if self.config.api_key:
             detail = detail.replace(self.config.api_key, "[redacted]")
         detail = re.sub(r"(?i)(bearer\s+)[^\s,;]+", r"\1[redacted]", detail)
-        return detail[:HTTP_ERROR_DETAIL_MAX_CHARS]
+        return detail
 
     def _send_json(
         self,
@@ -351,7 +358,12 @@ class _HttpClient:
                     raw = response.read()
         except StreamError as exc:
             self.last_response_envelope = exc.envelope
-            raise ApiError(exc.kind, str(exc), latency_ms=self._elapsed(started),
+            detail = self._provider_error_detail(exc.envelope.get("stream_error"))
+            message = str(exc)
+            if detail:
+                logging.getLogger(__name__).error("Model stream service error: %s", detail)
+                message = f"{message} 服务端说明：{detail[:HTTP_ERROR_DETAIL_MAX_CHARS]}"
+            raise ApiError(exc.kind, message, latency_ms=self._elapsed(started), error_detail=detail,
                            timeout_seconds=self.config.timeout_seconds if exc.kind == "timeout" else None,
                            response_content=self._partial_stream_content(exc.envelope),
                            response_usage=exc.envelope.get("usage"),
@@ -407,6 +419,18 @@ class _HttpClient:
         except (UnicodeDecodeError, json.JSONDecodeError, TypeError) as exc:
             raise ApiError("invalid_response", invalid_message, latency_ms=latency) from exc
         self.last_response_envelope = envelope
+        if self.config.protocol == OPENAI_RESPONSES_PROTOCOL and envelope.get("status") == "failed":
+            detail = self._provider_error_detail(envelope)
+            message = "模型服务返回失败响应。"
+            if detail:
+                logging.getLogger(__name__).error("Model service response failed: %s", detail)
+                message = f"{message} 服务端说明：{detail[:HTTP_ERROR_DETAIL_MAX_CHARS]}"
+            raise ApiError(
+                "invalid_response", message, latency_ms=latency, error_detail=detail,
+                response_content=self._partial_stream_content(envelope),
+                response_usage=envelope.get("usage"), response_id=envelope.get("id"),
+                response_model=envelope.get("model"),
+            )
         if stream_observed() and hasattr(self, "_stream_id"):
             reasoning = response_reasoning(envelope, self.config.protocol)
             if reasoning:
@@ -739,23 +763,30 @@ class OpenAIResponsesClient(_HttpClient):
             "只输出符合以下JSON Schema的JSON对象：\n"
             f"{schema_text}"
         )
+        # Gateways may check input messages independently of instructions.
+        # Keep the compact original payload as its own text block.
+        contract_input = [{"role": "user", "content": [
+            {"type": "input_text", "text": "请只输出 JSON 对象，遵循 instructions 中的完整 JSON Schema。"},
+            {"type": "input_text", "text": input_text},
+        ]}]
         schema_issue = _native_json_schema_issue(output_schema)
         if schema_issue:
-            output_format = {"type": "json_object"}
+            output_format = None
             logging.getLogger(__name__).info(
-                "Responses JSON mode selected before request: reason=%s; original contract retained for local parsing",
+                "Responses prompt JSON contract selected before request: reason=%s; original contract retained for local parsing",
                 schema_issue,
             )
+            logging.getLogger(__name__).debug("Responses JSON instruction included in input; original business input preserved")
         else:
             output_format = {"type": "json_schema", "name": "promptsmith_result", "schema": output_schema, "strict": True}
             logging.getLogger(__name__).debug("Responses native strict JSON schema selected")
         body = {
             "model": self.config.model.strip(),
             "instructions": contract_instructions if schema_issue else system_prompt,
-            "input": input_text,
+            "input": contract_input if schema_issue else input_text,
             **request_parameters,
             **sampling_request_parameters(self.config),
-            "text": {"format": output_format},
+            **({"text": {"format": output_format}} if output_format is not None else {}),
         }
         try:
             return self._post(body)
@@ -772,7 +803,7 @@ class OpenAIResponsesClient(_HttpClient):
                 rf"|(?:unknown parameter|unrecognized parameter|unsupported parameter)\s*:\s*{quoted_format}",
                 detail,
             ))
-            if exc.status_code != 400 or not incompatible:
+            if output_format is None or exc.status_code != 400 or not incompatible:
                 logging.getLogger(__name__).debug(
                     "Responses format fallback skipped: status=%s kind=%s", exc.status_code, exc.kind,
                 )
@@ -782,10 +813,11 @@ class OpenAIResponsesClient(_HttpClient):
             fallback_body = {
                 **body,
                 "instructions": contract_instructions,
+                "input": contract_input,
             }
             fallback_body.pop("text", None)
             logging.getLogger(__name__).warning(
-                "Responses native JSON format unsupported; sending one compatible request with the same schema contract",
+                "Responses native JSON format unsupported; sending one compatible request with the same schema contract and input JSON instruction",
             )
             return self._post(fallback_body)
 
@@ -805,6 +837,20 @@ class OpenAIResponsesClient(_HttpClient):
         )
 
     def _post(self, body: dict[str, Any], *, allow_probe_truncation: bool = False) -> ApiResult:
+        # Use the explicit Responses message form across all entry points;
+        # some gateways accept message items but not the string shorthand.
+        input_messages = body["input"]
+        if isinstance(input_messages, str):
+            input_messages = [{"role": "user", "content": [{"type": "input_text", "text": input_messages}]}]
+        body = {
+            **body,
+            "input": input_messages,
+            "store": False,
+        }
+        logging.getLogger(__name__).debug(
+            "Responses request shape: input=message_items store=false output_format=%s",
+            body.get("text", {}).get("format", {}).get("type", "prompt_text"),
+        )
         envelope, latency = self._post_json(self.endpoint, body, self._headers())
         status = envelope.get("status")
         incomplete = status == "incomplete"

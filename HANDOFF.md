@@ -1,5 +1,13 @@
 # PromptSmith 团队交接
 
+2026-10-12 设置预设与JSON输入追加：服务名称/模型ID不再依赖原生datalist，使用可输入建议列表；字段或箭头展开所有预设，输入过滤，列表在表单内展开不遮盖协议，键盘/分类/忙态/离页关闭与自定义保存保持。手动输入完整预设名再点同名项也应用联动；同一已保存项重选不清密钥。队员报告明确旧json_object报param=input；本地保留当前复杂Schema无强制format策略，追加input可见JSON指令和独立原业务块，strict初始/文本/强度/预算不变。255个不同自动化节点及20项实际WebView2检查通过，双轴0待修，Debug/CodeGraph同步。本机未调用真实中转/构建EXE/提交；见[维护](docs/maintenance/settings_choice_interaction_20261012.md)。下面原生datalist说明为前轮历史。
+
+2026-10-12 设置下拉显示：统一select及服务名称/模型ID可输入建议列表的细线箭头，按字段垂直居中，修正原生倒三角偏低；保留原生选择、键盘、自定义输入和保存/确认逻辑。Debug仅在表单重建时记录字段数；17项浏览器/设置相邻检查及双轴审查通过，CodeGraph同步。本轮未进行真实WebView2/EXE验收，展开列表仍为原生控件。见[维护](docs/maintenance/settings_dropdown_20261012.md)。
+
+2026-10-12 Responses请求兼容续修：连接/文本/结构入口统一标准消息列表及store=false；复杂业务Schema改完整instructions JSON契约，不强加json_object，合法简单Schema保持strict。没有format时不再重复兼容重发；非流式/缓冲JSON失败也显示服务原因及request_id。模型、强度、预算、Stop和手动日志保留。289个不同定向/相邻节点最新全部通过，规范/需求双轴各0待修，CodeGraph已同步；真实中转未复测；见[维护](docs/maintenance/responses_gateway_20261012.md)。
+
+2026-10-12 真实网关复诊：队员日志确认新版JSON模式已启用，1.899秒收到SSE服务错误，不能据泛化日志认定仍为旧400或超时。修复服务error/response.failed的原因传播：界面/ApiError短说明、Debug完整脱敏说明，失败id/model/usage和已接收正文/摘要保留，无新自动重试/参数调整。172项定向/相邻及双轴终审通过，CodeGraph已同步；原始stream_error已取得，但仅泛化invalid_request且无param，不能锁定网关具体原因，未宣称远端已修复。见[复诊记录](docs/maintenance/stream_service_error_20261012.md)。
+
 2026-10-12 跨机启动与全部模型调用修复：队员 PATH Python 未安装 pywebview 导致 auto 模式回退 Tk。`run.bat` 现固定仓库目录、优先项目 .venv、明确启动 WebView2，失败保留输出及同解释器安装命令；兼容 Tk 需显式指定。五家19个预设已核对：GPT/Grok Responses 与 Claude Messages 按各自 Schema 子集选择原生格式或完整提示契约；DeepSeek Messages不传Claude格式，Claude公开思考摘要与已知模型采样适配同步。保留本地解析、用户强度/预算与非格式400不重试规则；诊断记录解释器及格式选择，不自动保存日志。233项定向/相邻回归、默认run.bat实际WebView2烟测及双轴终审通过；没有真实付费接口、队员环境或EXE验证，本轮未提交推送。详情见[维护与验证](docs/maintenance/startup_responses_20261012.md)。
 
 Web 编辑迁移已完成：146个不同最新自动化节点通过，真实 WebView2 浅深各16项通过，Spec/Standards终审均0待修。迁移范围、卡死根因与边界见下方维护记录和验收报告。

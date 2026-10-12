@@ -68,18 +68,18 @@ def test_m1_gpt_request_succeeds_once_without_invalid_strict_schema(responses_se
     assert result.content == '{"status":"ok"}'
     assert len(requests) == 1
     body = requests[0]
-    assert body["text"]["format"] == {"type": "json_object"}
+    assert "text" not in body
     assert json.dumps(before, ensure_ascii=False, separators=(",", ":")) in body["instructions"]
     assert assets.output_schema == before
     assert body["reasoning"] == {"effort": "high"}
     assert body["max_output_tokens"] == 8192 and "thinking" not in body
     assert result.reasoning_content == ""
-    assert "JSON mode selected" in caplog.text
+    assert "prompt JSON contract selected" in caplog.text
     assert "PRIVATE-GOAL" not in caplog.text and "synthetic-key" not in caplog.text
 
 
 @pytest.mark.parametrize("assets_type", [M2Assets, M3Assets, M4Assets])
-def test_later_stage_business_contracts_use_json_mode_without_loss(responses_service, assets_type):
+def test_later_stage_business_contracts_use_prompt_json_without_loss(responses_service, assets_type):
     url, requests = responses_service
     assets = assets_type.load()
     schema = deepcopy(assets.output_schema)
@@ -87,7 +87,7 @@ def test_later_stage_business_contracts_use_json_mode_without_loss(responses_ser
                                          reasoning_effort="high", max_tokens=16384, timeout_seconds=3))
     assert client.complete_json(assets.system_prompt, {"stage": assets.contract_version}, schema).content
     assert len(requests) == 1
-    assert requests[0]["text"]["format"] == {"type": "json_object"}
+    assert "text" not in requests[0]
     assert json.dumps(schema, ensure_ascii=False, separators=(",", ":")) in requests[0]["instructions"]
     assert schema == assets.output_schema
     assert requests[0]["max_output_tokens"] == 16384
@@ -108,7 +108,7 @@ def test_incompatible_schemas_do_not_become_native_strict_requests(responses_ser
                                          timeout_seconds=3))
     client.complete_json("Return the requested result.", {"task": "demo"}, schema)
     assert len(requests) == 1
-    assert requests[0]["text"]["format"] == {"type": "json_object"}
+    assert "text" not in requests[0]
     assert json.dumps(schema, ensure_ascii=False, separators=(",", ":")) in requests[0]["instructions"]
 
 

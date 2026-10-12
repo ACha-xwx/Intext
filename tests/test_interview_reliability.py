@@ -313,7 +313,7 @@ def test_optimized_workflow_keeps_selected_max_effort_and_complete_request(proto
         sent = json.loads(body["messages"][1]["content"])
     elif protocol == "openai_responses":
         assert body["reasoning"] == {"effort": "max"}
-        sent = json.loads(body["input"])
+        sent = json.loads(body["input"][0]["content"][-1]["text"])
     else:
         assert body["thinking"] == {"type": "enabled"} and body["output_config"]["effort"] == "max"
         sent = json.loads(body["messages"][0]["content"])

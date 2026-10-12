@@ -105,7 +105,7 @@ class DeliveryHandler(BaseHTTPRequestHandler):
         if path == "/chat/completions":
             raw = body["messages"][1]["content"]
         elif path == "/responses":
-            raw = body["input"]
+            raw = body["input"][0]["content"][-1]["text"]
         else:
             raw = body["messages"][0]["content"]
         return json.loads(raw)

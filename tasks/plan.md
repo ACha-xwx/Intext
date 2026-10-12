@@ -118,3 +118,24 @@ W1 需求/候选真实复现与非阻塞 Web 编辑；W2 方案全字段/步骤/
 L1 run.bat固定目录/优先.venv/显式Web/失败可见；L2记录实际解释器与同解释器修复命令；G1 GPT400的Schema发送前兼容选择；A1–A2检查五家全部19预设，Claude/DeepSeek Messages独立契约与公开摘要、采样适配；G2/A3公开HTTP及启动边界回归；L3/G3定向相邻、独立规范/需求审查与交接。详见[维护](../docs/maintenance/startup_responses_20261012.md)及[状态](../docs/maintenance/task_plan.md)。无付费请求，不改个人配置，不构建EXE。
 
 完成：L1–L3、G1–G3、A1–A3全部关闭。最终233项定向及相邻回归通过、实际默认WebView2启动烟测退出0且无自动日志、规范/需求双轴各0待修。源码和交接已更新；队员及真实模型服务仍待对应环境验证，本轮未提交推送。
+
+## 2026-10-12 真实网关流式错误复诊
+
+S1公开客户端→本地HTTP复现服务error/response.failed细节丢失；S2修复ApiError/界面/Debug错误说明与失败元数据传播，保留脱敏/手动日志/取消和单请求；S3定向相邻、独立两轴diff审查、交接和索引。基线f473fd5，远端具体原因等待用户stream_error原文，不调用收费网关。详见[复诊记录](../docs/maintenance/stream_service_error_20261012.md)。
+
+诊断修复S1–S3完成：172项定向/相邻、3文件AST、diff检查通过，双轴各0待修，CodeGraph已同步。真实网关错误原因待用户原文，未宣称远端已修复。
+
+
+## 2026-10-12 Responses请求兼容续修
+
+R1（api.py/公开HTTP测试）：连接、文本、结构化请求统一标准消息列表与store=false，流式/非流式单请求且内容不丢失。R2（同模块/受影响合同测试，依赖R1）：不兼容原生strict时保留完整提示Schema，不强加json_object；简单合法strict及明确格式400兼容策略保留。R3（依赖R2）：Debug与相邻回归、双轴只读审查、维护/交接/索引同步。每slice先红后绿，保持模型/强度/预算和Stop，无收费API/个人设置/EXE/远端提交。
+
+R1–R3全部完成：289个不同节点最新全部通过，Standards/Spec各0待修；Debug/索引/交接同步，真实中转仍需新版源码复测。
+
+## 2026-10-12 设置下拉显示
+
+D1统一select及input+datalist的箭头、间距和焦点；D2验证原生键盘、自定义值、预设联动、草稿/保存并完成Debug、双轴审查和交接。两项均complete，17项检查通过，Spec/Standards各0待修。详见[维护](../docs/maintenance/settings_dropdown_20261012.md)；本轮无真实WebView2/EXE或模型验收，未提交推送。
+
+追加D3/D4：用户实际要求是预设切换和下方协议可点击。生产DOM测试应从已填DeepSeek展开完整预设、选择另一个服务、再选择协议，覆盖自定义输入/草稿/保存与弹层生命周期；之后用隔离WebView2验证，记录Debug并做增量双轴审查。基线为本轮开始的工作树，依赖D3后完成D4；不改业务确认、密钥、API请求。
+
+追加J1/J2：对照队员旧json_object的param=input修复，在本地复杂契约及strict明确不支持后的兼容路径增加input可见JSON指令，原wire独立；本地HTTP先红后绿，保持模型/强度/预算/单请求/错误详情，相关回归与审查后收尾。D3/D4/J1/J2已完成，255节点最新通过、实际WebView220项通过、双轴0待修。见[维护](../docs/maintenance/settings_choice_interaction_20261012.md)，无收费请求/个人配置/EXE/提交推送。

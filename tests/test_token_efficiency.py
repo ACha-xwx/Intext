@@ -51,7 +51,7 @@ def test_m1_request_sends_answer_body_once_without_losing_evidence(protocol, mat
     monkeypatch.setattr(client, "_post_json", respond)
     client.complete_json(M1Assets.load().system_prompt, payload, M1Assets.load().output_schema)
     body = seen[0]
-    wire = (body["input"] if protocol == "openai_responses" else
+    wire = (body["input"][0]["content"][-1]["text"] if protocol == "openai_responses" else
             body["messages"][1 if protocol == "openai_chat_completions" else 0]["content"])
     sent = json.loads(wire)
     history = sent["state"]["question_history"][-1]

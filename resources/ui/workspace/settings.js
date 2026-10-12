@@ -1,12 +1,79 @@
 "use strict";
 // Form state is presentation only. Python validates and persists every action.
+class SettingsSuggestions {
+  constructor(control,frame,label,values){
+    this.control=control;this.frame=frame;this.values=values;this.expanded=false;this.active=-1;this.filtered=false;
+    this.events=new AbortController();const listen=(element,type,handler)=>element.addEventListener(type,handler,{signal:this.events.signal});
+    frame.classList.add("settings-editable-choice");
+    const line=frame.querySelector(".settings-choice-line"),arrow=line.querySelector(".settings-choice-arrow");
+    this.toggle=button("",()=>{if(this.expanded)this.close("toggle");else this.open(false);control.focus();},"settings-choice-toggle");
+    this.toggle.append(arrow);this.toggle.setAttribute("aria-label",label+"预设");line.append(this.toggle);
+    this.list=node("div","settings-suggestions");this.list.id=control.id+"-suggestions";this.list.hidden=true;
+    this.list.setAttribute("role","listbox");this.list.setAttribute("aria-label",label+"预设");frame.append(this.list);
+    control.setAttribute("role","combobox");control.setAttribute("aria-autocomplete","list");control.autocomplete="off";
+    for(const element of [control,this.toggle]){element.setAttribute("aria-haspopup","listbox");element.setAttribute("aria-controls",this.list.id);element.setAttribute("aria-expanded","false");}
+    listen(control,"click",()=>this.open(false));
+    listen(control,"input",event=>{this.edited=true;if(!event.isComposing&&!this.selecting)this.open(true);});
+    listen(control,"change",()=>{this.edited=false;});
+    listen(control,"compositionend",()=>this.open(true));
+    listen(frame,"keydown",event=>{
+      if(event.isComposing||event.keyCode===229)return;
+      if(event.key==="Escape"&&this.expanded){event.preventDefault();event.stopPropagation();this.close("escape");control.focus();}
+      else if(event.key==="Tab")this.close("tab");
+      else if(["ArrowDown","ArrowUp"].includes(event.key)){
+        event.preventDefault();if(!this.expanded)this.open(false);
+        control.focus();if(this.options.length){this.active=this.active<0?(event.key==="ArrowDown"?0:this.options.length-1):(this.active+(event.key==="ArrowDown"?1:-1)+this.options.length)%this.options.length;this.highlight();}
+      }else if(event.key==="Enter"&&this.expanded&&this.active>=0){event.preventDefault();this.choose(this.options[this.active].textContent);}
+    });
+    listen(frame,"focusout",()=>queueMicrotask(()=>{if(!frame.contains(document.activeElement))this.close("blur");}));
+    listen(document,"pointerdown",event=>{if(!frame.contains(event.target))this.close("outside");});
+  }
+  open(filtered){
+    if(this.control.disabled)return;
+    this.filtered=filtered;this.signature=null;this.render();
+    this.list.hidden=false;this.control.setAttribute("aria-expanded","true");this.toggle.setAttribute("aria-expanded","true");
+    if(!this.expanded)diagnostic("debug","settings suggestions opened",this.control.id);
+    this.expanded=true;
+  }
+  render(){
+    const query=this.filtered?this.control.value.trim().toLocaleLowerCase():"";
+    const values=this.values().filter(value=>!query||value.toLocaleLowerCase().includes(query));
+    const signature=JSON.stringify([values,this.control.value]);if(signature===this.signature)return;this.signature=signature;
+    this.list.replaceChildren();this.options=[];this.active=-1;this.control.removeAttribute("aria-activedescendant");
+    for(const value of values){
+      const option=button(value,()=>this.choose(value),"settings-suggestion");option.id=this.list.id+"-"+this.options.length;option.tabIndex=-1;
+      option.setAttribute("role","option");option.setAttribute("aria-selected",String(value===this.control.value));
+      option.addEventListener("pointerdown",event=>event.preventDefault());this.options.push(option);this.list.append(option);
+    }
+    if(!values.length)this.list.append(node("p","settings-suggestions-empty","没有匹配的预设，可直接输入自定义值。"));
+  }
+  highlight(){
+    for(const [index,option] of this.options.entries())option.classList.toggle("active",index===this.active);
+    const option=this.options[this.active];if(option){this.control.setAttribute("aria-activedescendant",option.id);option.scrollIntoView({block:"nearest"});}
+  }
+  choose(value){
+    if(this.control.disabled)return;
+    const changed=this.control.value!==value,apply=changed||this.edited;this.control.value=value;
+    this.close("selected");this.control.focus();
+    if(apply){this.selecting=true;try{if(changed)this.control.dispatchEvent(new Event("input",{bubbles:true}));this.control.dispatchEvent(new Event("change",{bubbles:true}));}finally{this.selecting=false;}}
+    diagnostic("debug","settings suggestion selected",this.control.id);
+  }
+  close(reason){
+    if(!this.expanded)return;
+    this.expanded=false;this.list.hidden=true;this.active=-1;this.control.removeAttribute("aria-activedescendant");
+    this.control.setAttribute("aria-expanded","false");this.toggle.setAttribute("aria-expanded","false");
+    diagnostic("debug","settings suggestions closed",this.control.id+" reason="+reason);
+  }
+  sync(){this.toggle.disabled=this.control.disabled;if(this.control.disabled)this.close("busy");else if(this.expanded)this.render();}
+  dispose(){this.close("rebuild");this.events.abort();}
+}
 class SettingsPage {
   constructor() {
     this.element=$("#settings-page");this.controls=new Map();this.dirty=new Set();this.current=null;this.category="模型";
-    this.keyAction="keep";this.key="";this.open=false;this.schema=null;
+    this.keyAction="keep";this.key="";this.open=false;this.schema=null;this.suggestions=[];
   }
   update(settings,open) {
-    if(!open){this.open=false;this.clearCredentialInput();return;}
+    if(!open){this.open=false;for(const choice of this.suggestions)choice.close("leave");this.clearCredentialInput();return;}
     if(!settings)return;
     this.open=true;this.current=settings;
     const schema=JSON.stringify(settings.fields);
@@ -15,8 +82,6 @@ class SettingsPage {
       const value=name.startsWith("connection.")?settings.connection[name.slice(11)]:settings.values[name];
       if(control.type==="checkbox")control.checked=Boolean(value);else if(control.value!==String(value??""))control.value=value??"";
     }
-    const datalist=$("#settings-model-ids");datalist.replaceChildren();
-    for(const id of settings.available_models){const option=node("option");option.value=id;datalist.append(option);}
     this.keyInput.placeholder=settings.has_key?"已配置；留空保留原密钥":"输入 API Key";
     this.keyNote.textContent=this.keyAction==="clear"?"密钥将被清空，点击保存设置后生效。":settings.has_key?"已有密钥由 Windows 加密保护；这里不会显示原值。":"尚未配置密钥。";
     this.confirmation.textContent=this.hasModelDraft()?"模型设置有修改，点击确认后用于任务。测试连接只测试接口。":settings.confirmation;
@@ -31,6 +96,7 @@ class SettingsPage {
     if(!this.current)return;
     const busy=this.current.busy||inFlight;
     for(const [name,control] of this.controls)control.disabled=name==="debug_console_enabled"?inFlight:busy;
+    for(const choice of this.suggestions)choice.sync();
     this.keyInput.disabled=busy;this.clearKey.disabled=busy;
     for(const b of this.modelButtons)b.disabled=busy;
     this.confirmButton.disabled=busy||(this.current.confirmed&&!this.hasModelDraft());
@@ -47,11 +113,21 @@ class SettingsPage {
     else{control=node("input");control.type=spec.minimum===null||spec.minimum===undefined?"text":"number";if(control.type==="number"){control.min=spec.minimum;control.max=spec.maximum;control.step=Number.isInteger(spec.default)?"1":"any";}}
     control.id=id;const labelNode=node("label","",label);labelNode.htmlFor=id;
     const group=this.forms.get(spec.category||"模型");group.append(labelNode,control);this.controls.set(name,control);
+    if(control.tagName==="SELECT")this.decorateChoice(control);
     control.addEventListener("input",()=>{this.dirty.add(name);if(name==="connection.base_url"&&control.value!==this.current.connection.base_url){this.keyInput.value="";this.key="";this.keyAction="clear";}this.refreshEnabled();});
     return control;
   }
+  decorateChoice(control){
+    const frame=node("div","settings-choice"),line=node("div","settings-choice-line"),arrow=node("span","settings-choice-arrow");
+    arrow.setAttribute("aria-hidden","true");arrow.append(icon("chevronDown"));
+    control.replaceWith(frame);frame.append(line);line.append(control,arrow);return frame;
+  }
+  editableChoice(control,label,values){
+    this.suggestions.push(new SettingsSuggestions(control,this.decorateChoice(control),label,values));
+  }
   choiceLabel(name,value){return ({reasoning_effort:{auto:"自动",omit:"不发送",low:"Low",medium:"Medium",high:"High",max:"Max"},composer_theme:{light:"浅色",dark:"深色"},default_thinking:{quick:"快速",standard:"标准",deep:"深入"},default_tone:{neutral:"中性",polite:"适度礼貌"}}[name]||{})[value]||value;}
   build(settings){
+    for(const choice of this.suggestions)choice.dispose();this.suggestions=[];
     this.element.replaceChildren();this.controls.clear();this.forms=new Map();this.browseButtons=[];
     const heading=node("div","settings-heading"),title=node("h1","","设置");title.id="settings-title";
     heading.append(title,button("返回工作区",()=>command("settings_back")));this.element.append(heading);
@@ -70,14 +146,15 @@ class SettingsPage {
       });
     }
     this.element.append(this.tabs,this.scroll);
-    const provider=this.field("connection.provider","服务名称",{},null),providers=node("datalist");providers.id="settings-providers";
-    for(const name of Object.keys(settings.providers)){const o=node("option");o.value=name;providers.append(o);}provider.setAttribute("list",providers.id);this.element.append(providers);
+    const provider=this.field("connection.provider","服务名称",{},null);
+    this.editableChoice(provider,"服务名称",()=>Object.keys(this.current.providers));
     provider.addEventListener("change",()=>{
       const preset=this.current.providers[provider.value];if(preset)for(const key of ["base_url","protocol","model"]){this.controls.get("connection."+key).value=preset[key];this.dirty.add("connection."+key);}
       this.clearCredentialInput();this.keyAction="clear";this.refreshEnabled();
     });
     this.field("connection.protocol","协议",{},settings.protocols.map(p=>[p,p]));this.field("connection.base_url","接口地址");
-    const model=this.field("connection.model","模型 ID"),models=node("datalist");models.id="settings-model-ids";model.setAttribute("list",models.id);this.element.append(models);
+    const model=this.field("connection.model","模型 ID");
+    this.editableChoice(model,"模型 ID",()=>this.current.available_models);
     const modelForm=this.forms.get("模型"),keyLabel=node("label","","API Key"),keyBox=node("div");
     keyLabel.htmlFor="settings-key";this.keyInput=node("input");this.keyInput.id="settings-key";this.keyInput.type="password";this.keyInput.autocomplete="off";this.keyInput.spellcheck=false;
     this.clearKey=button("清空密钥",()=>{this.keyInput.value="";this.key="";this.keyAction="clear";this.update(this.current,true);});
@@ -99,8 +176,9 @@ class SettingsPage {
     this.errorStatus=node("p","settings-status settings-error");this.errorStatus.setAttribute("role","alert");const buttons=node("div","actions");
     this.restoreButton=button("恢复本类默认",()=>this.restore());this.saveButton=button("保存设置",()=>this.submit("settings_save"));buttons.append(this.restoreButton,this.saveButton);
     footer.append(this.savedStatus,this.operationStatus,this.draftStatus,this.errorStatus,buttons);this.element.append(footer);this.selectCategory(this.category);
+    diagnostic("debug","settings fields rendered","choice_arrows="+this.element.querySelectorAll(".settings-choice").length);
   }
-  selectCategory(category){this.category=category;for(const [key,form] of this.forms)form.hidden=key!==category;for(const tab of this.tabs.children){const selected=tab.dataset.category===category;tab.setAttribute("aria-selected",String(selected));tab.tabIndex=selected?0:-1;}this.scroll.scrollTop=0;diagnostic("debug","settings category",category);}
+  selectCategory(category){for(const choice of this.suggestions)choice.close("category");this.category=category;for(const [key,form] of this.forms)form.hidden=key!==category;for(const tab of this.tabs.children){const selected=tab.dataset.category===category;tab.setAttribute("aria-selected",String(selected));tab.tabIndex=selected?0:-1;}this.scroll.scrollTop=0;diagnostic("debug","settings category",category);}
   restore(){for(const [key,spec] of Object.entries(this.current.fields))if(spec.category===this.category){const c=this.controls.get(key);if(c.type==="checkbox")c.checked=spec.default;else c.value=spec.default;this.dirty.add(key);}this.refreshEnabled();}
   async submit(action){
     const connection={},values={};for(const [name,c] of this.controls){const value=c.type==="checkbox"?c.checked:c.value;if(name.startsWith("connection."))connection[name.slice(11)]=value;else values[name]=value;}

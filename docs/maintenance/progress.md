@@ -680,3 +680,46 @@ GPT：本地HTTP以实际M1 Schema复现同类text.format.schema 400→JSON模�
 全模型：Claude实际M1原生Schema触发本地HTTP400红→保留完整system契约绿，公开摘要参数同步。19预设矩阵首次遇到4个配置拒绝（实际会省略的temperature/top_p被提前校验）及4个旧预算格式合同失败；修复已知模型采样适配、更新预算合同，54项通过。实际默认run.bat WebView2打开/自动关闭退出0，隔离目录无自动日志；API/streaming/截断/token/启动及M1/M2/交付相邻167项通过。准备最终两轴审查。
 
 跨机启动与全部模型收尾：最终13模块233项定向及相邻回归通过（45.37s），包括19预设×四档×三动作的228次本地合成HTTP请求。默认run.bat实际WebView2烟测退出0，1800ms窗口停留、总11.45s且无自动日志。7文件AST、144文档相对链接及diff空白检查通过；规范与需求终审各0待修，CodeGraph同步成功。L/G/A所有任务关闭，交接与维护同步。没有真实付费接口、个人配置/会话写入、EXE或本轮提交推送，队员尚未复测。
+
+2026-10-12 真实网关复诊启动：读取用户手动保存日志，确认此前修复在队员机器已生效，此次1.899s失败发生在SSE错误事件而非HTTP400。沿用planning-with-files、diagnosing-bugs、TDD及已授权公开客户端→本地HTTP反馈环，追加S1–S3；不调用收费网关、不读取个人Key。首先锁定服务错误细节丢失，远端具体原因仍待原始事件证据。
+
+S1真实HTTP反馈环：HTTP200后error事件的message/code/param未出现在异常、Debug、界面事件，公开客户端回归已红→绿，API/流式相邻97项通过。第二slice response.failed.response.error嵌套原因仍丢失已独立红灯，补充嵌套错误提取及失败响应id/model/usage保留；部分正文/摘要继续保留。异步请求用户复制队员旧证据response.envelope.json中的stream_error原文，等待期间只推进独立诊断修复。探索误用不存在runtime_logging.py路径已改runtime_log.py，不扩大错误根因。
+
+S1–S3诊断修复收尾：最终8模块172项通过（37.17s），其中6项新增公开HTTP回归覆盖三协议、完整长错误和密钥脱敏。规范/需求两轴各0待修，3文件AST和diff空白通过，CodeGraph同步3变化文件。修复不新增模型请求或改变强度/预算/取消；原始stream_error尚未收到，真实网关原因保持未决，不冒称远端修复成功。未调用收费接口、读写个人配置/会话、构建EXE或提交推送。
+
+原始事件已收到：网关仅返回invalid_request与通用参数错误，未给param。旧记录证实response.failed嵌套结构正是新增诊断修复覆盖的边界，但原文仍不足以定位具体字段。转查公开网关文档与模型/协议说明，不访问个人密钥或主动发模型请求。
+
+S4：公开首页/JS识别Sub2API，公开仓库显示OAuth内部上游需input列表/store=false并移除max_output_tokens等，由网关适配；不能证明实例所用分组、版本或上游，故不擅自删预算/换协议。S5按实际通用错误形状新增公开HTTP回归，发现服务request_id未进入异常/Debug，先红灯，再补充脱敏字段提取，保留原始泛化原因及单请求。
+
+
+2026-10-12 继续：恢复前轮109项通过与S5实现状态，重读五技能/当前交接/维护。R1–R3追加计划，不重做已完成诊断修复；先建立消息列表输入、显式关闭远端存储和提示契约兼容的独立本地HTTP红绿测试。
+
+R1第一slice：六个消息输入回归先红（1.43–2.82s级），统一Responses消息列表后6绿；第二slice显式no_store限制六红→补store=false及无正文Debug诊断后12绿。一次补丁上下文过宽误匹配Chat的同名_post，红灯仍未变绿暴露问题；立即移回Responses，Chat未保留改动。第一次纠正补丁上下文不匹配、无文件修改，改唯一status上下文完成。
+
+R2：M1–M4原生Schema不适用时json_object限制8红→保留完整instructions、删除额外text.format后20绿。追加已无format却仍兼容重发的场景，捕获两次相同请求（1红），通过仅原生format已发送才允许明确400兼容重发修复，21绿（2.10s）。迁移5个相邻测试文件的消息列表/完整契约断言，保留strict简单Schema、预算、输入内容及token精简完整性。6模块相邻运行中。
+
+R3相邻首批6模块158 passed in 37.84s。补非流式HTTP200/status=failed错误细节回归：1红/1绿，明确非流式仍丢失message/request_id，读取标准Responses失败对象后修复；最终新模块23 passed in 2.03s。流式及buffered失败均通过已有ApiError失败事件，不冒充HTTP400，不盲目重发。
+
+最终15模块首次246 passed/2 failed（82.19s）：M3/M4业务本地HTTP夹具仍把Responses input当字符串json.loads，出现服务线程TypeError→RemoteDisconnected；并非产品校验失败。迁移该夹具后，逐字搜索又发现访谈完整性和UI合同的同类两处夹具，均改为读取input_text正文，业务断言不放松。只重跑这三个受影响模块，不重复其余已过节点。Standards只读复审0待修。
+
+Responses续修收尾：三模块63 passed in 30.51s；collect-only合并17模块得到289个不同节点，最新全部绿。Standards/Spec及三个夹具增量各0待修；12Python AST、181相对链接、diff空白通过。CodeGraph最后三测试同步返回0，摘要打印遇终端GBK圆点UnicodeEncodeError，属探针显示问题；最后读取索引status确认。R1–R3已关闭，交接与维护同步。无收费请求/个人Key或设置/EXE/提交推送，真实中转尚未复测。
+
+最终交接链接增加后182项相对链接通过，diff空白通过；CodeGraph status为current（216files/5510nodes/17466edges）。
+
+设置下拉修复启动：已读当前交接/进度及settings.js/CSS。服务名称及模型ID为input+datalist，其他枚举为select；采用共享细线箭头装饰，原生输入、建议选择和业务提交保留。使用planning-with-files、diagnosing-bugs/TDD与code-review；复用现有Python Playwright浏览器回归，不新增测试框架。一次读取不存在local_artifacts路径已停止，证据改用已忽略verification目录。
+
+D1：首次测试定位器混用了XPath与CSS，探针SyntaxError已修正，之后4项真实红灯捕获无统一定位箭头。实现原生控件外的SVG细线箭头；中间getComputedStyle读取Chromium私有picker伪元素返回宿主opacity而非内部图标，不能作为有效断言。实际悬停前后截图确认原生倒三角被隐藏且无重复箭头，移除该不可靠反射检查，保留所有几何/单箭头/鼠标穿透与原生select验证。
+
+D1/D2完成：新增settings_dropdowns 5 passed in 12.08s；frontend_review_regressions/web_workspace的settings子集12 passed、57 deselected in 19.70s，共17个不同检查通过。两JS语法和diff空白通过，CodeGraph同步三个UI文件。复用的Spec/Standards只读审查各0待修；当前交接、维护及任务账本同步。保留前轮Responses/API未提交修复；无真实模型、个人设置读写、真实WebView2/EXE验收或提交推送。
+
+用户澄清设置下拉bug：截图显示DeepSeek建议弹层只有DeepSeek且影响下方协议点击；上轮仅修箭头外观没有解决实际预设选择。D3/D4追加，按原生产DOM反馈环先补“已填值展开完整预设并实际点击切换”的失败回归，接着验证真实WebView2交互；保留前轮API工作。
+
+D3首次完整预设点击回归1 failed in 8.48s；替换input+datalist为可输入的HTML建议列表，箭头展开所有项、输入时过滤，列表在表单内展开不遮盖相邻协议；公开DOM选择OpenAI及再点击协议已1 passed in 3.63s。继续键盘/自定义/忙态/离页及实际WebView2验证。
+
+用户追加队员responses_json_input修复报告：报告基线f473fd5、实际服务明确input缺JSON；本地已无强制json_object而且input为消息列表，但JSON契约仍只在instructions。补输入可见JSON指令可覆盖网关采用相同校验/转换的路径，原始业务input_text独立完整保留；J1/J2追加，按本地HTTP先红后绿，不读取个人Key/发收费请求。
+
+J1：流式/非流式本地网关以同学报告的input缺JSON原文拒绝，2 failed in 2.38s；JSON指令独立input_text+完整原业务input_text修复后2 passed in 1.34s。原生strict初始及普通文本不变，复杂契约/明确不支持原生格式后的兼容路径补同一输入指令；Debug仅记契约策略，不含正文/Key。
+
+D4：新增9项浏览器检查20.58s、设置相邻12项24.85s通过；真实WebView2使用CDP鼠标/键盘、实际Python设置保存与浅深/1440×810及720×500交互20项全部通过，零自动日志。API相邻首批155 passed/4 failed（39.01s），4项旧回归要求strict兼容前后input完全相同，现需额外JSON指令；改为验证原业务块逐字相同且新指令可见，不降低Schema/预算/次数断言。四个HTTP夹具同步读取最后业务input_text，不把新增指令当JSON数据解析。
+
+补同名手动输入选择slice：DeepSeek已输入后点同名选项，模型仍gpt-6.1-sol，1 failed（3.15s）；明确区分输入未提交与重选已保存值后1 passed（3.54s），保留重选不清Key。API四项断言更新第一次缩进失误导致pytest收集SyntaxError，纠正后4 passed、68 deselected（2.37s）。业务四模块74 passed（39.73s）。最终设置10项+相邻12项22 passed、57 deselected（52.93s）。最终不同自动化节点255最新全绿；真实WebView220项再验通过且输出浅深截图；独立Spec/Standards均0待修，8AST/JS语法通过，CodeGraph同步9文件。D3/D4/J1/J2关闭，维护/交接/任务账本同步，无个人配置读写/收费请求/EXE/提交。
