@@ -196,6 +196,13 @@ class TraceView {
     if(previous!==this.status&&(this.status==="working"||previous==="working"))
       diagnostic("debug",this.status==="working"?"trace clock started":"trace clock stopped",`id=${record.id} status=${this.status} elapsed=${elapsed.toFixed(3)} clock=monotonic-local`);
     const source=String(record.reasoning||"").replace(/\r\n?/g,"\n").replace(/\n[ \t]*\n(?:[ \t]*\n)*/g,"\n");
+    const hasThought=source.trim().length>0;
+    if(hasThought!==this.hasThought) {
+      if(!hasThought&&(document.activeElement===this.thoughtButton||this.thoughtReveal.contains(document.activeElement)))this.header.focus({preventScroll:true});
+      this.thoughtButton.hidden=!hasThought;this.thoughtReveal.hidden=!hasThought;
+      this.hasThought=hasThought;
+      diagnostic("debug","trace thinking visibility",`id=${record.id} visible=${hasThought}`);
+    }
     if(this.status==="cancelled") {
       // Stop freezes an active view; restored cancelled records are readable
       // immediately without replaying the interrupted animation.
@@ -264,7 +271,7 @@ function renderRequirements(box) {
 function createCard(card) {
   const el=node("section","message"+(card.kind==="user"?" user":""));const view={el,kind:card.kind};
   if(card.kind==="user") {
-    if(card.question_id) {const b=button("",()=>command("reanswer",{id:card.question_id}),"glass reanswer");b.title="补答这个问题";b.setAttribute("aria-label","补答这个问题");b.append(icon("loop"));el.append(b);}
+    if(card.question_id&&card.can_reanswer) {const b=button("",()=>command("reanswer",{id:card.question_id}),"glass reanswer");b.title="补答这个问题";b.setAttribute("aria-label","补答这个问题");b.append(icon("loop"));el.append(b);}
     el.append(node("div","bubble",card.text));
   } else if(card.kind==="question") {
     el.append(node("div","question-title",card.question.text));

@@ -44,14 +44,26 @@ class SettingsMixin:
                 for key, spec in FIELDS.items() if spec.category == "模型"}
 
     def _public_model_connection(self):
-        return {"provider": self.provider_var.get().strip(), "protocol": self.protocol_var.get().strip(),
-                "base_url": self.api_base_var.get().strip(), "model": self.api_model_var.get().strip()}
+        from .model_catalog import PROVIDERS
+        connection = {"provider": self.provider_var.get().strip(), "protocol": self.protocol_var.get().strip(),
+                      "base_url": self.api_base_var.get().strip(), "model": self.api_model_var.get().strip()}
+        if connection["provider"] not in PROVIDERS:
+            connection["model_provider"] = self.model_provider_var.get().strip()
+        if self.provider_website_var.get().strip():
+            connection["website"] = self.provider_website_var.get().strip()
+        return connection
 
     def _capture_provider_profile(self, provider=None, *, confirmed=None):
         """Keep drafts on the Tk thread; never project keys into the browser."""
+        from .model_catalog import PROVIDER_PRESETS
         connection = self._public_model_connection()
         if provider is not None:
             connection["provider"] = provider
+            from .model_catalog import PROVIDERS
+            if provider in PROVIDERS:
+                connection.pop("model_provider", None)
+            else:
+                connection["model_provider"] = self.model_provider_var.get().strip()
         values = dict(self.preferences)
         values.update({key: variable.get() for key, variable in self.preference_vars.items() if FIELDS[key].category == "模型"})
         if confirmed is None:
@@ -59,6 +71,8 @@ class SettingsMixin:
         profile = LoadedSettings(values, connection, api_key=self.api_key_var.get(), model_confirmed=confirmed,
             model_ids=tuple(self.widgets["api_model_combo"].cget("values")))
         self._provider_profiles[connection["provider"]] = profile
+        if "provider_combo" in self.widgets:
+            self.widgets["provider_combo"].configure(values=tuple(dict.fromkeys((*PROVIDER_PRESETS, *self._provider_profiles))))
         return profile
 
     def _apply_provider_profile(self, provider):
@@ -68,9 +82,10 @@ class SettingsMixin:
         preset = PROVIDER_PRESETS.get(provider)
         connection = profile.connection if profile else ({"provider": provider, **preset,
             "protocol": PROTOCOL_NAMES[preset["protocol"]]} if preset else {"provider": provider})
+        self.model_provider_var.set(provider if preset else connection.get("model_provider", ""))
+        self.provider_website_var.set(connection.get("website", ""))
         for key, variable in (("base_url", self.api_base_var), ("protocol", self.protocol_var), ("model", self.api_model_var)):
-            if key in connection:
-                variable.set(connection[key])
+            variable.set(connection.get(key, PROTOCOL_NAMES["openai_chat_completions"] if key == "protocol" else ""))
         for key, spec in FIELDS.items():
             if spec.category == "模型":
                 self.preference_vars[key].set(profile.preferences[key] if profile else spec.default)
@@ -83,10 +98,12 @@ class SettingsMixin:
     def available_picker_models(self):
         from .model_catalog import picker_models
         current = self.provider_var.get().strip()
-        models = list(picker_models(self.api_model_var.get(), self.widgets["api_model_combo"].cget("values"), service_provider=current))
+        models = list(picker_models(self.api_model_var.get(), self.widgets["api_model_combo"].cget("values"),
+                     service_provider=current, model_provider=self.model_provider_var.get()))
         for provider, profile in self._provider_profiles.items():
             if provider != current:
-                models.extend(picker_models("", profile.model_ids, service_provider=provider))
+                models.extend(picker_models("", profile.model_ids, service_provider=provider,
+                              model_provider=profile.connection.get("model_provider", "")))
         return tuple(models)
 
     def _restore_model_settings_confirmation(self):
@@ -135,6 +152,8 @@ class SettingsMixin:
         self.widgets["connection_panel"] = api
         fields = (
             ("服务名称", self.provider_var, tuple(PROVIDER_PRESETS), "provider_combo"),
+            ("模型供应商", self.model_provider_var, ("", *PROVIDER_PRESETS), "model_provider_combo"),
+            ("官网链接", self.provider_website_var, None, "provider_website_entry"),
             ("协议", self.protocol_var, tuple(PROTOCOL_LABELS), "protocol_combo"),
             ("接口地址", self.api_base_var, None, "api_base_entry"),
             ("模型 ID", self.api_model_var, (), "api_model_combo"),
@@ -144,13 +163,13 @@ class SettingsMixin:
             ttk.Label(api, text=label).grid(row=row, column=0, sticky="w", padx=(0, 12), pady=4)
             widget = (ttk.Entry(api, textvariable=variable, show="*" if name == "api_key_entry" else "")
                       if options is None else ttk.Combobox(api, textvariable=variable, values=options,
-                                                          state="readonly" if name == "protocol_combo" else "normal"))
+                                                          state="readonly" if name in {"protocol_combo", "model_provider_combo"} else "normal"))
             widget.grid(row=row, column=1, sticky="ew", pady=4)
             self.widgets[name] = widget
             self._bind_context_menu(widget)
         self.widgets["api_model_entry"] = self.widgets["api_model_combo"]
         actions = ttk.Frame(api)
-        actions.grid(row=5, column=0, columnspan=2, sticky="ew", pady=(6, 0))
+        actions.grid(row=len(fields), column=0, columnspan=2, sticky="ew", pady=(6, 0))
         for label, command, name in (("获取模型", self.fetch_models, "model_list_button"),
                                      ("测试连接", self.test_connection, "test_connection_button"),
                                      ("确认", self.confirm_model_settings, "confirm_model_settings_button")):
@@ -158,8 +177,11 @@ class SettingsMixin:
             button.pack(side="left", padx=(0, 8))
             self.widgets[name] = button
         label = ttk.Label(api, textvariable=self.model_confirmation_var, style="Muted.TLabel", wraplength=600)
-        label.grid(row=6, column=0, columnspan=2, sticky="ew", pady=(6, 0))
+        label.grid(row=len(fields)+1, column=0, columnspan=2, sticky="ew", pady=(6, 0))
         api.bind("<Configure>", lambda e: label.configure(wraplength=max(200, e.width-24)), add="+")
+        directory_status = ttk.Label(api, textvariable=self.model_directory_status_var, style="Muted.TLabel", wraplength=600)
+        directory_status.grid(row=len(fields)+2, column=0, columnspan=2, sticky="ew", pady=(6, 0))
+        api.bind("<Configure>", lambda e: directory_status.configure(wraplength=max(200, e.width-24)), add="+")
         rows = {category: (1 if category == "模型" else 0) for category in self._settings_pages}
         for key, spec in FIELDS.items():
             if key == "debug_console_enabled":

@@ -732,3 +732,60 @@ V1两个slice红绿：独立DPAPI保存/清钥及实际Controller切换/草稿/�
 2026-10-13 收尾恢复：真实隔离WebView2 30项通过，五家仅5次localhost目录请求，未调用模型或写自动日志。新增公开浏览器3项通过。独立Spec 0项；Standards发现I/O读取失败覆盖及旧活动密钥副本复活2项，已各自先红后绿。一次except补丁范围匹配错误已恢复启动容错并收窄修改。4个旧测试失败已在before副本独立复现，不混入本轮通过结论；受影响综合回归仍运行中。
 
 2026-10-13 V1–V4完成：综合260项、保存边界后65项、菜单尺寸后15项全部通过，去重最新264节点通过。真实WebView2截图暴露选中SVG缺尺寸撑大行，补2项浅深/宽窄回归先红后绿，真实原生再补尺寸/行高；主题通过设置实际保存并核对图标后最终36项全部通过。独立Spec/Standards复审各0待修。9Python AST、两JS语法、diff空白检查通过；HANDOFF/architecture/ui-handoff及维护已同步，CodeGraph更新。原生可重跑脚本保存在docs/maintenance，临时数据和截图留local_artifacts不发布；未发收费请求/读个人配置/打包EXE/提交推送。一次收尾文档多文件补丁含不完整匹配行导致整批未写入，已移除该空补丁并正确追加。
+
+
+2026-10-13 自定义供应商任务开始：恢复交接/维护记录，codegraph结构探索与请求合同读取；基线b3f4953干净。一次规划补丁误带不存在的匹配行而整批未写入，改明确追加。
+
+C1公开保存/实际Controller/重启/旧自定义提示及旧五家确认格式兼容4项逐slice红绿通过；C2五家未知别名HTTP请求均red（采样/思考/映射或校验错），已添加显式model_provider路由，保留实际wire ID。一次日志补丁因上下文缩进不匹配未写入，按实际行精确修复。
+
+C1官网元数据保存回归红→绿；显式分类和自定义删除两项Controller回归红→绿。C3三项生产DOM先红（无分组/显隐/删除），接入类型必选、源草稿切换、按五家分组、官网与目录展示、输入密钥显隐、Web删除确认。用户澄清分类指设置页已纳入；输入区额外custom分类同时按显式family修正。一次CLI context不存在改query；三次猜测文件路径不存在已改rg --files，Windows rg glob改-g参数；无产品数据影响。
+
+相邻回归：自定义类型变成必选后，旧Fixture配置遗漏model_provider导致48失败；补显式Google类型保留旧通用采样行为后57项加密/确认/UI回归全部通过。浏览器旧选项定位需限定服务listbox（新family select同名option），旧custom模拟桥接需真实恢复空档案并显式选family，15项通过。官方接口返回已知ID仍按本地模型家分类，只有自定义显式family/未知ID按服务归类，修复强制所有已知模型归当前服务造成的相邻菜单问题。独立基线归档初次未指定zip格式失败，修正--format=zip；12项旧model_effort断言不适配已有DeepSeek Messages无nativeformat/Claude公开摘要，在b3f4953独立全部复现，单列不放松生产代码。新增HTTP测试误给test_connection传预算参数已改公开签名。
+
+双轴初审各1项：Spec类型草稿切内置时被前端过滤，新增DOM red→修复源身份载荷；Standards删除成功焦点返回隐藏按钮，新增DOM red后改可见服务控件。隔离真实WebView2初次fixture Key含中文造成HTTP header Latin1失败，已改ASCII一次性凭据；第二次26项通过后Escape仅清搜索而未关闭菜单，验收脚本按实际交互按两次Escape，不改产品。继续CRUD验收。
+
+2026-10-13 C1–C4收尾：实际WebView2最终32项通过，包含三个自定义服务的CRUD、浅深宽窄及目录/无custom分类，只发生3次localhost目录GET，零生成/测试连接/个人配置/自动日志。API及composer141项、Controller34项、设置57项、既有浏览器15项、新增浏览器5项、档案/请求最终20项分别通过，collect去重263个不同最新绿节点；旧composer替身与12项模型参数断言在before独立复现，不混入通过数。独立Spec/Standards增量复审各0待修。最后16Python AST、JS语法、230项交接相对链接与diff空白检查通过；HANDOFF/architecture/ui-handoff/维护报告同步。CodeGraph同步17个变化文件，status确认current（224files/5683nodes/17890edges）。本轮仅最后注解/unused-import和文档静态收尾，不重复已过回归；未发收费请求、读写个人配置、打包EXE或提交推送。
+
+2026-10-13 历史补答：用户要求已发模型历史不显示补答玻璃按钮并修正图标居中。沿用公开Session/Controller快照→生产DOM边界。首个探针使用简化questions fixture经prepare_m1触发null gap_id契约错误，改公开begin_request后得到用户症状红灯（发送后按钮仍1个）；共享can_reanswer投影与Web/Tk守卫后转绿。第二slice浅深×三档字号6项中心检查全部红（至少水平1px误差），改42px无padding grid及SVG block后7项通过。追加失败/取消/处理后保存重开及新回答独立修改、跳过可补答和无重复诊断，五模块相邻运行中；复用双轴只读审查。最后AST/JS/diff已通过。
+
+五模块最终60项全部通过（新增11项，真实Tk及离线Chrome生产DOM，无真实模型请求）。Spec只读审查0发现；当前交接/维护已更新，待Standards和CodeGraph收尾。旧供应商未提交改动保持。R1/R2关闭。
+
+历史补答收尾：Spec/Standards最终各0待修，CodeGraph同步3文件后status为current（225files/5695nodes/17895edges），AST/JS/diff及交接链接通过。R1–R3完成，未重复已通过回归；未调用模型、读写个人配置、原生WebView2/EXE验证或提交推送。
+
+2026-10-13 思考入口任务恢复：读取现有交接、维护与五技能，核对截图和前轮未提交工作树；当前仅定位，尚未改应用。T1–T3追加，沿用公开DOM/Tk测试边界，首先复现空入口和计时箭头相接症状。
+
+T1首个slice：`python -m pytest tests/test_thought_visibility.py -q`，1 failed（7.16s），空reasoning展开后仍显示思考内容按钮，命中用户截图。最小Web修复按实际非空reasoning同步入口/正文显隐，状态变化时仅一条Debug，不含正文；保留计时/活动/错误与现有动画。待green验证。
+
+Web首个slice已green（1 passed，7.17s）。Tk初次只用裸root缺少应用字体管理导致tuple.measure错误，改用既有隔离应用公开组件边界后得到正确红灯：按钮仍pack（1 failed，8.90s）。update_status同步内层显隐，首次非空恢复原顺序，重复状态不重pack、不重置展开动画，诊断仅显隐变化。
+
+Tk空入口slice已green（1 passed，8.01s）。T2六种主题/字号布局均red：旋转箭头实际边界覆盖label约1.45px（6 failed），不是计时数据错。仅外层trace箭头增加10px左间距、去除原右margin，内层箭头/菜单样式不变。
+
+T2六项green；显隐附带键盘焦点红灯后修复隐藏内层按钮焦点转移，避免焦点留在隐藏入口。新增终态/空白、首片、用户开关、Unicode、取消及Debug去重覆盖。第一次合跑14 passed/1 failed，原因是working_trace先载入非空历史fixture再改空，产生两条预置诊断；测试清空外部bridge采集再核验单个首片事件，产品无需改动。
+
+本轮最终6模块/节点集合59项全部通过（新增15），含浏览器计时/折叠/Unicode/取消/恢复、真实Tk长流式/主题/滚轮和字体相邻检查；collect确认59个不同节点，不相加重叠批次。Spec/Standards独立各0待修，Chrome浅深截图目视确认空入口隐藏且间距正常。2Python AST、JS语法、diff空白通过。CodeGraph首次Python subprocess无法找到npm启动器，改PowerShell原生命令后同步3文件、current（226files/5709nodes/17899edges）。T1–T3完成，交接/维护已同步；未收费调用、访问个人设置、验收原生WebView2/EXE或提交。
+
+2026-10-13 设置错位任务开始：核对当前工作树/交接/计划、截图、实际settings.js build和CSS以及现有公开浏览器/原生隔离夹具；新增L1–L3，不重做前轮检查。先为用户截图的标签/控件错列建立红灯。
+
+L1：单个公开DOM测试1 failed（3.64s），首个timeout标签在右、输入在左且不同行，命中用户截图。单变量跨列探针恢复同行及左右位置，确定删除按钮缺settings-full；用户确认仅错位已收窄任务。追加整行类、扩充已有构建诊断的full_width_actions计数，无新增日志循环或设置逻辑。
+
+尺寸/相邻合跑26 passed（65.99s），内置→自定义→内置、浅深/宽窄及原有保存/删除/菜单通过。真实隔离WebView2合成快照9个字段布局集合通过；辅助脚本初次snapshot方法漏stamp参数造成轮询异常，修正测试桥签名并补无error诊断检查后重跑原生，产品无需改动。
+
+原生复验10项全部通过且error=null，已目视核对深色原生截图。JS语法、回归Python AST、diff空白通过；Standards独立0待修，Spec/交接/CodeGraph收尾中，无应用追加修改。
+
+2026-10-13 设置错位收尾：Spec/Standards独立增量审查各0待修，CodeGraph同步2文件后current（227files/5714nodes/17978edges）；HANDOFF/ui-handoff、维护报告和L3状态已同步。保留26项相关回归与10项原生合成快照验收结果，无应用追加修改，因此不重复已过测试。本轮未提交推送，前轮未提交成果保留。
+
+2026-10-13 自动目录任务开始：读取当前交接/架构/五技能，CodeGraph确认current并定位启动、手动获取、目录缓存和Tk工作队列；已添加A1–A3。新功能不是已有网络故障，diagnosing-bugs复现阶段仅建立“启动不自动GET”的反馈环；后续用延迟/失败/配置变更本地HTTP逐slice验证。分支main、origin为ACha-xwx/PromptSmith，用户明确授权本轮清理/提交/推送。
+
+A1 首个启动HTTP回归1 failed（7.83s）：保存Key重启后没有任何GET且菜单为空。新增独立2线程目录刷新及Tk队列回写后1 passed（3.76s），本地GET仅一次、目录持久化、确认/手动按钮保留且busy=False。正在补慢请求/失败的设置状态呈现；网络均为一次性本地HTTP。
+
+A2 状态反馈2 failed（8.62s）：快照没有directory_status，慢请求/403失败均不可见；增加独立设置状态和Web/Tk呈现后3 passed（6.33s）。追加全已保存服务/无Key跳过、延迟切换、改Key、删除、重试及退出共8项passed（14.39s）；继续协议/手动并发/生产DOM检查。本轮固定差异文件已写local_artifacts，双轴审查只读，不重跑旧检查。
+
+A1/A2完成：新增启动HTTP13项及生产DOM1项共14 passed（25.92s）；真实WebView2通过隔离DPAPI配置启动、2个延迟localhost GET及CDP交互8项全部通过，缓存/非忙态/切换/动态更新/持久化/不确认/密钥不回传/零自动日志已核验。Spec/Standards各0发现，6AST/JS/diff通过。9个相邻模块运行中，git fetch后HEAD与origin/main为0/0；无收费调用或个人数据访问，A3进行交接/清理/发布。
+
+A3静态收尾：CodeGraph同步7文件后current（230files/5770nodes/18084edges）。清理预览初次PowerShell foreach末尾直接接管道触发空管道解析错误，未执行任何删除，改为收集taskStats后输出。交接/架构/README补自动目录行为；清理等相邻回归结束后执行，限定仓库内部可重建产物，保留开发索引和正式证据。
+
+相邻9模块100 passed（218.77s）；与新增14项合计114个不同节点通过。原生WebView2另8项通过，不混为模型/EXE验收。追加gitignore保护未跟踪日志和根目录runs/logs，既有跟踪基线证据保留；开始限定仓库路径清理，再做静态资源/链接/暂存敏感文件检查。
+
+清理执行：两次直接永久删除命令被工具策略拒绝，改为可恢复Move-Item；四个缓存/临时目录和966个未跟踪verification工件（25,136,707字节）已移出仓库至本机临时清理归档。所有源/目标绝对边界和reparse point已核验；无跨shell删除、个人数据或跟踪文件删除。正式Markdown、基线证据和CodeGraph保留。清理后232相对链接、56源码AST和资源声明通过，准备暂存并提交推送。
+
+发布静态检查：40个暂存文件未包含私人/运行产物路径或常见真实密钥格式。新增未跟踪旧补答回归暂存后暴露EOF空行警告，已仅去掉末尾多余空行；不重复业务回归。正式发布包括前轮已完成成果，保持main正常推送、不强制覆盖。

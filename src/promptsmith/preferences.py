@@ -59,7 +59,7 @@ FIELDS = {
     "debug_console_enabled": Preference("诊断", "开启 Debug 控制台", False),
 }
 RETIRED_FONT_FIELDS = ("chinese_font", "latin_font", "split_fonts")
-CONNECTION_FIELDS = {"provider", "protocol", "base_url", "model"}
+CONNECTION_FIELDS = {"provider", "protocol", "base_url", "model", "model_provider", "website"}
 MAX_SETTINGS_BYTES = 1048576  # Five independent credentials and fetched directories.
 
 
@@ -235,6 +235,14 @@ def _load_connection_settings(document: dict, *, restore_credentials: bool) -> L
                 loaded.warning = "已保存的模型确认与当前配置不符，请在设置页核对后点击“确认”。"
     elif restore_credentials:
         logging.getLogger(__name__).debug("No saved model confirmation; explicit confirmation required")
+    if connection.get("provider"):
+        from .model_catalog import validate_model_provider
+        try:
+            validate_model_provider(connection)
+        except ValueError:
+            loaded.model_confirmed = False
+            loaded.warning = (loaded.warning + " 请为自定义服务选择模型供应商后重新确认。").strip()
+            logging.getLogger(__name__).warning("Custom provider profile needs an explicit model provider; credentials retained")
     directory = document.get("model_directory")
     if isinstance(directory, dict) and directory.get("fingerprint") == _directory_fingerprint(
             connection, document.get("credentials", {}).get("api_key") if isinstance(document.get("credentials", {}), dict) else None):
@@ -256,10 +264,12 @@ def load_preferences(path: Path) -> tuple[dict[str, Any], dict[str, str]]:
 
 def _model_confirmation_fingerprint(values: Mapping[str, Any], connection: Mapping[str, str], credential: object) -> str:
     """Bind approval to public model options and encrypted credentials, never the plaintext key."""
-    basis = {"connection": {key: connection.get(key, "").strip() for key in CONNECTION_FIELDS},
+    basis = {"connection": {key: connection.get(key, "").strip() for key in CONNECTION_FIELDS - {"model_provider", "website"}},
              "parameters": {key: normalize_value(key, values.get(key, spec.default))
                             for key, spec in FIELDS.items() if spec.category == "模型"},
              "credential": credential}
+    if connection.get("model_provider"):
+        basis["connection"]["model_provider"] = connection["model_provider"].strip()
     content = json.dumps(basis, sort_keys=True, ensure_ascii=True, allow_nan=False).encode("ascii")
     return hashlib.sha256(b"PromptSmith.model_confirmation.v1\0" + content).hexdigest()
 
@@ -267,6 +277,8 @@ def _model_confirmation_fingerprint(values: Mapping[str, Any], connection: Mappi
 def _directory_fingerprint(connection: Mapping[str, str], credential: object) -> str:
     basis = {"connection": {key: connection.get(key, "").strip() for key in ("provider", "protocol", "base_url")},
              "credential": credential}
+    if connection.get("model_provider"):
+        basis["connection"]["model_provider"] = connection["model_provider"].strip()
     return hashlib.sha256(json.dumps(basis, sort_keys=True, ensure_ascii=True).encode("ascii")).hexdigest()
 
 
@@ -289,7 +301,7 @@ def save_model_directory(path: Path, connection: Mapping[str, str], api_key: str
     if not isinstance(record, dict):
         return False
     public = record.get("connection", {})
-    if any(public.get(key) != connection.get(key) for key in ("provider", "protocol", "base_url")):
+    if any(public.get(key) != connection.get(key) for key in ("provider", "protocol", "base_url", "model_provider")):
         return False
     credential = record.get("credentials", {}).get("api_key")
     saved_key = decrypt_api_key(credential, public) if credential else ""
@@ -311,8 +323,13 @@ def save_preferences(path: Path, values: Mapping[str, Any], connection: Mapping[
                      model_confirmed: bool = False, model_ids: tuple[str, ...] = ()) -> None:
     values = validate_preferences(values)
     public = {k: v.strip() for k, v in connection.items() if k in CONNECTION_FIELDS and isinstance(v, str)}
+    if public.get("provider"):
+        from .model_catalog import validate_model_provider
+        validate_model_provider(public)
     if public.get("base_url"):
         validate_public_url(public["base_url"])
+    if public.get("website"):
+        validate_public_url(public["website"])
     document = {"version": 2, "composer_defaults": 1, "preferences": values, "connection": public}
     try:
         previous = _read_document(path)
@@ -351,6 +368,31 @@ def save_preferences(path: Path, values: Mapping[str, Any], connection: Mapping[
     _write_document(path, document)
     logging.getLogger(__name__).debug("Settings written atomically; encrypted API Key present=%s", bool(api_key.strip()))
     logging.getLogger(__name__).info("Model confirmation saved with settings: confirmed=%s", "model_confirmation" in document)
+
+
+def delete_provider_profile(path: Path, provider: str, *, fallback="DeepSeek") -> None:
+    """Remove a custom profile and its active projection in one atomic write."""
+    from .model_catalog import PROVIDERS
+    if provider in PROVIDERS:
+        raise ValueError("内置供应商不能删除。")
+    try:
+        document = _read_document(path)
+    except FileNotFoundError:
+        return
+    profiles = document.get("model_profiles", {})
+    if not isinstance(profiles, dict):
+        raise ValueError("供应商档案格式无效，请先修复设置。")
+    profiles.pop(provider, None)
+    if document.get("connection", {}).get("provider") == provider:
+        replacement = profiles.get(fallback, {})
+        for key in ("connection", "credentials", "model_confirmation", "model_directory"):
+            document.pop(key, None)
+            if key in replacement:
+                document[key] = replacement[key]
+        document.setdefault("connection", {})
+        document.setdefault("preferences", {}).update(replacement.get("model_values", {}))
+    _write_document(path, document)
+    logging.getLogger(__name__).info("Custom provider profile deleted; credential and model directory removed")
 
 
 def update_debug_preference(path: Path, enabled: bool) -> None:

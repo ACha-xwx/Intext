@@ -28,6 +28,14 @@ def conversation_cards(session):
                  "text": "描述你想完成的目标。我会逐步整理要求、提出关键问题，再和你一起核对方案。"}]
     cards.append({"key": "task", "kind": "user", "title": "你的目标", "text": session.task_text})
     traces = [r for r in session.control.get("response_traces", []) if isinstance(r, dict) and isinstance(r.get("id"), str)]
+    # Sending and assessment are separate: even a failed/cancelled request has
+    # already consumed the historical answers. Derive presentation from the
+    # existing request/trace basis without changing their business status.
+    submitted_version = max((r["base_version"] for r in
+                             [*session.pending_requests.values(), *session.api_runs]
+                             if type(r.get("base_version")) is int), default=-1)
+    submitted_count = max((r["history_count"] for r in traces
+                           if type(r.get("history_count")) is int), default=0)
     def append_traces(count):
         for record in traces:
             position = record.get("history_count", len(session.question_history))
@@ -47,6 +55,9 @@ def conversation_cards(session):
                       "text": row.get("answer_text") or {"skipped": "先跳过", "unsure": "我不确定"}.get(row.get("disposition"), ""),
                       "question_id": None if supplement else row["question_id"],
                       "reanswer_key": "question:"+row["answer_id"],
+                      "can_reanswer": (not supplement and index >= submitted_count
+                                       and row.get("state_version", 0) > submitted_version
+                                       and row.get("assessment_status") in {"pending", "not_applicable"}),
                       "assessment": row.get("assessment_status")})
     append_traces(len(session.question_history))
     navigation = session.workspace_navigation()
@@ -665,16 +676,23 @@ class ConversationWorkspaceMixin(ResponseWorkspaceMixin):
         self.widgets["conversation_composer"].refresh()
         self._apply_workspace_theme()
         cards = conversation_cards(self.session)
+        answer_actions = tuple(card["key"] for card in cards if card.get("can_reanswer"))
         shown = json.dumps([self._requirements_preview_shown, self._plan_preview_shown], ensure_ascii=False, sort_keys=True)
         business_token = self._conversation_token()
         signature = (business_token, shown, tuple(self._missing_generation_config()), self._visible_task_text(),
                      self._conversation_locked(), self._answer_target_id, self.notebook.select(),
                      self.skill_status_var.get(), self.status_var.get(), self.show_all_skills_var.get(),
-                     self.skill_source_filter_var.get(),
+                     self.skill_source_filter_var.get(), answer_actions,
                      self.preferences["display_limit"], self.preferences["font_size"], self.preferences["composer_theme"],
                      tuple((r.get("id"), r.get("status")) for r in self.session.control.get("response_traces", []) if isinstance(r, dict)))
         if signature == self._conversation_signature:
             return
+        action_state = (self.session.task_id, answer_actions)
+        if getattr(self, "_conversation_answer_actions", None) != action_state:
+            self._conversation_answer_actions = action_state
+            logging.getLogger(__name__).debug("Historical answer actions updated; task=%s editable=%s hidden=%s",
+                self.session.task_id, len(answer_actions),
+                sum(card["kind"] == "user" and bool(card.get("question_id")) and not card.get("can_reanswer") for card in cards))
         canvas = self.widgets["requirements_page_canvas"]
         old_y = canvas.yview()[0]
         follow = canvas.yview()[1] >= 0.96
@@ -827,7 +845,7 @@ class ConversationWorkspaceMixin(ResponseWorkspaceMixin):
         self._conversation_frames[data["key"]] = card
         if kind in {"welcome", "user", "history_question"}:
             self._conversation_label(card, data["text"])
-            if kind == "user" and data.get("question_id"):
+            if kind == "user" and data.get("can_reanswer"):
                 from .interaction_ui import GlassButton
                 host=card._reply_action_host
                 host.grid(row=0,column=0,padx=(0,12))

@@ -8,7 +8,7 @@ from promptsmith.credentials import CredentialProtectionError, decrypt_api_key, 
 from promptsmith.preferences import defaults, load_settings, save_preferences, update_debug_preference
 
 
-CONNECTION = {"provider": "fixture", "protocol": "OpenAI Chat Completions",
+CONNECTION = {"provider": "fixture", "model_provider": "Google", "protocol": "OpenAI Chat Completions",
               "base_url": "https://example.invalid/v1", "model": "offline"}
 WINDOWS = pytest.mark.skipif(sys.platform != "win32", reason="Requires current-user Windows DPAPI")
 

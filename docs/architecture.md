@@ -1,5 +1,11 @@
 # 架构与内在逻辑
 
+2026-10-13 自动目录：ModelDirectoryRefresh在PromptSmithApp初始化完成后读取已加载的保存档案，使用独立最多2线程池和每服务TaskScope获取目录；worker仅HTTP和入完成队列。Tk owner回写时验证scope/档案/连接/Key，复用save_model_directory再次核对保存身份，既不保存草稿也不确认模型或切换活动服务。手动获取、接口/Key变更、删除与关闭可取消旧目录请求；Web/Tk状态独立于对话busy，失败保留缓存并可手动重试。见[维护](maintenance/auto_models_20261013.md)。
+
+2026-10-13 思考显隐：TraceView/ResponseTrace依据现有reasoning的实际非空内容派生内层入口/正文显隐，首片恢复而不重建writer或重置展开选择；不新增业务、模型能力或请求字段。无内容保留计时/活动/错误；隐藏时焦点交回可见标题，Debug只在显隐变化记录ID与布尔值。验证边界见[维护](maintenance/trace_visibility_20261013.md)。
+
+2026-10-13 自定义服务类型与删除：connection.model_provider 对自定义档案必选，服务名称继续隔离凭据/目录身份，website 为独立元数据。ApiConfig.model_provider 指定别名模型的参数适配，明确类型优先，实际 wire model ID 不变；官方旧确认指纹保持兼容，旧无类型自定义保留 Key 并撤销确认。Web 公开 saved_providers/provider_families，设置按五家分组，目录未知 ID 依类型归类而不猜能力。delete_provider_profile 先原子落盘删除档案及活动投影，成功后再清内存并恢复默认服务；失败可重试，防止后续保存复活已删凭据。仅自定义可删除。实现和验证边界见[本轮维护](maintenance/custom_provider_20261013.md)。
+
 2026-10-13 独立供应商设置：version2保留顶层活动connection/credentials/confirmation以兼容旧文件，新增model_profiles保存各家的接口、DPAPI密钥、模型参数、确认依据及目录。每次保存先同步旧活动投影，避免已清钥/撤确认被副本恢复；读取I/O失败中止保存并保留原文件。切换在Tk线程暂存/恢复档案并更新连接版本，Web settings_provider只返回公开快照。模型目录绑定provider/protocol/base_url/密钥身份，接口或Key变动清空；已保存同身份获取后缓存目录，不隐式保存草稿或确认。底部仅装饰获取ID，并携service_provider保证跨家相同ID不串凭据。本地MODELS不再提供未获取候选。详见[维护与验收](maintenance/provider_profiles_20261013.md)。
 
 2026-10-12 Responses网关兼容：三个请求入口统一标准消息列表input及store=false；复杂业务Schema用完整提示JSON契约，合法简单Schema保留原生strict。无原生format时不重复兼容请求；非流式/缓冲JSON的failed状态也传播服务原因/request_id。用户模型/思考强度/预算与其它协议保留。验证边界见[维护](maintenance/responses_gateway_20261012.md)。

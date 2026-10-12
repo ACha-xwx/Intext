@@ -92,8 +92,12 @@ class WorkspaceController:
                         minimum=spec.minimum, maximum=spec.maximum, choices=list(spec.choices)) for key, spec in FIELDS.items()},
             providers={name: dict(base_url=preset["base_url"], protocol=PROTOCOL_NAMES[preset["protocol"]], model=preset["model"])
                        for name, preset in PROVIDER_PRESETS.items()}, protocols=list(PROTOCOL_LABELS),
+            saved_providers=list(app._provider_profiles),
+            provider_families={name: name if name in PROVIDER_PRESETS else profile.connection.get("model_provider", "")
+                              for name, profile in app._provider_profiles.items()},
             available_models=list(app.widgets["api_model_combo"].cget("values")),
             confirmed=app._model_settings_confirmed(), confirmation=app.model_confirmation_var.get(),
+            directory_status=app.model_directory_status_var.get(),
             status=app.settings_status_var.get(), operation_status=app.status_var.get(),
             busy=app.busy, log_directory=str(app.runtime_log.directory))
 
@@ -107,6 +111,26 @@ class WorkspaceController:
         current = self.settings_snapshot()
         if data.get("revision") != current["revision"]:
             raise ValueError("设置已在其它操作中更新，请重新打开设置核对后再提交。")
+        if action == "settings_delete_provider":
+            from .model_catalog import PROVIDERS
+            from .preferences import delete_provider_profile
+            target = data.get("target")
+            if app.busy:
+                raise ValueError("正在处理当前请求，完成或取消后再删除供应商。")
+            if target in PROVIDERS:
+                raise ValueError("内置供应商不能删除。")
+            if not isinstance(target, str) or target not in app._provider_profiles:
+                raise ValueError("自定义供应商不存在，请重新打开设置。")
+            # Commit deletion before changing memory; failed writes leave drafts intact.
+            delete_provider_profile(app._preferences_path, target)
+            app.model_directory_refresh.supersede(target)
+            if app.provider_var.get() == target:
+                app.provider_var.set("DeepSeek")
+            app._provider_profiles.pop(target, None)
+            app.widgets["provider_combo"].configure(values=tuple(dict.fromkeys((*PROVIDERS, *app._provider_profiles))))
+            app.settings_status_var.set("已删除自定义供应商及其保存的密钥和模型列表。")
+            LOG.info("Web custom provider deleted; active fallback=%s", app.provider_var.get() == "DeepSeek")
+            return dict(settings=self.settings_snapshot())
         if action == "settings_browse":
             key = data.get("key")
             if key not in {"session_directory", "export_directory"}:
@@ -129,16 +153,20 @@ class WorkspaceController:
         values = data.get("values")
         if not isinstance(connection, dict) or not isinstance(values, dict):
             raise ValueError("设置内容格式不正确。")
-        if set(connection) != {"provider", "protocol", "base_url", "model"} or any(not isinstance(v, str) or len(v) > 4096 for v in connection.values()):
+        if not {"provider", "protocol", "base_url", "model"} <= set(connection) or set(connection) - {"provider", "protocol", "base_url", "model", "model_provider", "website"} or any(not isinstance(v, str) or len(v) > 4096 for v in connection.values()):
             raise ValueError("模型连接字段无效。")
         if connection["protocol"] not in PROTOCOL_LABELS:
             raise ValueError("协议不存在。")
         if action == "settings_provider":
-            from .model_catalog import PROVIDERS
-            if data.get("target") not in PROVIDERS or connection["provider"] != current["connection"]["provider"]:
+            target = data.get("target")
+            if not isinstance(target, str) or not target.strip() or len(target) >= 4096 or connection["provider"] != current["connection"]["provider"]:
                 raise ValueError("供应商选择已变化，请重新核对后切换。")
         else:
+            from .model_catalog import validate_model_provider
+            validate_model_provider(connection)
             validate_public_url(connection["base_url"])
+            if connection.get("website"):
+                validate_public_url(connection["website"])
         if action == "settings_save":
             normalized = validate_preferences(values)
         elif action == "settings_provider":
@@ -161,6 +189,11 @@ class WorkspaceController:
                               ("base_url", app.api_base_var), ("model", app.api_model_var)):
             if variable.get() != connection[key]:
                 variable.set(connection[key])
+        if "model_provider" in connection and app.model_provider_var.get() != connection["model_provider"]:
+            app.model_provider_var.set(connection["model_provider"])
+            # Restore an explicitly selected supported protocol after the family default.
+            app.protocol_var.set(connection["protocol"])
+        app.provider_website_var.set(connection.get("website", ""))
         if key_action != "keep":
             app.api_key_var.set(new_key if key_action == "replace" else "")
         for key, value in normalized.items():

@@ -80,12 +80,17 @@ class ApiConfig:
     temperature: float | str | None = "auto"
     top_p: float | None = None
     reasoning_effort: str = "auto"
+    model_provider: str = ""
 
     def __post_init__(self) -> None:
         for name in ("base_url", "model", "api_key", "provider", "protocol"):
             if not str(getattr(self, name)).strip():
                 raise ValueError(f"{name}不能为空。")
         object.__setattr__(self, "provider", self.provider.strip())
+        if self.model_provider:
+            from .model_catalog import PROVIDERS
+            if self.model_provider not in PROVIDERS:
+                raise ValueError("模型供应商无效。")
         normalized_protocol = PROTOCOL_ID if self.protocol == LEGACY_PROTOCOL_ID else self.protocol
         if normalized_protocol not in SUPPORTED_PROTOCOLS:
             raise ValueError(f"当前版本不支持协议：{normalized_protocol}")
@@ -94,7 +99,7 @@ class ApiConfig:
             raise ValueError("timeout_seconds必须大于0。")
         if self.max_tokens is not None and (isinstance(self.max_tokens, bool) or not isinstance(self.max_tokens, int) or not 1 <= self.max_tokens <= 262144):
             raise ValueError("max_tokens必须是1到262144之间的整数，或使用自动值。")
-        model = find_model(self.model)
+        model = _request_model(self)
         sampling_adapted = bool(model and model.provider in {"OpenAI", "Anthropic", "DeepSeek"})
         for name, maximum in (("temperature", 1 if normalized_protocol == ANTHROPIC_MESSAGES_PROTOCOL and not sampling_adapted else 2), ("top_p", 1)):
             value = getattr(self, name)
@@ -144,6 +149,19 @@ def _validate_output_limit(value: int) -> None:
         raise ValueError("max_output_tokens必须是1到4096之间的整数。")
 
 
+def _request_model(config: ApiConfig):
+    """Resolve request options by explicit family, retaining the wire model ID.
+
+    Known models use their specific mapping. Custom aliases use the selected
+    family's current preset; this never adds catalog metadata to picker rows.
+    """
+    model = find_model(config.model)
+    if not config.model_provider or model and model.provider == config.model_provider:
+        return model
+    from .model_catalog import PROVIDER_PRESETS
+    return find_model(PROVIDER_PRESETS[config.model_provider]["model"])
+
+
 def _is_verified_deepseek(config: ApiConfig) -> bool:
     """Enable DeepSeek-only generation options for the verified endpoint/model."""
     parsed = urlsplit(config.base_url.strip())
@@ -169,14 +187,14 @@ def structured_request_parameters(config: ApiConfig) -> dict[str, Any]:
     if config.protocol == ANTHROPIC_MESSAGES_PROTOCOL:
         return {"max_tokens": limit, **parameters}
     # GPT-6 Chat Completions budgets include both reasoning and visible output.
-    model = find_model(config.model)
+    model = _request_model(config)
     key = "max_completion_tokens" if model and model.provider == "OpenAI" else "max_tokens"
     return {key: limit, **parameters}
 
 
 def reasoning_request_parameters(config: ApiConfig) -> dict[str, Any]:
     """Translate the four UI levels to documented provider/protocol values."""
-    model = find_model(config.model)
+    model = _request_model(config)
     effort = "low" if config.reasoning_effort == "auto" and _is_verified_deepseek(config) else config.reasoning_effort
     if effort in {"auto", "omit"}:
         return {}
@@ -196,13 +214,13 @@ def reasoning_request_parameters(config: ApiConfig) -> dict[str, Any]:
 def bounded_request_parameters(config: ApiConfig, limit: int) -> dict[str, Any]:
     """Connection probes and text completions share generation's effort mapping."""
     key = ("max_output_tokens" if config.protocol == OPENAI_RESPONSES_PROTOCOL else
-           "max_completion_tokens" if config.protocol == PROTOCOL_ID and (model := find_model(config.model)) and model.provider == "OpenAI" else "max_tokens")
+           "max_completion_tokens" if config.protocol == PROTOCOL_ID and (model := _request_model(config)) and model.provider == "OpenAI" else "max_tokens")
     return {key: limit, **reasoning_request_parameters(config)}
 
 
 def sampling_request_parameters(config: ApiConfig) -> dict[str, Any]:
     parameters = {}
-    model = find_model(config.model)
+    model = _request_model(config)
     # These providers ignore or reject temperature during reasoning. Omit it
     # rather than present a setting as effective when the API does not use it.
     no_temperature = bool(model and model.provider in {"OpenAI", "Anthropic", "DeepSeek"})
@@ -295,9 +313,9 @@ class _HttpClient:
         logger = logging.getLogger(__name__)
         endpoint = urlsplit(request.full_url)
         target = f"{endpoint.scheme}://{endpoint.hostname}{endpoint.path}"
-        logger.debug("HTTP request started: %s %s; protocol=%s model=%s timeout=%ss",
+        logger.debug("HTTP request started: %s %s; protocol=%s model=%s timeout=%ss model_provider=%s",
                      request.get_method(), target, self.config.protocol, self.config.model,
-                     self.config.timeout_seconds)
+                     self.config.timeout_seconds, self.config.model_provider or "catalog")
         if request.data:
             parameters = json.loads(request.data)
             options = {
@@ -1009,7 +1027,7 @@ class AnthropicMessagesClient(_HttpClient):
         system_prompt, input_text = prepare_json_input(system_prompt, payload, output_schema)
         parameters = structured_request_parameters(self.config)
         output_config = parameters.pop("output_config", {})
-        model = find_model(self.config.model)
+        model = _request_model(self.config)
         schema_issue = ("provider_has_no_native_format" if model and model.provider == "DeepSeek" else
                         _native_json_schema_issue(output_schema, dialect="anthropic"))
         if schema_issue:

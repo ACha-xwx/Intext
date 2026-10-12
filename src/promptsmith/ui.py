@@ -296,6 +296,9 @@ class PromptSmithApp(GuidedFlowMixin):
         self.status_var = tk.StringVar(value="就绪。真实模型尚未连接。")
         self.debug_console_enabled_var = self.preference_vars["debug_console_enabled"]
         self.provider_var = tk.StringVar(value=os.environ.get("PROMPTSMITH_PROVIDER", self._saved_connection.get("provider", "DeepSeek")))
+        self.model_provider_var = tk.StringVar(value=self.provider_var.get() if self.provider_var.get() in PROVIDER_PRESETS
+                                             else self._saved_connection.get("model_provider", ""))
+        self.provider_website_var = tk.StringVar(value=self._saved_connection.get("website", ""))
         self.protocol_var = tk.StringVar(value=self._saved_connection.get("protocol") if self._saved_connection.get("protocol") in PROTOCOL_LABELS else "OpenAI Chat Completions")
         self.api_base_var = tk.StringVar(value=os.environ.get("PROMPTSMITH_API_BASE_URL", self._saved_connection.get("base_url", "https://api.deepseek.com")))
         self.api_model_var = tk.StringVar(value=os.environ.get("PROMPTSMITH_MODEL", self._saved_connection.get("model", "deepseek-flash")))
@@ -311,6 +314,7 @@ class PromptSmithApp(GuidedFlowMixin):
         self._saved_api_key = ""
         self.api_key_var.trace_add("write", lambda *_: self.runtime_log.register_secret(self.api_key_var.get()))
         self.model_confirmation_var = tk.StringVar(value="尚未确认模型设置。测试连接只检查接口；点击“确认”后用于任务。")
+        self.model_directory_status_var = tk.StringVar(value="")
         self.category_var = tk.StringVar(value=CATEGORY_LABELS.get(self.session.selected_category, "自动判断"))
         # The interview depth is a user preference for coverage, not a hard
         # question/round budget.  Keep it in the session so it survives a
@@ -374,6 +378,7 @@ class PromptSmithApp(GuidedFlowMixin):
         # Tcl invokes newest traces first: capture the old provider draft before
         # the generic connection trace can invalidate its key/directory.
         self.provider_var.trace_add("write", self._on_provider_changed)
+        self.model_provider_var.trace_add("write", self._on_model_provider_changed)
         for key, variable in self.preference_vars.items():
             if FIELDS[key].category == "模型":
                 variable.trace_add("write", self._on_connection_changed)
@@ -394,6 +399,9 @@ class PromptSmithApp(GuidedFlowMixin):
         roots = self._skill_roots()
         self._submit(lambda: warm_local_skill_index(roots), lambda _value: None, lambda _exc: None,
                      session_scoped=False)
+        from .model_directory_refresh import ModelDirectoryRefresh
+        self.model_directory_refresh = ModelDirectoryRefresh(self)
+        self.model_directory_refresh.start()
 
     def _report_callback_exception(self, exc_type, value, traceback) -> None:
         logging.getLogger(__name__).error("Unhandled Tk callback exception",
@@ -1110,6 +1118,8 @@ class PromptSmithApp(GuidedFlowMixin):
         return self._draft_api_config(timeout_seconds=timeout_seconds)
 
     def _draft_api_config(self, *, timeout_seconds: float | None = None) -> ApiConfig:
+        from .model_catalog import validate_model_provider
+        validate_model_provider(self._public_model_connection())
         values = self._model_preference_values()
         return ApiConfig(
             base_url=self.api_base_var.get().strip(),
@@ -1122,6 +1132,7 @@ class PromptSmithApp(GuidedFlowMixin):
             temperature="auto" if values["temperature"] == "auto" else float(values["temperature"]) if values["temperature"] else None,
             top_p=float(values["top_p"]) if values["top_p"] else None,
             reasoning_effort=values["reasoning_effort"],
+            model_provider=self.model_provider_var.get() if self.provider_var.get() not in PROVIDER_PRESETS else "",
         )
 
     def _model_settings_confirmed(self) -> bool:
@@ -1157,19 +1168,20 @@ class PromptSmithApp(GuidedFlowMixin):
     def _client(self, config: ApiConfig):
         return client_for_config(config)
 
-    def _connection_snapshot(self) -> tuple[str, str, str, str]:
+    def _connection_snapshot(self) -> tuple[str, ...]:
         return (
             self.provider_var.get().strip(),
             PROTOCOL_LABELS[self.protocol_var.get()],
             self.api_base_var.get().strip(),
             self.api_key_var.get(),
+            self.model_provider_var.get() if self.provider_var.get() not in PROVIDER_PRESETS else "",
         )
 
     def _generation_snapshot(self) -> tuple[Any, ...]:
         parameters = tuple(self.preference_vars[key].get() for key, spec in FIELDS.items() if spec.category == "模型")
         return (*self._connection_snapshot(), self.api_model_var.get().strip(), *parameters)
 
-    def _model_directory_snapshot(self) -> tuple[str, str, str, str]:
+    def _model_directory_snapshot(self) -> tuple[str, ...]:
         return self._connection_snapshot()
 
     def _on_provider_changed(self, *_args: Any) -> None:
@@ -1196,8 +1208,18 @@ class PromptSmithApp(GuidedFlowMixin):
                 self._refresh_model_confirmation()
                 self._refresh_primary_action()
         self.settings_status_var.set("已切换供应商；各家的未保存输入暂存，保存设置仅保存当前供应商。")
+        self.model_directory_status_var.set(self.model_directory_refresh.statuses.get(provider, ""))
         logging.getLogger(__name__).info("Provider profile switched: provider=%s credential_present=%s models=%s confirmed=%s",
             provider, bool(self.api_key_var.get().strip()), len(self.widgets["api_model_combo"].cget("values")), self._model_settings_confirmed())
+
+    def _on_model_provider_changed(self, *_args):
+        if self._suppress_provider_callback:
+            return
+        family = self.model_provider_var.get()
+        if self.provider_var.get() not in PROVIDER_PRESETS and family in PROVIDER_PRESETS:
+            self.protocol_var.set(PROTOCOL_NAMES[PROVIDER_PRESETS[family]["protocol"]])
+        self._on_connection_changed()
+        logging.getLogger(__name__).info("Custom service model provider changed: family=%s", family or "unselected")
 
     def _on_connection_changed(self, *_args: Any) -> None:
         if self._suppress_provider_callback:
@@ -1216,6 +1238,8 @@ class PromptSmithApp(GuidedFlowMixin):
             self._confirmed_connection_state = None
         previous_directory = self._model_directory_state
         if directory_current != previous_directory:
+            if hasattr(self, "model_directory_refresh"):
+                self.model_directory_refresh.supersede(self.provider_var.get().strip())
             self.model_directory_version += 1
             self._model_directory_state = directory_current
             if "api_model_combo" in self.widgets:
@@ -1228,6 +1252,8 @@ class PromptSmithApp(GuidedFlowMixin):
         self._refresh_primary_action()
 
     def _model_directory_config(self) -> ApiConfig:
+        from .model_catalog import validate_model_provider
+        validate_model_provider(self._public_model_connection())
         return ApiConfig(
             base_url=self.api_base_var.get().strip(),
             model=self.api_model_var.get().strip() or "directory-only",
@@ -1235,6 +1261,7 @@ class PromptSmithApp(GuidedFlowMixin):
             timeout_seconds=self._model_preference_values()["connection_timeout"],
             provider=self.provider_var.get().strip(),
             protocol=PROTOCOL_LABELS[self.protocol_var.get()],
+            model_provider=self.model_provider_var.get() if self.provider_var.get() not in PROVIDER_PRESETS else "",
         )
 
     def _set_busy(self, busy: bool, text: str | None = None) -> None:
@@ -1262,6 +1289,7 @@ class PromptSmithApp(GuidedFlowMixin):
             self._show_error("配置不完整", str(exc), parent=self.root)
             return
         snapshot = self._model_directory_snapshot()
+        self.model_directory_refresh.supersede(self.provider_var.get().strip())
         request_connection_version = self.model_directory_version
         self.busy_kind = "model_list"
         self._set_busy(True, "正在从当前供应商获取模型列表...")
@@ -1274,7 +1302,7 @@ class PromptSmithApp(GuidedFlowMixin):
 
     def _models_ok(
         self,
-        snapshot: tuple[str, str, str, str],
+        snapshot: tuple[str, ...],
         result: ModelListResult,
         request_connection_version: int | None = None,
     ) -> None:
@@ -1303,7 +1331,7 @@ class PromptSmithApp(GuidedFlowMixin):
 
     def _models_failed(
         self,
-        snapshot: tuple[str, str, str, str],
+        snapshot: tuple[str, ...],
         exc: Exception,
         request_connection_version: int | None = None,
     ) -> None:
@@ -5255,6 +5283,7 @@ class PromptSmithApp(GuidedFlowMixin):
         if self._shutdown:
             return
         self._shutdown = True
+        self.model_directory_refresh.close(wait=wait)
         self._close_response_view()
         self.typography.close()
         self._session_tasks.cancel()

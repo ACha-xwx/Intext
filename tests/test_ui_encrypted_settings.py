@@ -12,7 +12,7 @@ from promptsmith.ui import PromptSmithApp
 
 
 pytestmark = pytest.mark.skipif(sys.platform != "win32", reason="Uses Windows DPAPI and Tk")
-CONNECTION = {"provider": "Custom fixture", "protocol": "OpenAI Chat Completions",
+CONNECTION = {"provider": "Custom fixture", "model_provider": "Google", "protocol": "OpenAI Chat Completions",
               "base_url": "https://example.invalid/v1", "model": "offline-model"}
 
 
@@ -22,6 +22,7 @@ def app(tk_root, tmp_path):
     window.withdraw()
     instance = PromptSmithApp(window, diagnostics_root=tmp_path, evidence_root=tmp_path / "runs")
     instance.provider_var.set(CONNECTION["provider"])
+    instance.model_provider_var.set(CONNECTION["model_provider"])
     instance.protocol_var.set(CONNECTION["protocol"])
     instance.api_base_var.set(CONNECTION["base_url"])
     instance.api_model_var.set(CONNECTION["model"])

@@ -59,11 +59,20 @@ PROVIDER_PRESETS = {
 }
 
 
+def validate_model_provider(connection) -> str:
+    """Custom service names require an explicit request family."""
+    service = connection.get("provider", "").strip()
+    family = service if service in PROVIDERS else connection.get("model_provider", "").strip()
+    if family not in PROVIDERS:
+        raise ValueError("请为自定义服务选择模型供应商（OpenAI、Anthropic、xAI、Google 或 DeepSeek）。")
+    return family
+
+
 def find_model(model_id: str) -> ModelPreset | None:
     return next((model for model in MODELS if model.id == model_id.strip()), None)
 
 
-def picker_models(current_id: str, discovered_ids=(), *, service_provider="") -> tuple[ModelPreset, ...]:
+def picker_models(current_id: str, discovered_ids=(), *, service_provider="", model_provider="") -> tuple[ModelPreset, ...]:
     """Decorate actual fetched IDs with local metadata, never add suggestions."""
     seen = set()
     models = []
@@ -71,9 +80,14 @@ def picker_models(current_id: str, discovered_ids=(), *, service_provider="") ->
         model_id = str(value).strip()
         if model_id and model_id not in seen:
             seen.add(model_id)
-            preset = find_model(model_id) or ModelPreset(model_id, model_id, "custom",
+            family = service_provider if service_provider in PROVIDERS else model_provider
+            known = find_model(model_id)
+            if family not in PROVIDERS and known is None:
+                continue  # Legacy custom service must select a family in settings first.
+            preset = known or ModelPreset(model_id, model_id, family,
                 "当前接口返回的模型；暂无本地介绍与能力资料", image=False, reasoning=False)
-            models.append(replace(preset, service_provider=service_provider))
+            models.append(replace(preset, provider=family if service_provider not in PROVIDERS and family in PROVIDERS else preset.provider,
+                                  service_provider=service_provider))
     return tuple(models)
 
 

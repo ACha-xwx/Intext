@@ -12,7 +12,7 @@ def page(browser_page):
       if(action==='settings_provider'){
         const current=promptsmithSettings.current;
         return {ok:true,data:{settings:{...current,
-          connection:{provider:data.target,...current.providers[data.target]},
+          connection:{provider:data.target,...(current.providers[data.target]||{protocol:'OpenAI Chat Completions',base_url:'',model:'',model_provider:''})},
           has_key:false,confirmed:false,available_models:[],revision:'switched-'+data.target}}};
       }
       return {ok:true};
@@ -145,7 +145,7 @@ def test_clicking_exact_typed_preset_applies_linked_fields_without_clearing_same
     page.evaluate("window.calls=[];window.pywebview={api:{diagnostic:async()=>{},snapshot:async()=>null,dispatch:async(action,data)=>{calls.push({action,data});return {ok:true};}}}")
     load(page, page="settings", settings=state["settings"])
     page.get_by_role("button", name="服务名称预设", exact=True).click()
-    page.get_by_role("option", name="OpenAI", exact=True).click()
+    page.get_by_role("listbox", name="服务名称预设", exact=True).get_by_role("option", name="OpenAI", exact=True).click()
     page.get_by_role("button", name="保存设置", exact=True).click()
     page.wait_for_function("calls.some(c=>c.action==='settings_save')")
     assert page.evaluate("calls.find(c=>c.action==='settings_save').data.key_action") == "keep"
@@ -190,10 +190,14 @@ def test_settings_choice_wrappers_keep_custom_inputs_presets_keyboard_and_save_p
     assert protocol.input_value() == "OpenAI Responses"
     provider.fill("自建中转服务")
     provider.press("Tab")
+    page.wait_for_function("!inFlight&&promptsmithSettings.current.connection.provider==='自建中转服务'")
+    page.get_by_label("模型供应商", exact=True).select_option("OpenAI")
+    page.get_by_label("接口地址", exact=True).fill("https://gateway.example.invalid/v1")
     model = page.get_by_label("模型 ID", exact=True)
     model.fill("custom-model-v2")
     model.press("Tab")
-    load(page, page="settings", settings=state["settings"])
+    updated = page.evaluate("promptsmithSettings.current")
+    load(page, page="settings", settings=updated)
     assert provider.input_value() == "自建中转服务" and model.input_value() == "custom-model-v2"
     page.get_by_role("button", name="保存设置", exact=True).click()
     page.wait_for_function("calls.some(c=>c.action==='settings_save')")

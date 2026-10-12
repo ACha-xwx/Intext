@@ -124,8 +124,9 @@ def test_autogrow_and_placeholder_are_not_sent_text(app):
 
 
 def test_custom_directory_preserves_current_and_searches_all_providers():
-    models = picker_models("private-model", ("private-model", "other-private", "deepseek-flash"))
-    assert [m.id for m in search_models(models, "custom", "")] == ["private-model", "other-private"]
+    models = (*picker_models("private-model", ("private-model", "other-private"), service_provider="自定义服务", model_provider="OpenAI"),
+              *picker_models("", ("deepseek-flash",), service_provider="DeepSeek"))
+    assert [m.id for m in search_models(models, "OpenAI", "")] == ["private-model", "other-private"]
     assert len([m for m in models if m.id == "private-model"]) == 1
     assert {m.provider for m in search_models(models, "DeepSeek", "方案")} >= {"DeepSeek"}
 
@@ -185,7 +186,7 @@ def test_large_custom_model_list_scrolls_and_exposes_full_descriptions(app):
     app.root.update()
     widget.toggle_picker()
     picker = widget.picker
-    picker.select_provider("custom")
+    picker.select_provider("DeepSeek")
     app.root.update()
     assert picker.scroll.winfo_ismapped()
     # A drag reaches models outside the initial viewport; selection on the
@@ -204,6 +205,6 @@ def test_large_custom_model_list_scrolls_and_exposes_full_descriptions(app):
     row = picker.row_widgets[-1]
     picker._show_row_tip(row)
     assert row._full_description in picker.provider_tip.cget("text")
-    picker.select_provider("DeepSeek")
+    picker.select_provider("OpenAI")
     app.root.update()
     assert not picker.scroll.winfo_ismapped()

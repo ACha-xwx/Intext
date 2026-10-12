@@ -33,6 +33,8 @@ python -m venv .venv
 
 界面中填写服务、协议、接口地址、模型 ID 和自己的 API Key。支持 OpenAI Chat Completions、OpenAI Responses、Anthropic Messages。连接测试通过只说明探测请求成功，正式结构化生成仍需验证服务支持。
 
+每个供应商分别保存接口、加密 API Key 和模型列表。以后启动会自动在后台刷新所有已保存密钥的供应商列表，刷新期间可以使用之前的列表；失败时保留缓存并提示重试。“获取模型”按钮仍可随时手动刷新，获取列表不会代替模型设置的“确认”。
+
 ```powershell
 .venv/Scripts/python.exe run_promptsmith.py --smoke-test
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1

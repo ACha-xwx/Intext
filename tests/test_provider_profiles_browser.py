@@ -17,7 +17,7 @@ def test_provider_switch_submits_source_draft_and_uses_restored_profile(page):
     }}""")
     page.get_by_label("API Key", exact=True).fill("disposable-browser-draft")
     page.get_by_role("button", name="服务名称预设", exact=True).click()
-    page.get_by_role("option", name="OpenAI", exact=True).click()
+    page.get_by_role("listbox", name="服务名称预设", exact=True).get_by_role("option", name="OpenAI", exact=True).click()
     page.wait_for_function("calls.some(c=>c.action==='settings_provider')")
     payload = page.evaluate("calls.find(c=>c.action==='settings_provider').data")
     assert payload["target"] == "OpenAI"

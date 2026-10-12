@@ -250,6 +250,7 @@ class ResponseTrace(tk.Frame):
         self.record = record
         self.opened = False
         self._header_text = None
+        self._has_thought = None
         self._indicator_after = None
         self._indicator_phase = 0
         self.started = time.monotonic()
@@ -365,6 +366,20 @@ class ResponseTrace(tk.Frame):
         self.thinking_button.set_open(self.thought_frame.opened)
 
     def update_status(self):
+        has_thought = bool(str(self.record.get("reasoning") or "").strip())
+        if has_thought != self._has_thought:
+            if has_thought:
+                self.thinking_button.pack(fill="x", before=self.pills)
+                self.thought_frame.pack(fill="x", padx=(15, 0), before=self.pills)
+            else:
+                focus = self.focus_get()
+                if focus is self.thinking_button or (focus and str(focus).startswith(str(self.thought_frame) + ".")):
+                    self.header.focus_set()
+                self.thinking_button.pack_forget()
+                self.thought_frame.pack_forget()
+            self._has_thought = has_thought
+            logging.getLogger(__name__).debug("Reasoning visibility changed: id=%s visible=%s",
+                                             self.record.get("id"), has_thought)
         status = self.record.get("status")
         label = {"working": "正在处理…", "done": "已完成", "failed": "处理未完成", "cancelled": "已取消"}.get(status, "已完成")
         text = f"{label} · {self.record.get('elapsed', 0):.1f} 秒"

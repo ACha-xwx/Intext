@@ -8,7 +8,7 @@ from promptsmith.preferences import defaults, load_settings, save_preferences, u
 
 
 pytestmark = pytest.mark.skipif(sys.platform != "win32", reason="Uses actual current-user DPAPI")
-CONNECTION = {"provider": "Fixture", "protocol": "OpenAI Chat Completions",
+CONNECTION = {"provider": "Fixture", "model_provider": "Google", "protocol": "OpenAI Chat Completions",
               "base_url": "https://example.invalid/v1", "model": "offline-model"}
 
 
