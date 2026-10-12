@@ -5,15 +5,21 @@ snapshot at click time, is the authority for a consolidated user confirmation.
 """
 from __future__ import annotations
 
+from .typography import ui_font
+
 from copy import deepcopy
+import logging
 import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog
 
 from .session import SessionState, SessionStateError
 from .finalization import DeliveryValidationError
+from .conversation import ConversationWorkspaceMixin
+from .settings_ui import SettingsMixin
+from .response_ui import ReplyButton, palette
 
 
-class GuidedFlowMixin:
+class GuidedFlowMixin(ConversationWorkspaceMixin, SettingsMixin):
     @staticmethod
     def _format_guided_question(question, *, number: int | None = None) -> str:
         """Render a follow-up question as one complete, readable context."""
@@ -22,13 +28,19 @@ class GuidedFlowMixin:
         text = str(question.get("text") or question.get("question_text") or "补充说明").strip()
         prefix = f"{number}. " if number is not None else ""
         body = [text]
-        options = [str(value).strip() for value in question.get("options", []) if str(value).strip()]
-        if options:
-            body.append("可选内容包括：" + "、".join(options) + "。")
         reason = str(question.get("reason") or "").strip()
         if reason:
             body.append(reason)
         return prefix + "".join(body)
+
+    @staticmethod
+    def _format_guided_question_card(question, *, number: int | None = None) -> str:
+        """Render only the user-facing question and its answer choices."""
+        if not isinstance(question, dict):
+            return "请补充你想说明的内容。"
+        text = str(question.get("text") or question.get("question_text") or "请补充你想说明的内容。").strip()
+        prefix = f"{number}. " if number is not None else ""
+        return prefix + text
 
     @classmethod
     def _format_guided_questions(cls, questions) -> str:
@@ -89,7 +101,7 @@ class GuidedFlowMixin:
         frame.columnconfigure(0, weight=1)
         frame.rowconfigure(0, weight=1)
         widget = tk.Text(frame, height=height, wrap="word", state="disabled", relief="flat",
-                         padx=8, pady=6, background="#f6f7f9", font=("Microsoft YaHei UI", 12))
+                         padx=8, pady=6, background="#f6f7f9", font=ui_font(self.root))
         widget.grid(row=0, column=0, sticky="nsew")
         scroll = ttk.Scrollbar(frame, command=widget.yview)
         scroll.grid(row=0, column=1, sticky="ns")
@@ -101,40 +113,41 @@ class GuidedFlowMixin:
         self._requirements_preview_shown = None
         self._plan_preview_shown = None
         self._answer_target_id = None
+        self._conversation_refreshing = False
         self._navigation_revision = 0
         self._plan_navigation_at_start = None
         self._settings_page_index = 4
         self._settings_return_index = 0
         self.guidance_var = tk.StringVar(value="先告诉我你想完成什么。")
         self.question_context_var = tk.StringVar()
+        self.question_progress_var = tk.StringVar()
         self.draft_explanation_var = tk.StringVar()
         self.preview_note_var = tk.StringVar()
         self._flow_progress = tk.StringVar(value="需求 → 方案 → 结果")
         self._shown_interpretations = {}
-        shell = ttk.Frame(self.root, padding=(18, 12))
+        colors = palette(self.preferences["composer_theme"])
+        shell = tk.Frame(self.root, bg=colors["bg"], padx=18, pady=12)
         shell.pack(fill="both", expand=True)
         shell.columnconfigure(0, weight=1)
         shell.rowconfigure(1, weight=1)
-        header = ttk.Frame(shell)
+        header = tk.Frame(shell, bg=colors["bg"])
         header.grid(row=0, column=0, sticky="ew", pady=(0, 8))
         header.columnconfigure(1, weight=1)
-        identity = ttk.Frame(header)
+        identity = tk.Frame(header, bg=colors["bg"])
         identity.grid(row=0, column=0, sticky="w")
-        brand = ttk.Label(identity, text="PromptSmith", style="Title.TLabel")
+        brand = tk.Label(identity, text="PromptSmith", bg=colors["bg"], fg=colors["fg"], font=ui_font(self.root, "title", "bold"))
         brand.pack(side="left")
-        flow = ttk.Label(identity, textvariable=self._flow_progress, style="Muted.TLabel")
+        flow = tk.Label(identity, textvariable=self._flow_progress, bg=colors["bg"], fg=colors["muted"], font=ui_font(self.root))
         flow.pack(side="left", padx=18)
-        navigation = ttk.Frame(header)
+        navigation = tk.Frame(header, bg=colors["bg"])
         navigation.grid(row=0, column=1, sticky="w")
-        for label, index in (("当前需求", 0), ("方案", 1), ("结果", 3)):
-            ttk.Button(navigation, text=label, command=lambda i=index: self.show_workspace(i)).pack(side="left", padx=3)
-        actions = ttk.Frame(header)
+        for label, index in (("对话", 0),):
+            ReplyButton(navigation, text=label, command=lambda i=index: self.show_workspace(i), theme=self.preferences["composer_theme"]).pack(side="left", padx=3)
+        actions = tk.Frame(header, bg=colors["bg"])
         actions.grid(row=0, column=2, sticky="e")
-        save = ttk.Button(actions, text="保存", command=self.save)
-        save.pack(side="right")
-        settings = ttk.Button(actions, text="设置", command=self.show_settings)
+        settings = ReplyButton(actions, text="设置", command=self.show_settings, theme=self.preferences["composer_theme"])
         settings.pack(side="right", padx=(0, 8))
-        self.widgets.update(save_button=save, settings_button=settings)
+        self.widgets.update(settings_button=settings, workspace_actions=actions)
 
         def fit_header(event):
             identity_width = brand.winfo_reqwidth()
@@ -155,6 +168,9 @@ class GuidedFlowMixin:
         header.bind("<Configure>", fit_header, add="+")
         style = ttk.Style(self.root)
         style.layout("Flow.TNotebook.Tab", [])
+        # Keep the page navigation contract without a native panel border.
+        style.layout("Flow.TNotebook", [])
+        style.configure("Flow.TNotebook", background=colors["bg"], borderwidth=0, padding=0)
         self.notebook = ttk.Notebook(shell, style="Flow.TNotebook")
         self.notebook.grid(row=1, column=0, sticky="nsew")
         self.widgets["notebook"] = self.notebook
@@ -162,216 +178,45 @@ class GuidedFlowMixin:
                     self._build_export_page, self._build_settings_page)
         for key, title, builder in zip(("requirements", "plan", "skills", "export", "settings"),
                                        ("当前需求", "方案", "Skill（可选）", "结果", "设置"), builders):
-            page, content = self._scrollable_page(key)
+            if key == "requirements":
+                page = tk.Frame(self.notebook, bg=colors["bg"])
+                content = page
+            else:
+                page, content = self._scrollable_page(key)
             self.notebook.add(page, text=title)
             builder(content)
-        bottom = ttk.Frame(shell, padding=(0, 8, 0, 0))
+        bottom = tk.Frame(shell, bg=colors["bg"], pady=4)
         bottom.grid(row=2, column=0, sticky="ew")
         bottom.columnconfigure(0, weight=1)
-        guidance = ttk.Label(bottom, textvariable=self.guidance_var, wraplength=800)
+        guidance = tk.Label(bottom, textvariable=self.guidance_var, wraplength=800, anchor="w", justify="left",
+                            bg=colors["bg"], fg=colors["muted"], font=ui_font(self.root, 10))
         guidance.grid(row=0, column=0, sticky="ew", padx=(0, 15))
-        primary = ttk.Button(bottom, textvariable=self.primary_action_var, command=self.run_primary_action)
+        primary = ReplyButton(bottom, text=self.primary_action_var.get(), command=self.run_primary_action,
+                              theme=self.preferences["composer_theme"])
         primary.grid(row=0, column=1, sticky="e")
         self.widgets["analyze_button"] = primary
-        status = ttk.Label(shell, textvariable=self.status_var, style="Muted.TLabel", wraplength=1050)
-        status.grid(row=3, column=0, sticky="ew", pady=(6, 0))
+        self.widgets.update(workspace_shell=shell, workspace_header=header, workspace_footer=bottom,
+                            workspace_guidance=guidance)
         shell.bind("<Configure>", lambda e: guidance.configure(wraplength=max(360, e.width-300)), add="+")
         self.notebook.bind("<<NotebookTabChanged>>", self._workspace_changed, add="+")
         self.answer_var.trace_add("write", lambda *_: self._refresh_primary_action())
         self._register_page_wheel_routing()
 
     def _build_settings_page(self, page):
-        from .ui import PROTOCOL_LABELS, PROVIDER_PRESETS
-        page.columnconfigure(0, weight=1)
-        heading = ttk.Frame(page)
-        heading.grid(row=0, column=0, sticky="ew", pady=(0, 12))
-        ttk.Label(heading, text="设置", style="Section.TLabel").pack(side="left")
-        back = ttk.Button(heading, text="返回工作区", command=self.return_from_settings)
-        back.pack(side="right")
-        self.widgets["settings_return_button"] = back
-        note = ttk.Label(page, text="配置需求分析、方案生成和 Skill 整合使用的模型。完成后返回工作区继续。",
-                         style="Muted.TLabel", wraplength=800)
-        note.grid(row=1, column=0, sticky="ew", pady=(0, 16))
-        page.bind("<Configure>", lambda e: note.configure(wraplength=max(240, e.width-24)), add="+")
-        api = ttk.LabelFrame(page, text="模型设置", padding=(16, 12))
-        api.grid(row=2, column=0, sticky="ew")
-        self.widgets["connection_panel"] = api
-        api.columnconfigure(1, weight=1)
-        api.columnconfigure(3, weight=1)
-        fields = (("服务名称", self.provider_var, tuple(PROVIDER_PRESETS), "provider_combo"),
-                  ("协议", self.protocol_var, tuple(PROTOCOL_LABELS), "protocol_combo"))
-        for i, (label, var, values, name) in enumerate(fields):
-            ttk.Label(api, text=label).grid(row=0, column=2*i, sticky="w", padx=(0, 6))
-            combo = ttk.Combobox(api, textvariable=var, values=values, state="readonly" if i else "normal")
-            combo.grid(row=0, column=2*i+1, sticky="ew", padx=(0, 12))
-            self.widgets[name] = combo
-            self._bind_context_menu(combo)
-        ttk.Label(api, text="接口地址").grid(row=1, column=0, sticky="w", pady=6)
-        base = ttk.Entry(api, textvariable=self.api_base_var)
-        base.grid(row=1, column=1, sticky="ew", padx=(0, 12))
-        ttk.Label(api, text="模型 ID").grid(row=1, column=2, sticky="w")
-        model = ttk.Combobox(api, textvariable=self.api_model_var)
-        model.grid(row=1, column=3, sticky="ew", padx=(0, 12))
-        ttk.Label(api, text="API Key").grid(row=2, column=0, sticky="w")
-        key = ttk.Entry(api, textvariable=self.api_key_var, show="•")
-        key.grid(row=2, column=1, sticky="ew", padx=(0, 12))
-        fetch = ttk.Button(api, text="获取模型", command=self.fetch_models)
-        fetch.grid(row=2, column=2, sticky="w")
-        test = ttk.Button(api, text="测试连接", command=self.test_connection)
-        test.grid(row=2, column=3, sticky="w")
-        self.widgets.update(api_base_entry=base, api_model_entry=model, api_model_combo=model, api_key_entry=key,
-                            model_list_button=fetch, test_connection_button=test)
-        for widget in (base, model, key):
-            self._bind_context_menu(widget)
-        confirmation = ttk.Frame(api)
-        confirmation.grid(row=3, column=0, columnspan=4, sticky="ew", pady=(16, 0))
-        confirmation.columnconfigure(0, weight=1)
-        label = ttk.Label(confirmation, textvariable=self.model_confirmation_var,
-                          style="Muted.TLabel", wraplength=800)
-        label.grid(row=0, column=0, sticky="ew", padx=(0, 12))
-        confirm = ttk.Button(confirmation, text="确认", command=self.confirm_model_settings)
-        confirm.grid(row=0, column=1, sticky="e")
-        self.widgets["confirm_model_settings_button"] = confirm
-        confirmation.bind("<Configure>", lambda e: label.configure(wraplength=max(200, e.width-120)), add="+")
+        self._build_categorized_settings(page)
 
     def _build_requirements_page(self, page):
-        from .ui import CATEGORY_LABELS
-        page.columnconfigure(0, weight=1)
-        task = ttk.Frame(page, padding=(8, 8))
-        task.grid(row=0, column=0, sticky="ew")
-        task.columnconfigure(0, weight=1)
-        ttk.Label(task, text="你想完成什么？", style="Section.TLabel").grid(row=0, column=0, sticky="w", pady=(0, 6))
-        task_text = tk.Text(task, height=3, wrap="word", undo=True, font=("Microsoft YaHei UI", 12))
-        task_text.grid(row=1, column=0, sticky="ew")
-        task_text.bind("<<Modified>>", self._on_task_text_modified, add="+")
-        category = ttk.Combobox(task, textvariable=self.category_var, values=["自动判断", *CATEGORY_LABELS.values()], state="readonly", width=18)
-        category.grid(row=2, column=0, sticky="w", pady=(6, 0))
-        category.bind("<<ComboboxSelected>>", self._on_category_selected)
-        depth = ttk.Frame(task)
-        depth.grid(row=3, column=0, sticky="w", pady=(7, 0))
-        ttk.Label(depth, text="整理深度").pack(side="left", padx=(0, 6))
-        thinking_labels = {
-            "quick": "快速：先把基本任务说清",
-            "standard": "标准：补齐常见关键信息",
-            "deep": "深入：系统梳理复杂任务",
-        }
-        thinking_combo = ttk.Combobox(
-            depth,
-            textvariable=self.thinking_level_display_var,
-            values=tuple(thinking_labels.values()),
-            state="readonly",
-            width=26,
-        )
-        self._thinking_labels = thinking_labels
-        self._thinking_levels_by_label = {label: key for key, label in thinking_labels.items()}
-        current_level = self.session.control.get("thinking_level", "standard")
-        self.thinking_level_display_var.set(thinking_labels.get(current_level, thinking_labels["standard"]))
-        self.thinking_level_var.set(current_level)
-        thinking_combo.bind("<<ComboboxSelected>>", self._on_thinking_level_selected)
-        thinking_combo.pack(side="left")
-        ttk.Label(depth, text="问题会更少或更细，仍由信息是否足够决定是否继续。", style="Muted.TLabel").pack(side="left", padx=(8, 0))
-        self.widgets.update(task_text=task_text, category_combo=category, thinking_level_combo=thinking_combo)
-        self._bind_context_menu(task_text)
-        question = ttk.LabelFrame(page, text="补充与回答", padding=12)
-        question.grid(row=2, column=0, sticky="ew", pady=(8, 8))
-        question.columnconfigure(0, weight=1)
-        ttk.Label(question, textvariable=self.question_context_var, wraplength=1010).grid(row=0, column=0, sticky="ew")
-        interpretation = ttk.Frame(question)
-        interpretation.grid(row=1, column=0, sticky="ew", pady=(4, 3))
-        interpretation.columnconfigure(0, weight=1)
-        answer = ttk.Entry(question, textvariable=self.answer_var, font=("Microsoft YaHei UI", 12))
-        answer.grid(row=2, column=0, sticky="ew", pady=(6, 6))
-        answer.bind("<Return>", lambda _e: self.submit_guided_answer())
-        options = ttk.Frame(question)
-        options.grid(row=3, column=0, sticky="ew")
-        skip = ttk.Button(options, text="先跳过", command=lambda: self.skip_guided_question("skipped"))
-        skip.pack(side="left")
-        unsure = ttk.Button(options, text="我不确定", command=lambda: self.skip_guided_question("unsure"))
-        unsure.pack(side="left", padx=6)
-        correct = ttk.Button(options, text="我来说明", command=self.correct_guided_interpretation)
-        correct.pack(side="left")
-        draft = ttk.Button(question, text="先做草稿", command=self.continue_with_draft)
-        draft.grid(row=4, column=0, sticky="w")
-        self.widgets.update(question_panel=question, answer_entry=answer, interpretation_panel=interpretation,
-                            skip_question_button=skip, unsure_question_button=unsure, draft_continue_button=draft)
-        self._bind_context_menu(answer)
-        preview = ttk.LabelFrame(page, text="当前需求 · 在这里一起核对", padding=10)
-        preview.grid(row=3, column=0, sticky="ew", pady=(4, 8))
-        preview.columnconfigure(0, weight=1)
-        ttk.Label(preview, textvariable=self.preview_note_var, style="Muted.TLabel", wraplength=1010).grid(row=0, column=0, sticky="ew")
-        tree = self._tree(preview, ("text", "source"), (730, 180), height=5)
-        tree.heading("text", text="需求内容")
-        tree.heading("source", text="内容来源")
-        tree._promptsmith_container.grid(row=1, column=0, sticky="ew", pady=6)
-        tree.bind("<<TreeviewSelect>>", lambda _e: self.show_preview_details())
-        editbar = ttk.Frame(preview)
-        editbar.grid(row=2, column=0, sticky="ew")
-        ttk.Button(editbar, text="编辑选中内容", command=self.edit_preview_item).pack(side="left")
-        ttk.Button(editbar, text="移除选中内容", command=self.remove_preview_item).pack(side="left", padx=6)
-        accept_understanding = ttk.Button(editbar, text="按这段理解", command=self.accept_selected_understanding)
-        accept_understanding.pack(side="left")
-        self.widgets["accept_understanding_button"] = accept_understanding
-        change = ttk.Button(editbar, text="采用这项修改", command=self.adopt_preview_change)
-        self.widgets["adopt_change_button"] = change
-        detailframe, details = self._reading_text(preview, height=3)
-        detailframe.grid(row=3, column=0, sticky="ew", pady=(6, 0))
-        self.widgets.update(requirements_preview_tree=tree, preview_panel=preview, preview_details_text=details)
-        conflict_frame, conflict_text = self._reading_text(preview, height=4)
-        conflict_frame.grid(row=4, column=0, sticky="ew", pady=(6, 0))
-        self.widgets.update(conflict_reading_panel=conflict_frame, conflict_reading_text=conflict_text)
-        history = self._fold(page, "已回答和已跳过的问题 · 可以补答", 4)
-        histree = self._tree(history, ("question", "answer", "choice"), (420, 390, 120), height=3)
-        histree._promptsmith_container.grid(row=0, column=0, sticky="ew")
-        ttk.Button(history, text="补答选中问题", command=self.reopen_selected_history).grid(row=1, column=0, sticky="w", pady=5)
-        self.widgets.update(question_history_tree=histree, question_history_panel=history)
-        # Existing editing/diagnostic widgets remain available behind details.
-        advanced = self._fold(page, "来源、版本与详细操作", 5)
-        ttk.Label(advanced, textvariable=self.summary_var).grid(row=0, column=0, sticky="w")
-        ttk.Label(advanced, text=self._status_versions_text(), style="Muted.TLabel").grid(row=1, column=0, sticky="w")
-        reqs = self._tree(advanced, ("field", "text", "status"), (140, 660, 120), height=3)
-        reqs._promptsmith_container.grid(row=2, column=0, sticky="ew")
-        props = self._tree(advanced, ("operation", "field", "text"), (100, 140, 660), height=3)
-        props._promptsmith_container.grid(row=3, column=0, sticky="ew", pady=5)
-        questions = self._tree(advanced, ("field", "text"), (150, 740), height=2)
-        questions._promptsmith_container.grid(row=4, column=0, sticky="ew")
-        detailframe, olddetails = self._reading_text(advanced, height=4)
-        detailframe.grid(row=5, column=0, sticky="ew", pady=5)
-        review = ttk.Button(advanced, text="复核选中需求", command=self.review_selected_requirements)
-        review.grid(row=6, column=0, sticky="w")
-        rounds = ttk.Button(advanced, text="继续整理当前回答", command=self.add_rounds)
-        # Retained in the details area for old sessions; it does not expose a
-        # question budget and is not part of the normal path.
-        for widget, kind in ((reqs, "requirement"), (props, "proposal"), (questions, "question")):
-            widget.bind("<<TreeviewSelect>>", lambda _e, k=kind: self._show_selected_details(k))
-        self.widgets.update(requirements_tree=reqs, proposals_tree=props, questions_tree=questions,
-                            details_text=olddetails, review_requirements_button=review, continue_button=rounds,
-                            advanced_requirements_panel=advanced)
-        m5 = self._fold(page, "用示例说明你的偏好（可选）", 6)
-        self._build_guided_m5(m5)
-        self.widgets["m5_panel"] = m5
-
-    def _build_guided_m5(self, frame):
-        criterion = ttk.Entry(frame)
-        criterion.grid(row=0, column=0, sticky="ew")
-        generate = ttk.Button(frame, text="生成示例", command=self.start_m5_generation)
-        generate.grid(row=0, column=1, padx=6)
-        ttk.Label(frame, textvariable=self.m5_status_var, wraplength=950).grid(row=1, column=0, columnspan=2, sticky="ew", pady=5)
-        container, examples = self._reading_text(frame, height=5)
-        container.grid(row=2, column=0, columnspan=2, sticky="ew")
-        choices = ttk.Frame(frame)
-        choices.grid(row=3, column=0, columnspan=2, sticky="w", pady=5)
-        self.widgets.update(m5_criterion_entry=criterion, m5_generate_button=generate, m5_examples_text=examples)
-        for name, label, disposition in (("a", "更接近 A", "a"), ("b", "更接近 B", "b"), ("neither", "都不喜欢", "neither"), ("skip", "跳过", "skipped")):
-            button = ttk.Button(choices, text=label, command=lambda d=disposition: self.select_m5_disposition(d))
-            button.pack(side="left", padx=(0, 5))
-            self.widgets[{"a": "m5_option_a_button", "b": "m5_option_b_button"}.get(name, f"m5_{name}_button")] = button
-        feedback = ttk.Entry(frame)
-        feedback.grid(row=4, column=0, sticky="ew")
-        save = ttk.Button(frame, text="记录这项偏好", command=self.record_m5_feedback)
-        save.grid(row=4, column=1, padx=6)
-        self.widgets.update(m5_feedback_entry=feedback, m5_feedback_button=save)
-        for widget in (criterion, feedback):
-            self._bind_context_menu(widget)
+        self._thinking_labels = {"quick": "快速：先把基本任务说清", "standard": "标准：补齐常见关键信息", "deep": "深入：系统梳理复杂任务"}
+        self._thinking_levels_by_label = {label:key for key,label in self._thinking_labels.items()}
+        current = self.session.control.get("thinking_level", "standard")
+        self.thinking_level_var.set(current)
+        self.thinking_level_display_var.set(self._thinking_labels.get(current,self._thinking_labels["standard"]))
+        self._build_conversation_workspace(page)
+        # Unmapped task buffer preserves existing save/workflow input contracts;
+        # the composer is the sole visible goal editor.
+        task = tk.Text(page, font=ui_font(self.root), undo=True)
+        task.bind("<<Modified>>",self._on_task_text_modified,add="+")
+        self.widgets["task_text"] = task
 
     def _build_plan_page(self, page):
         page.columnconfigure(0, weight=1)
@@ -409,10 +254,14 @@ class GuidedFlowMixin:
             page.rowconfigure(row, weight=0)
         for child in page.grid_slaves(row=3):
             child.grid_remove()
-        optional = ttk.Button(page, text="试运行、语气与完整方案（可选）", command=self.toggle_result_options)
+        optional = ttk.Button(page, text="语气与完整方案（可选）", command=self.toggle_result_options)
         optional.grid(row=11, column=0, sticky="w", pady=8)
         self.widgets["result_optional_button"] = optional
         self._result_options_open = False
+        if "conversation_input" in self.widgets:
+            self.widgets["conversation_input"].delete("1.0", "end")
+            self._conversation_signature = None
+            self.toggle_conversation_details(False)
         self._result_optional_controls = controls
 
     def toggle_result_options(self):
@@ -442,8 +291,12 @@ class GuidedFlowMixin:
         self._refresh_primary_action()
 
     def _reset_guided_view(self):
+        self._reset_response_view()
         self._answer_target_id = None
         self.answer_var.set("")
+        if "conversation_input" in self.widgets:
+            self.widgets["conversation_input"].delete("1.0", "end")
+        self._conversation_signature = None
         self._shown_interpretations = {}
         self._requirements_preview_shown = None
         self._plan_preview_shown = None
@@ -456,6 +309,13 @@ class GuidedFlowMixin:
 
     def _reveal_guided(self, widget):
         """Bring the next editable control into view without changing business state."""
+        details = self.widgets.get("conversation_details")
+        parent = widget
+        while parent is not None:
+            if parent is details:
+                self.toggle_conversation_details(True)
+                break
+            parent = getattr(parent, "master", None)
         self.root.update_idletasks()
         canvas = self._page_canvas_by_frame.get(str(self.notebook.select()))
         if canvas is not None and widget.winfo_ismapped():
@@ -470,7 +330,7 @@ class GuidedFlowMixin:
         widget.focus_set()
 
     def _blocking_gaps(self):
-        return [g for g in self.session.gaps if g.get("importance") == "blocking_direction"]
+        return self.session._blocking_gap_snapshot()
 
     def _last_m1_failure(self):
         for run in reversed(self.session.api_runs):
@@ -499,21 +359,32 @@ class GuidedFlowMixin:
         if page == self._settings_page_index:
             reason = "模型设置已确认；返回工作区继续当前任务。" if self._model_settings_confirmed() else "测试连接只检查接口；请点击模型设置中的“确认”后继续。"
             return PrimaryAction("return_from_settings", "返回工作区", reason)
-        if self.busy:
+        if self.busy or self.delivery_busy or self._skill_search_busy:
             return PrimaryAction("busy", "正在整理…", "正在处理，你可以查看已有内容。", False)
         if not self._visible_task_text():
             return PrimaryAction("focus_task", "先输入任务", "先告诉我你想完成什么。")
         if self.session.task_text and self._visible_task_text() != self.session.task_text.strip():
             missing = self._missing_generation_config()
             return PrimaryAction("focus_connection", "补全模型连接", "先填写模型连接，就可以开始整理。") if missing else PrimaryAction("analyze", "开始整理", "先整理你提供的信息，必要时只问关键问题。")
+        if self.session.workspace_navigation()["revisiting"]:
+            return PrimaryAction("continue_stage", "继续下一步", "继续使用已经保存的成果，不重新调用模型。")
         if page == 0 and self.answer_var.get().strip():
             return PrimaryAction("submit_answer", "提交回答", "这次提交会记录你的补充并继续整理，不用重复填写。")
+        if self.session.questions_for_review():
+            return PrimaryAction("focus_question", "逐项核对待补充内容", "先回答或跳过当前问题，核对完再确认需求和方案。")
+        from .interview import rounds_used, round_limit
+        if rounds_used(self.session) >= round_limit(self.session) and self.session.questions_for_review(respect_interview_limit=False):
+            pending_answers = any(q.get("assessment_status") == "pending" and q.get("disposition") == "answered"
+                                  for q in self.session.question_history)
+            if not pending_answers:
+                return PrimaryAction("review_remaining_unknowns", "决定是否继续追问", "本轮已完成；请核对剩余未知，选择再问一轮，或保留到使用提示词时补充。")
         if self.session.confirmed_requirements_version == self.session.requirement_version:
             plan = self.session.plan
             if plan.get("status") == "draft":
                 if page == 3 and (self.session.final_result.get("content") or {}).get("plan_review_pending"):
                     return PrimaryAction("focus_final", "查看草稿", "这是保留未知的草稿，可以直接保存或导出；以后说明含义再完善。")
-                return PrimaryAction("confirm_plan_generate" if page == 1 else "view_plan", "确认方案并生成提示" if page == 1 else "查看方案", "核对方案后即可生成可复制、保存和导出的提示；未决事项可在使用时补充，Skill 可选。")
+                can_confirm_here = page in {0, 1}
+                return PrimaryAction("confirm_plan_generate" if can_confirm_here else "view_plan", "确认方案并生成提示" if can_confirm_here else "查看方案", "请核对方案；未定信息交由下游 AI 处理，Skill 可选。")
             if plan.get("status") == "confirmed":
                 final = self.session.final_result
                 if final.get("status") in {"draft", "confirmed"}:
@@ -532,7 +403,7 @@ class GuidedFlowMixin:
             if self._missing_generation_config():
                 return PrimaryAction("focus_connection", "补全模型连接", "你的回答已保留，补全连接后可重试分析。")
             return PrimaryAction("retry_compact" if self.workflow.m1_retry_recommended() else "analyze_answer", "重试分析", "刚才没有收到完整可用的结果，你的回答已保留。点击只重试一次。")
-        if self.session.pending_questions:
+        if self.session.questions_for_review():
             return PrimaryAction("focus_question", "回答问题", "在当前问题下方直接回答；暂时不知道也可以跳过。")
         if any(q.get("assessment_status") == "pending" and q.get("disposition") == "answered" for q in self.session.question_history):
             if self._missing_generation_config():
@@ -598,22 +469,25 @@ class GuidedFlowMixin:
         action = self._primary_action()
         self.primary_action_var.set(action.label)
         self.guidance_var.set(action.reason)
-        self.widgets["analyze_button"].configure(state="normal" if action.enabled else "disabled")
+        self.widgets["analyze_button"].configure(text=action.label, state="normal" if action.enabled else "disabled")
+        self._refresh_conversation()
 
     def run_primary_action(self):
         if self.notebook.index(self.notebook.select()) == self._settings_page_index:
             self.return_from_settings()
             return
-        if self.busy:
+        if self._conversation_locked():
             return
         if self._visible_task_text():
             try:
                 self._sync_input()
             except (ValueError, SessionStateError) as exc:
-                messagebox.showerror("无法同步任务", str(exc), parent=self.root)
+                self._show_error("无法同步任务", str(exc), parent=self.root)
                 return
         action = self._primary_action()
-        if action.kind == "submit_answer":
+        if action.kind == "continue_stage":
+            self.navigate_workspace("next")
+        elif action.kind == "submit_answer":
             self.submit_guided_answer()
         elif action.kind == "confirm_requirements":
             self.confirm_preview_and_plan()
@@ -625,14 +499,20 @@ class GuidedFlowMixin:
             self.integrate_selected_skills()
         elif action.kind == "view_plan":
             self.show_workspace(1)
+        elif action.kind == "review_remaining_unknowns":
+            self.show_workspace(0)
+            self._conversation_focus_key = "interview_unknowns"
+            self._conversation_scroll_latest(force=True)
         elif action.kind == "focus_question":
             self.show_workspace(0)
-            self._reveal_guided(self.widgets["answer_entry"])
+            self.widgets["conversation_input"].focus_set()
+            self._conversation_scroll_latest(force=True)
         elif action.kind == "focus_conflict":
             self.review_current_conflict()
         elif action.kind in {"focus_review", "focus_proposal"}:
             self.show_workspace(0)
-            self._reveal_guided(self.widgets["requirements_preview_tree"])
+            if self._workspace_popover is None:
+                self.toggle_requirements_review()
         elif action.kind == "focus_connection":
             self.show_settings()
             for key in ("api_base_entry", "api_model_entry", "api_key_entry"):
@@ -642,7 +522,13 @@ class GuidedFlowMixin:
             else:
                 self._reveal_guided(self.widgets["confirm_model_settings_button"])
         elif action.kind == "focus_final":
-            self.show_workspace(3)
+            if self.notebook.index(self.notebook.select()) == 0:
+                self._conversation_scroll_latest(force=True)
+            else:
+                self.show_workspace(3)
+        elif action.kind == "focus_task":
+            self.show_workspace(0)
+            self.widgets["conversation_input"].focus_set()
         else:
             self._legacy_run_primary_action()
 
@@ -655,6 +541,8 @@ class GuidedFlowMixin:
         participants = [requirements[key] for key in conflict.get("existing_item_ids", []) if key in requirements]
         participants += [proposals[key] for key in conflict.get("proposal_ids", []) if key in proposals]
         self.show_workspace(0)
+        if self._workspace_popover is None or self._workspace_popover.kind != "requirements":
+            self.toggle_requirements_review()
         tree = self.widgets["requirements_preview_tree"]
         for kind, keys in (("r", conflict.get("existing_item_ids", [])), ("p", conflict.get("proposal_ids", []))):
             first = next((f"{kind}:{key}" for key in keys if tree.exists(f"{kind}:{key}")), None)
@@ -683,20 +571,21 @@ class GuidedFlowMixin:
             self.status_var.set("已选中一项相关要求，可在上方编辑或移除。")
 
     def submit_guided_answer(self):
-        if self.busy or not self.answer_var.get().strip():
+        if self._conversation_locked() or not self.answer_var.get().strip():
             return
         text = self.answer_var.get().strip()
         try:
             self._sync_input()
             self._reject_displayed_interpretations()
-            context_gap_ids = [gap["gap_id"] for gap in self.session.gaps]
+            context_gap_ids = [gap["gap_id"] for gap in self.session.active_gaps()]
             history_start = len(self.session.question_history)
             if self._answer_target_id:
-                self.session.reopen_question(self._answer_target_id)
+                if not any(q["question_id"] == self._answer_target_id for q in self.session.questions_for_review()):
+                    self.session.reopen_question(self._answer_target_id)
                 self.session.record_question(self._answer_target_id, "answered", text, context_gap_ids=context_gap_ids)
-            elif self.session.pending_questions:
-                for question in list(self.session.pending_questions)[:3]:
-                    self.session.record_question(question["question_id"], "answered", text, context_gap_ids=context_gap_ids)
+            elif self.session.questions_for_review():
+                question = self.session.questions_for_review()[0]
+                self.session.record_question(question["question_id"], "answered", text, context_gap_ids=context_gap_ids)
             else:
                 shown_gaps = (self._requirements_preview_shown or {}).get("gaps", [])
                 gap_ids = [g["gap_id"] for g in shown_gaps if g.get("importance") == "blocking_direction"]
@@ -707,20 +596,24 @@ class GuidedFlowMixin:
                 for answer in submitted:
                     answer['submission_group_id'] = group
         except SessionStateError as exc:
-            messagebox.showerror("无法记录补充", str(exc), parent=self.root)
+            self._show_error("无法记录补充", str(exc), parent=self.root)
             return
         self._answer_target_id = None
         self.answer_var.set("")
         self.refresh()
-        self.start_analysis()
+        # Keep collecting the visible question cards before asking the model
+        # to reassess the task. The final request then contains the complete
+        # question history instead of an intermediate partial answer.
+        if not self.session.questions_for_review() and not self._missing_generation_config():
+            self.start_analysis()
 
     def skip_guided_question(self, disposition):
-        if self.busy:
+        if self._conversation_locked():
             return
         try:
-            if self._answer_target_id:
+            if self._answer_target_id and not any(q["question_id"] == self._answer_target_id for q in self.session.questions_for_review()):
                 self.session.reopen_question(self._answer_target_id)
-            pending = self.session.pending_questions
+            pending = self.session.questions_for_review()
             inferred = next((p for p in self.session.pending_proposals if p.get("interpretation_for") and p["proposal_id"] in self._shown_interpretations), None)
             if inferred:
                 self.session.decide_interpretation(inferred["proposal_id"], "skipped")
@@ -735,12 +628,17 @@ class GuidedFlowMixin:
             else:
                 return
         except SessionStateError as exc:
-            messagebox.showerror("无法记录选择", str(exc), parent=self.root)
+            self._show_error("无法记录选择", str(exc), parent=self.root)
             return
         self._answer_target_id = None
         self.answer_var.set("")
         self.status_var.set("已记录你的选择，你可以继续或以后补答。")
         self.refresh()
+        if (not self.session.questions_for_review()
+                and any(q.get("assessment_status") == "pending" and q.get("disposition") == "answered"
+                        for q in self.session.question_history)
+                and not self._missing_generation_config()):
+            self.start_analysis()
 
     def _reject_displayed_interpretations(self):
         for key in list(self._shown_interpretations):
@@ -752,16 +650,17 @@ class GuidedFlowMixin:
             return
         self._reject_displayed_interpretations()
         self.refresh()
-        self._reveal_guided(self.widgets["answer_entry"])
+        self.widgets["conversation_input"].focus_set()
 
     def reopen_guided_question(self, question_id):
         # Selection is view state; the existing question is reopened only on submit.
         self._answer_target_id = question_id
         row = next((q for q in reversed(self.session.question_history) if q["question_id"] == question_id), None)
         if row:
-            self.question_context_var.set(self._format_guided_question(row))
+            self.question_progress_var.set("补答历史问题")
+            self.question_context_var.set(self._format_guided_question_card(row))
         self.show_workspace(0)
-        self._reveal_guided(self.widgets["answer_entry"])
+        self.widgets["conversation_input"].focus_set()
 
     def reopen_selected_history(self):
         selected = self.widgets["question_history_tree"].selection()
@@ -796,11 +695,15 @@ class GuidedFlowMixin:
         except (SessionStateError, ValueError) as exc:
             self.status_var.set(str(exc))
             self.refresh()
+            if self.session.questions_for_review():
+                self.show_workspace(0)
             return
         self.generate_default_final()
 
     def generate_default_final(self):
         if self.busy:
+            return
+        if self._return_to_unknown_questions():
             return
         if self.session.skill_state.get("bindings"):
             self.integrate_selected_skills()
@@ -812,14 +715,29 @@ class GuidedFlowMixin:
             return
         self.generate_no_skill_final()
 
+    def _return_to_unknown_questions(self):
+        if not self.session.questions_for_review(respect_interview_limit=False):
+            return False
+        logging.getLogger(__name__).info("Workflow returned to clarification; task=%s questions=%d",
+                                        self.session.task_id, len(self.session.questions_for_review(respect_interview_limit=False)))
+        self.status_var.set("请先逐项回答或跳过待补充问题，再核对需求和方案。")
+        self.refresh()
+        self.show_workspace(0)
+        self._conversation_scroll_latest(force=True)
+        return True
+
     def confirm_plan_and_find_skills(self):
         if self.busy:
             return
         try:
+            self.session.validate_unknown_reviews()
             if self.session.plan.get("status") != "confirmed":
                 self.session.confirm_plan_preview(self._plan_preview_shown)
         except (SessionStateError, ValueError) as exc:
             self.status_var.set(str(exc))
+            self.refresh()
+            if self.session.questions_for_review():
+                self.show_workspace(0)
             return
         self.find_skills()
         self.show_workspace(2)
@@ -837,23 +755,7 @@ class GuidedFlowMixin:
             self.export_draft_markdown()
 
     def show_preview_details(self):
-        self.widgets["adopt_change_button"].pack_forget()
-        selected = self.widgets["requirements_preview_tree"].selection()
-        if not selected:
-            self.widgets["accept_understanding_button"].configure(state="disabled")
-            self._set_text_widget(self.widgets["preview_details_text"], "")
-            return
-        kind, key = selected[0].split(":", 1)
-        name = "requirements_tree" if kind == "r" else "proposals_tree"
-        self.widgets[name].selection_set(key)
-        self._show_selected_details("requirement" if kind == "r" else "proposal")
-        self._set_text_widget(self.widgets["preview_details_text"], self.widgets["details_text"].get("1.0", "end-1c"))
-        row = next((p for p in self.session.pending_proposals if p["proposal_id"] == key), None) if kind == "p" else None
-        self.widgets["accept_understanding_button"].configure(state="normal" if row and row.get("kind") == "pending_interpretation" and not self.busy else "disabled")
-        if row and row.get("operation") in {"replace", "withdraw"} and row.get("kind") != "pending_interpretation":
-            button = self.widgets["adopt_change_button"]
-            button.configure(state="disabled" if self.busy else "normal")
-            button.pack(side="left", padx=6)
+        self._conversation_show_requirement_selection()
 
     def adopt_preview_change(self):
         if self.busy:
@@ -864,6 +766,9 @@ class GuidedFlowMixin:
         key = selected[0][2:]
         current = next((p for p in self.session.pending_proposals if p["proposal_id"] == key), None)
         shown = next((p for p in (self._requirements_preview_shown or {}).get("pending_proposals", []) if p["proposal_id"] == key), None)
+        if current and current == shown and current.get("kind") == "pending_interpretation":
+            self.accept_selected_understanding()
+            return
         if not current or current != shown or current.get("operation") not in {"replace", "withdraw"}:
             self.status_var.set("这项修改已经变化，请先查看当前内容。")
             self.refresh()
@@ -903,33 +808,24 @@ class GuidedFlowMixin:
             return
         kind, key = selected[0].split(":", 1)
         if kind == "r":
-            self.widgets["requirements_tree"].selection_set(key)
-            self.edit_selected_requirement()
+            self.edit_selected_requirement(item_id=key)
         else:
             row = next(p for p in self.session.pending_proposals if p["proposal_id"] == key)
             text = simpledialog.askstring("修改这项理解", "请用你的话说明：", initialvalue=row["text"], parent=self.root)
             if text and text.strip():
-                working = deepcopy(self.session)
-                link = row.get("interpretation_for")
+                import re
+                if re.sub(r"[ \t]+", " ", text.strip()) == re.sub(r"[ \t]+", " ", row["text"].strip()):
+                    self.status_var.set("需求内容未变化，无需重新整理。")
+                    logging.getLogger(__name__).info("Requirement edit unchanged; task=%s proposal=%s; model_request=False",
+                                                     self.session.task_id, key)
+                    return
                 try:
-                    if link:
-                        working.decide_interpretation(key, "rejected")
-                    else:
-                        archived = deepcopy(row)
-                        archived["deferred_reason"] = "user_corrected_candidate"
-                        working.deferred_proposals.append(archived)
-                        working._drop_candidate_ids({key})
-                    correction = f"将候选“{row['text']}”改为：“{text.strip()}”。"
-                    gap_ids = [link['gap_id']] if link else None
-                    working.record_supplement(correction, gap_ids=gap_ids,
-                                              context_gap_ids=[g['gap_id'] for g in working.gaps])
+                    self.session.edit_proposal(key, text)
                 except SessionStateError as exc:
                     self.status_var.set(str(exc))
                     return
-                self.session.__dict__.update(deepcopy(working.__dict__))
-                self.status_var.set("修改已记录，将重新整理受影响的内容。")
+                self.status_var.set("修改已保存。请核对当前内容；需要重新整理时可主动发起。")
                 self.refresh()
-                self.start_analysis()
 
     def remove_preview_item(self):
         if self.busy:
@@ -953,94 +849,15 @@ class GuidedFlowMixin:
         self.refresh()
 
     def _refresh_guided(self):
-        from .ui import FIELD_LABELS, KIND_LABELS
         if not hasattr(self, "guidance_var"):
             return
-        self._requirements_preview_shown = self.session.requirements_preview() if hasattr(self.session, "requirements_preview") else None
-        self._plan_preview_shown = self.session.plan_preview() if hasattr(self.session, "plan_preview") else None
-        tree = self.widgets["requirements_preview_tree"]
-        selected = tree.selection()
-        tree.delete(*tree.get_children())
-        for prefix, rows, idkey in (("r", self.session.requirements, "item_id"), ("p", self.session.pending_proposals, "proposal_id")):
-            for row in rows:
-                source = KIND_LABELS.get(row.get("kind"), row.get("kind", "AI 建议"))
-                if row.get("kind") == "pending_interpretation":
-                    source = "AI 推测，请先判断"
-                field = FIELD_LABELS.get(row.get("field"), row.get("field", "内容"))
-                old = next((r["text"] for r in self.session.requirements if r["item_id"] == row.get("target_item_id")), None)
-                text = f"{field}：{row.get('text', '请展开查看来源')}"
-                if old and prefix == "p":
-                    text = f"{field}：{old} → {row['text'] if row.get('operation') != 'withdraw' else '移除'}"
-                tree.insert("", "end", iid=f"{prefix}:{row[idkey]}", values=(text, source))
-        for item in selected:
-            if tree.exists(item):
-                tree.selection_set(item)
-        self.preview_note_var.set("请核对这些内容，AI 建议会标明来源；重要推测需先单独判断。" if tree.get_children() else "")
-        task_result = (self._requirements_preview_shown or {}).get("suggested_task_result")
-        if task_result:
-            self.preview_note_var.set(f"想要的结果先按你的原话“{task_result}”整理，不另加格式或篇幅要求。请核对下面的内容；需要调整时在上方说明。")
-        self.widgets["preview_panel"].grid() if tree.get_children() else self.widgets["preview_panel"].grid_remove()
-        if self.session.open_conflicts:
-            requirements = {r["item_id"]: r["text"] for r in self.session.requirements}
-            proposals = {r["proposal_id"]: r.get("text", "撤回这项要求") for r in self.session.pending_proposals}
-            lines = ["这些内容互相矛盾，请在上方选中内容后编辑或移除；明确的替换建议可以选中后采用。"]
-            for conflict in self.session.open_conflicts:
-                lines.append(conflict.get("description", "要求需要核对"))
-                lines.extend(f"当前需求：{requirements[key]}" for key in conflict.get("existing_item_ids", []) if key in requirements)
-                lines.extend(f"候选修改：{proposals[key]}" for key in conflict.get("proposal_ids", []) if key in proposals)
-            self._set_text_widget(self.widgets["conflict_reading_text"], "\n".join(lines))
-            self.widgets["conflict_reading_panel"].grid()
-        else:
-            self.widgets["conflict_reading_panel"].grid_remove()
-        history = self.widgets["question_history_tree"]
-        old_selected = history.selection()
-        history.delete(*history.get_children())
-        for i, row in enumerate(self.session.question_history):
-            history.insert("", "end", iid=str(i), values=(row.get("text", row.get("question_text", "")), row.get("answer_text", ""), {"answered": "已回答", "skipped": "已跳过", "unsure": "暂不确定"}.get(row["disposition"], "")))
-        if old_selected and history.exists(old_selected[0]):
-            history.selection_set(old_selected[0])
-        self.widgets["question_history_panel"]._wrapper.grid() if self.session.question_history else self.widgets["question_history_panel"]._wrapper.grid_remove()
-        blocking = self._blocking_gaps()
-        pending = self.session.pending_questions
-        if not self._answer_target_id:
-            if pending:
-                self.question_context_var.set(self._format_guided_questions(pending[:3]))
-            elif blocking:
-                self.question_context_var.set("还没确定：" + "；".join(g["description"] for g in blocking) + "。可以在这里补充。")
-            elif not self._preview_check():
-                self.question_context_var.set("请核对下方需求；没有要补充或修改的地方，点击底部“确认需求并生成方案”。需要调整也可以在这里说明。")
-            elif "goal" in (self._requirements_preview_shown or {}).get("missing_direction_fields", []):
-                self.question_context_var.set("你想让另一个 AI 帮你完成什么？在这里简单说明就好。")
-            elif "deliverable" in (self._requirements_preview_shown or {}).get("missing_direction_fields", []):
-                self.question_context_var.set("你希望另一个 AI 最后给出什么结果？在这里简单说明就好。")
-            else:
-                self.question_context_var.set("还有想补充或修改的地方？直接写在这里就好。")
-        self.widgets["question_panel"].grid() if self.session.sources else self.widgets["question_panel"].grid_remove()
-        for name in ("skip_question_button", "unsure_question_button"):
-            button = self.widgets[name]
-            button.pack(side="left", padx=6 if name == "unsure_question_button" else 0) if pending else button.pack_forget()
-            button.configure(state="normal" if pending and not self.busy else "disabled")
-        interpretations = [p for p in self.session.pending_proposals if p.get("interpretation_for")][:2]
-        if interpretations:
-            self.question_context_var.set(
-                self._format_guided_context(
-                    self.question_context_var.get(),
-                    self._format_guided_interpretations(interpretations),
-                )
-            )
-        explanation = (self._requirements_preview_shown or {}).get("draft_explanation", "")
-        self.draft_explanation_var.set(explanation)
-        self.question_context_var.set(
-            self._format_guided_context(self.question_context_var.get(), explanation)
-        )
-        draftbutton = self.widgets["draft_continue_button"]
-        if blocking:
-            draftbutton.grid()
-            problem = self._preview_check(draft=True) if hasattr(self.session, "confirm_requirements_preview") else "尚未就绪"
-            draftbutton.configure(state="normal" if not problem and not self.busy else "disabled")
-        else:
-            draftbutton.grid_remove()
-        self._render_interpretations()
+        self._requirements_preview_shown = self.session.requirements_preview()
+        self._plan_preview_shown = self.session.plan_preview()
+        self._shown_interpretations = {p["proposal_id"]:deepcopy(p) for p in self.session.pending_proposals if p.get("interpretation_for")}
+        pending = self.session.questions_for_review()
+        if pending and not self._answer_target_id:
+            self.question_context_var.set(self._format_guided_question_card(pending[0]))
+        self.draft_explanation_var.set((self._requirements_preview_shown or {}).get("draft_explanation", ""))
         plancontent = self.session.plan.get("content")
         if isinstance(plancontent, dict):
             lines = [plancontent.get("goal", {}).get("summary", ""), self._plan_overview(plancontent), "\n步骤："]
@@ -1056,32 +873,8 @@ class GuidedFlowMixin:
         else:
             self._set_text_widget(self.widgets["plan_reading_text"], "核对需求后，方案会显示在这里。")
         self._refresh_guided_visibility()
-        self.show_preview_details()
         self._refresh_primary_action()
-
-    def _render_interpretations(self):
-        frame = self.widgets["interpretation_panel"]
-        for child in frame.winfo_children():
-            child.destroy()
-        rows = [p for p in self.session.pending_proposals if p.get("interpretation_for")][:2]
-        self._shown_interpretations = {p["proposal_id"]: deepcopy(p) for p in rows}
-        if rows:
-            frame.grid()
-        else:
-            # An empty Tk frame retains its previous requested height.
-            frame.grid_remove()
-        for i, p in enumerate(rows):
-            label = "是这个意思" if len(rows) == 1 else f"按解释 {i + 1}"
-            ttk.Button(
-                frame,
-                text=label,
-                command=lambda key=p["proposal_id"]: self.accept_guided_interpretation(key),
-            ).grid(row=i, column=0, sticky="w", pady=(0, 6))
-        # Interpretation controls are created after the initial page bindings.
-        for child in frame.winfo_children():
-            tags = child.bindtags()
-            if self._wheel_bindtag not in tags:
-                child.bindtags((tags[0], self._wheel_bindtag, *tags[1:]))
+        self._refresh_conversation()
 
     def accept_guided_interpretation(self, proposal_id):
         if self.busy:
@@ -1104,12 +897,11 @@ class GuidedFlowMixin:
         if "result_optional_button" not in self.widgets:
             return
         content = self.session.final_result.get("content") or {}
-        for name, visible in (("trial_run_button", self._result_options_open),
-                              ("m2_suggestions_tree", bool(content.get("suggestions", []))),
+        for name, visible in (("m2_suggestions_tree", bool(content.get("suggestions", []))),
                               ("m4_changes_tree", bool(content.get("integration_changes", []))),
                               ("final_review_items_tree", bool(self._final_review_lookup))):
             widget = self.widgets[name]
-            container = widget.master if name == "trial_run_button" else widget.master.master
+            container = widget.master.master
             if visible:
                 container.grid()
             else:

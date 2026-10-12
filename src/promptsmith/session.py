@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -43,6 +44,8 @@ def _default_control() -> dict[str, Any]:
         "context_coverage": "complete",
         "thinking_level": "standard",
         "thinking_policy": "coverage_based",
+        "interview_rounds_used": 0,
+        "interview_round_limit": 5,
         # Empty means the UI should use its environment/default GitHub API URL.
         "skill_search_url": "",
     }
@@ -163,7 +166,7 @@ def _migrate_skill_state(value: Any, legacy_selected: Any, *, stored_version: st
         migrated_search.update(deepcopy(search_state))
         search_state = migrated_search
     if search_state.get("status") not in {
-        "idle", "local_running", "local_done", "network_running", "network_done", "error"
+        "idle", "local_running", "local_done", "network_running", "network_done", "error", "cancelled"
     }:
         search_state["status"] = "idle"
     elif search_state.get("status") in {"local_running", "network_running"}:
@@ -292,7 +295,6 @@ class SessionState:
     m5_state: dict[str, Any] = field(default_factory=_default_m5_state)
     m5_examples: list[dict[str, Any]] = field(default_factory=list)
     m5_feedback: list[dict[str, Any]] = field(default_factory=list)
-    trial_runs: list[dict[str, Any]] = field(default_factory=list)
     errors: list[dict[str, Any]] = field(default_factory=list)
     runtime_api_key: str = field(default="", repr=False, compare=False)
 
@@ -321,17 +323,30 @@ class SessionState:
         values["m5_state"] = _migrate_m5_state(values.get("m5_state"))
         values.setdefault("m5_examples", [])
         values.setdefault("m5_feedback", [])
-        values.setdefault("trial_runs", [])
         values.setdefault("final_archive", [])
         values.setdefault("delivery_revision", 0)
         session = cls(**values)
+        # Earlier versions materialized M2 unknowns as compulsory questions.
+        # Keep plan unknowns and answers, but retire that automatic queue.
+        obsolete = [q for q in session.pending_questions
+                    if q.get("clarification_scope") == "plan" and not q.get("user_requested_reopen")]
+        if obsolete:
+            session.pending_questions = [q for q in session.pending_questions if q not in obsolete]
+            logging.getLogger(__name__).info("Retired automatic planning follow-ups on load; task=%s count=%s; unknowns preserved for downstream AI",
+                                            session.task_id, len(obsolete))
+        legacy_runs = data.get("trial_runs")
+        if isinstance(legacy_runs, list) and legacy_runs:
+            logging.getLogger(__name__).info("Ignored retired prompt execution history while loading session; records=%d", len(legacy_runs))
         session._validate_loaded_plan()
         pending = session.pending_requests
         if isinstance(pending, dict) and pending:
+            retired = sum(isinstance(request, dict) and request.get("purpose") == "trial" for request in pending.values())
+            if retired:
+                logging.getLogger(__name__).info("Discarded retired prompt execution requests while loading session; count=%d", retired)
             interrupted = [
                 {"request_id": request_id, "purpose": request.get("purpose", "unknown")}
                 for request_id, request in pending.items()
-                if isinstance(request, dict)
+                if isinstance(request, dict) and request.get("purpose") != "trial"
             ]
             session.pending_requests = {}
             session.errors.extend(
@@ -352,6 +367,107 @@ class SessionState:
 
     def touch(self) -> None:
         self.updated_at = _now()
+
+    def workspace_navigation(self) -> dict[str, Any]:
+        """Read-only review position; revisiting never revokes confirmations."""
+        confirmed = self.confirmed_requirements_version == self.requirement_version
+        review_ready = (self.last_next_action == "review_requirements" or self.plan.get("content")) and not self.questions_for_review() and not any(
+            q.get("assessment_status") == "pending" and q.get("disposition") == "answered" for q in self.question_history)
+        route = ["interview"]
+        if confirmed or ((self.requirements or self.pending_proposals) and review_ready):
+            route.append("requirements")
+        if confirmed:
+            route.append("plan")
+            if self.plan.get("status") == "confirmed":
+                route.append("skills")
+                if self.final_result.get("canonical_body") and self.final_result.get("status") in {"draft", "confirmed"}:
+                    if self.skill_state.get("status") == "skipped" and not self.skill_state.get("bindings"):
+                        route.remove("skills")
+                    route.append("result")
+        basis = [self.requirement_version, self.confirmed_requirements_version,
+                 self.plan.get("plan_version"), self.plan.get("status"),
+                 self.skill_state.get("revision"), self.delivery_revision,
+                 self.final_result.get("revision"), self.final_result.get("status")]
+        saved = self.control.get("workspace_navigation")
+        natural = route[-1]
+        stage = saved.get("stage") if isinstance(saved, dict) and saved.get("basis") == basis else natural
+        if stage not in route:
+            stage = natural
+        index = route.index(stage)
+        return {"stage": stage, "natural": natural, "revisiting": stage != natural,
+                "previous": route[index-1] if index else None,
+                "next": route[index+1] if index+1 < len(route) else None, "basis": basis}
+
+    def navigate_workspace(self, direction: str) -> str:
+        navigation = self.workspace_navigation()
+        if direction not in {"previous", "next"} or not navigation.get(direction):
+            raise SessionStateError("当前没有可返回或继续的步骤。")
+        stage = navigation[direction]
+        self.control["workspace_navigation"] = {"stage": stage, "basis": navigation["basis"]}
+        self.touch()
+        logging.getLogger(__name__).info("Workspace review navigation; task=%s from=%s to=%s direction=%s results_preserved=True model_requests=0",
+                                        self.task_id, navigation["stage"], stage, direction)
+        return stage
+
+    def active_gaps(self) -> list[dict[str, Any]]:
+        from .clarification import without_skipped_unknowns
+        return without_skipped_unknowns(self, self.gaps)
+
+    def questions_for_review(self, *, include_plan: bool = True, respect_interview_limit: bool = True) -> list[dict[str, Any]]:
+        from .clarification import review_candidates
+        from .interview import rounds_used, round_limit
+
+        if (self.plan.get("status") in {"draft", "confirmed"}
+                and self.plan.get("source_requirements_version") == self.requirement_version
+                and self.confirmed_requirements_version == self.requirement_version):
+            return deepcopy([q for q in self.pending_questions if q.get("user_requested_reopen")
+                             or (q.get("field") == "supplement" and q.get("clarification_scope") != "plan")])
+
+        excluded = {row["gap_id"] for row in self.gaps} - {row["gap_id"] for row in self.active_gaps()}
+        questions = deepcopy([q for q in self.pending_questions
+                              if (q.get("clarification_scope") != "plan" or q.get("user_requested_reopen"))
+                              and (q.get("gap_id") not in excluded or q.get("user_requested_reopen"))])
+        if respect_interview_limit and not questions and rounds_used(self) >= round_limit(self):
+            return []
+        known = {q["question_id"] for q in questions}
+        questions.extend(q for q in review_candidates(self, include_plan=include_plan)
+                         if q["question_id"] not in known)
+        return questions
+
+    def validate_unknown_reviews(self, *, include_plan: bool = True) -> None:
+        if self.questions_for_review(include_plan=include_plan, respect_interview_limit=False):
+            # UI refreshes use this read-only guard to project enabled states.
+            # Actual answers, interview transitions and failed UI actions log
+            # at their event boundaries; polling is not a new user event.
+            raise SessionStateError("请先逐项回答或跳过待补充问题，再核对并确认。")
+
+    def defer_remaining_interview_unknowns(self) -> int:
+        from .interview import rounds_used, round_limit
+        if rounds_used(self) < round_limit(self) or self.pending_questions:
+            raise SessionStateError("请先完成当前访谈问题，再核对剩余未知。")
+        if any(q.get("assessment_status") == "pending" and q.get("disposition") == "answered" for q in self.question_history):
+            raise SessionStateError("请先整理已记录的回答，再决定哪些内容使用时补充。")
+        working = deepcopy(self)
+        questions = working.questions_for_review(respect_interview_limit=False)
+        for question in questions:
+            working.record_question(question["question_id"], "unsure")
+        self.__dict__.update(deepcopy(working.__dict__))
+        logging.getLogger(__name__).info("User retained unknowns after bounded interview; task=%s count=%s", self.task_id, len(questions))
+        return len(questions)
+
+    def authorize_next_interview_round(self) -> int:
+        from .interview import rounds_used, round_limit
+        used = rounds_used(self)
+        if used < round_limit(self) or self.pending_questions:
+            raise SessionStateError("请先完成当前轮的问题，再决定是否继续。")
+        if any(q.get("assessment_status") == "pending" and q.get("disposition") == "answered" for q in self.question_history):
+            raise SessionStateError("请先整理已记录的回答，再决定是否继续追问。")
+        if not self.questions_for_review(respect_interview_limit=False):
+            raise SessionStateError("当前没有需要继续追问的未知，请先核对需求。")
+        self.control["interview_round_limit"] = used + 1
+        self.touch()
+        logging.getLogger(__name__).info("User authorized one additional interview round; task=%s next_round=%s", self.task_id, used + 1)
+        return used + 1
 
     def _next_id(self, prefix: str, rows: list[dict[str, Any]], key: str) -> str:
         highest = 0
@@ -660,12 +776,14 @@ class SessionState:
         for update in result.get("gap_updates", []):
             gap_id = update.get("target_gap_id")
             answer_id = update.get("answer_id")
-            if gap_id not in gaps:
-                raise SessionStateError(f"缺口更新引用了不存在的缺口：{gap_id}")
             answer = answers.get(answer_id)
             if answer is None:
                 raise SessionStateError(f"缺口更新引用了不存在或已处理的回答：{answer_id}")
             allowed_gaps = set(answer.get("context_gap_ids", [])) | {answer.get("gap_id")}
+            if gap_id not in gaps and not (
+                gap_id in allowed_gaps and update.get("action") in {"resolved", "not_applicable"}
+            ):
+                raise SessionStateError(f"缺口更新引用了不存在的缺口：{gap_id}")
             if gap_id not in allowed_gaps:
                 raise SessionStateError("缺口更新的回答与目标缺口不一致。")
             if gap_id in answer.get("assessed_gap_ids", []):
@@ -811,6 +929,8 @@ class SessionState:
         self.open_conflicts = []
         self.gaps = []
         self.question_history = []
+        self.control["interview_rounds_used"] = 0
+        self.control["interview_round_limit"] = 5
         self.gap_update_history = []
         self.question_reopen_history = []
         self.interpretation_history = []
@@ -851,6 +971,7 @@ class SessionState:
         return deepcopy(snapshot)
 
     def validate_m2_entry(self) -> None:
+        self.validate_unknown_reviews(include_plan=False)
         if not self.task_text.strip():
             raise SessionStateError("任务为空，不能生成初始方案。")
         if not self.requirements:
@@ -865,7 +986,7 @@ class SessionState:
             item.get("confirmation") == "review_needed" for item in self.requirements
         ):
             raise SessionStateError("仍有需求需要用户复核。")
-        if any(gap.get("importance") == "blocking_direction" for gap in self.gaps) and not self.current_draft_authorization():
+        if self._blocking_gap_snapshot() and not self.current_draft_authorization():
             raise SessionStateError("仍有影响方向的未知，不能生成方案。")
         self._validate_active_references()
         self._validate_dependencies()
@@ -1016,6 +1137,8 @@ class SessionState:
             },
             "generation_request_id": request_id,
         }
+        logging.getLogger(__name__).info("Plan draft staged; task=%s request=%s downstream_unknowns=%s; no automatic post-plan interview",
+                                        self.task_id, request_id, len(content.get("unresolved_items", [])))
         # A newly staged M2 draft is current; only downstream delivery state
         # becomes stale. Do not mark the plan itself stale while creating it.
         if self.final_result.get("status") not in {None, "not_started"}:
@@ -1037,6 +1160,7 @@ class SessionState:
         return self.plan["content"]
 
     def _plan_changed(self, *, review_all_key_work: bool) -> None:
+        self.pending_questions = [q for q in self.pending_questions if q.get("clarification_scope") != "plan"]
         content = self.plan["content"]
         self.plan["plan_version"] = int(self.plan.get("plan_version", 0)) + 1
         self.plan["status"] = "draft"
@@ -1155,7 +1279,7 @@ class SessionState:
         try:
             from .m2 import validate_plan_content
 
-            validate_plan_content(working, self._plan_source_payload())
+            validate_plan_content(working, self._plan_source_payload(include_skipped=True))
         except Exception as exc:
             raise SessionStateError(str(exc)) from exc
         self.plan["content"] = working
@@ -1172,21 +1296,28 @@ class SessionState:
             value for value in self.plan["reviewed_key_work_ids"] if value not in affected
         ]
 
-    def _plan_source_payload(self) -> dict[str, Any]:
+    def _plan_source_payload(self, *, include_skipped: bool = False) -> dict[str, Any]:
+        from .clarification import without_skipped_unknowns
         source = self.plan.get("source_snapshot") or {}
+        unknowns = source.get("unresolved_items", [])
+        # Validate a preserved historical plan against its original snapshot;
+        # delivery uses the filtered projection instead.
+        if not include_skipped:
+            unknowns = without_skipped_unknowns(self, unknowns)
         return {
             "requirements": source.get("requirements", []),
             "unresolved_items": [
                 {**deepcopy(row), "unresolved_id": row["gap_id"]}
-                for row in source.get("unresolved_items", [])
+                for row in unknowns
             ],
         }
 
     def plan_delivery_unknowns(self) -> list[dict[str, Any]]:
         """Union source and planning unknowns without changing the confirmed plan."""
         from .m2 import merge_plan_unknowns
+        from .clarification import without_skipped_unknowns
 
-        rows = deepcopy((self.plan.get("content") or {}).get("unresolved_items", []))
+        rows = without_skipped_unknowns(self, (self.plan.get("content") or {}).get("unresolved_items", []))
         # Older delivery snapshots used unknown_id and had no M2 source link.
         for index, row in enumerate(rows, 1):
             row.setdefault("unresolved_id", row.get("unknown_id") or f"legacy-unknown-{index}")
@@ -1196,7 +1327,7 @@ class SessionState:
             payload = {"requirements": self.requirements, "unresolved_items": [
                 {**deepcopy(row), "unresolved_id": row["gap_id"]} for row in self.plan_unresolved_items()
             ]}
-        return merge_plan_unknowns(rows, payload)
+        return without_skipped_unknowns(self, merge_plan_unknowns(rows, payload))
 
     def edit_plan_step(
         self,
@@ -1245,7 +1376,7 @@ class SessionState:
         try:
             from .m2 import validate_plan_content
 
-            validate_plan_content(working, self._plan_source_payload())
+            validate_plan_content(working, self._plan_source_payload(include_skipped=True))
         except Exception as exc:
             raise SessionStateError(str(exc)) from exc
         self.plan["content"] = working
@@ -1299,7 +1430,7 @@ class SessionState:
         try:
             from .m2 import validate_plan_content
 
-            validate_plan_content(working, self._plan_source_payload())
+            validate_plan_content(working, self._plan_source_payload(include_skipped=True))
         except Exception as exc:
             raise SessionStateError(str(exc)) from exc
         self.plan["content"] = working
@@ -1365,7 +1496,7 @@ class SessionState:
         content = self._require_editable_plan()
         from .m2 import validate_plan_content
 
-        validate_plan_content(content, self._plan_source_payload())
+        validate_plan_content(content, self._plan_source_payload(include_skipped=True))
 
     def _validate_loaded_plan(self) -> None:
         status = self.plan.get("status")
@@ -1428,6 +1559,7 @@ class SessionState:
                 self.plan["reviewed_key_work_ids"] = []
 
     def confirm_plan(self) -> int:
+        self.validate_unknown_reviews()
         self.validate_m2_entry()
         self.validate_plan()
         try:
@@ -1456,6 +1588,8 @@ class SessionState:
             "requirement_version": self.requirement_version,
             "confirmed_requirements_version": self.confirmed_requirements_version,
             "plan": self.plan,
+            "clarification_questions": self.questions_for_review(),
+            "question_history": self.question_history,
         })
 
     def confirm_plan_preview(self, preview: dict[str, Any]) -> int:
@@ -1483,6 +1617,13 @@ class SessionState:
         self.__dict__.update(deepcopy(working.__dict__))
 
     def _stage_m1_result_in_place(self, request_id: str, base_version: int, result: dict[str, Any]) -> None:
+        from .interview import close_question_batch, rounds_used, round_limit
+        used = rounds_used(self)
+        limit = round_limit(self)
+        has_new_answers = any(q.get("assessment_status") == "pending" and q.get("disposition") == "answered"
+                              for q in self.question_history)
+        existing_batch = bool(self.pending_questions)
+        result = close_question_batch(result, exhausted=used >= limit)
         request = self.pending_requests.get(request_id)
         if request is None or request.get("purpose", "m1") != "m1":
             raise StaleResponseError("请求不存在、已处理或已被状态变化作废。")
@@ -1571,9 +1712,24 @@ class SessionState:
         self.last_model_judgment = deepcopy(result.get("model_judgment"))
         self.last_assistant_text = result.get("assistant_text", "")
         self.analysis_basis_version = self.requirement_version
+        batch = self.questions_for_review(include_plan=False)
+        logging.getLogger(__name__).info(
+            "Interview readiness assessed; task=%s round=%s/%s assessment=%s continue_interview=%s next_action=%s questions=%s",
+            self.task_id, used, limit, (self.last_model_judgment or {}).get("answer_assessment"),
+            (self.last_model_judgment or {}).get("continue_interview"), self.last_next_action, len(batch))
+        if not batch and self.last_next_action == "review_requirements":
+            logging.getLogger(__name__).info("Interview complete: sufficient information; task=%s rounds_used=%s limit=%s; awaiting user requirements confirmation",
+                                            self.task_id, used, limit)
+        if used < limit and batch and (has_new_answers or not existing_batch):
+            # Freeze the entire visible batch before advancing the counter,
+            # including locally derived questions in the fifth round.
+            self.pending_questions = batch
+            self.control["interview_rounds_used"] = used + 1
+            logging.getLogger(__name__).info("Interview question batch prepared; task=%s round=%s/%s questions=%s",
+                                            self.task_id, used + 1, limit, len(batch))
         # Legacy question counters are retained in saved sessions and in the
-        # input contract for compatibility only.  Whether another question is
-        # useful is a model quality decision, not a budget calculation.
+        # input contract for compatibility. The new batch counter bounds the
+        # interview without making unresolved information count as confirmed.
         self._reconcile_conflicts()
         self.touch()
 
@@ -1731,6 +1887,35 @@ class SessionState:
         self._drop_candidate_ids(dismissed_ids)
         self.touch()
 
+    def edit_proposal(self, proposal_id: str, text: str) -> dict[str, Any]:
+        """Keep an explicit candidate edit local and still pending confirmation."""
+        clean = text.strip()
+        if not clean:
+            raise SessionStateError("需求内容不能为空。")
+        row = next((p for p in self.pending_proposals if p["proposal_id"] == proposal_id), None)
+        if row is None or row.get("valid_for_version", self.requirement_version) != self.requirement_version:
+            raise SessionStateError("这条候选已变化，请查看当前内容再修改。")
+        if clean == row["text"]:
+            return deepcopy(row)
+        analysis_was_current = self.analysis_basis_version == self.requirement_version
+        archived = deepcopy(row)
+        archived["deferred_reason"] = "user_corrected_candidate"
+        self.deferred_proposals.append(archived)
+        source_id = self._add_source(clean)
+        row["text"] = clean
+        row["source_refs"] = [{"source_id": source_id, "quote": clean}]
+        if row.get("kind") != "pending_interpretation":
+            row["kind"] = "user_decision"
+        self._content_changed(preserve_candidates=True)
+        if analysis_was_current:
+            # This is the user's explicit replacement text, not a new answer
+            # for the model to interpret. Confirmation still checks questions,
+            # conflicts and the exact displayed preview.
+            self.analysis_basis_version = self.requirement_version
+        logging.getLogger(__name__).info("Candidate edited locally; task=%s proposal=%s version=%s; model_request=False",
+                                        self.task_id, proposal_id, self.requirement_version)
+        return deepcopy(row)
+
     def edit_requirement(self, item_id: str, text: str) -> dict[str, Any]:
         clean = text.strip()
         if not clean:
@@ -1786,28 +1971,34 @@ class SessionState:
         self.touch()
 
     def _blocking_gap_snapshot(self) -> list[dict[str, Any]]:
-        return deepcopy([row for row in self.gaps if row.get("importance") == "blocking_direction"])
+        return [row for row in self.active_gaps() if row.get("importance") == "blocking_direction"]
 
     def current_draft_authorization(self) -> dict[str, Any] | None:
+        from .clarification import without_skipped_unknowns
         authorization = self.draft_authorization
-        if not isinstance(authorization, dict):
+        blocking = self._blocking_gap_snapshot()
+        if not isinstance(authorization, dict) or not blocking:
             return None
         if (
             authorization.get("task_id") != self.task_id
             or authorization.get("requirement_version") != self.requirement_version
             or authorization.get("task_text") != self.task_text
             or authorization.get("category") != self.selected_category
-            or authorization.get("unresolved_items") != self._blocking_gap_snapshot()
+            or without_skipped_unknowns(self, authorization.get("unresolved_items", [])) != blocking
             or not authorization.get("explanation")
             or not any(row.get("source_id") == authorization.get("source_id") and row.get("role") == "user" for row in self.sources)
         ):
             return None
-        return deepcopy(authorization)
+        current = deepcopy(authorization)
+        if current["unresolved_items"] != blocking:
+            current["unresolved_items"] = blocking
+            current["explanation"] = "；".join(row["description"] for row in blocking) + "。先整理不依赖这些信息的部分，具体信息仍待确认。"
+        return current
 
     def plan_unresolved_items(self) -> list[dict[str, Any]]:
         authorized = self.current_draft_authorization() is not None
         return deepcopy([
-            row for row in self.gaps
+            row for row in self.active_gaps()
             if row.get("importance") == "can_defer"
             or (authorized and row.get("importance") == "blocking_direction")
         ])
@@ -1843,7 +2034,7 @@ class SessionState:
             or self.open_conflicts
             or self.pending_questions
             or any(row.get("kind") == "pending_interpretation" for row in self.pending_proposals)
-            or any(row.get("importance") == "blocking_direction" or row.get("field") == "deliverable" for row in self.gaps)
+            or any(row.get("importance") == "blocking_direction" or row.get("field") == "deliverable" for row in self.active_gaps())
             or any(row.get("assessment_status") == "pending" and row.get("disposition") == "answered" for row in self.question_history)
             or any(row.get("field") == "deliverable" for row in self.requirement_archive + self.deferred_proposals)
             or any(row.get("field") == "deliverable" for row in self.pending_proposals)
@@ -1871,13 +2062,15 @@ class SessionState:
             "pending_proposals": self.pending_proposals,
             "pending_review_item_ids": self.pending_review_item_ids,
             "open_conflicts": self.open_conflicts,
-            "gaps": self.gaps,
+            "gaps": self.active_gaps(),
             "sources": self.sources,
             "last_readiness": self.last_readiness,
             "context_coverage": self.control.get("context_coverage"),
             "draft_explanation": explanation,
             "missing_direction_fields": self.missing_direction_fields(),
             "suggested_task_result": self.suggested_task_result(),
+            "clarification_questions": self.questions_for_review(include_plan=False),
+            "question_history": self.question_history,
         })
 
     def confirm_requirements_preview(
@@ -1894,9 +2087,15 @@ class SessionState:
         working = deepcopy(self)
         if working.open_conflicts:
             raise SessionStateError("需求预览仍有冲突，请先保留或撤回互相矛盾的要求。")
+        if allow_draft:
+            # This button explicitly acknowledges the displayed unknown list.
+            for question in working.questions_for_review(include_plan=False, respect_interview_limit=False):
+                working.record_question(question["question_id"], "unsure")
         interpretations = [row for row in working.pending_proposals if row.get("kind") == "pending_interpretation"]
         if interpretations and not allow_draft:
             raise SessionStateError("请先核对 AI 推测的解释，或在了解未知内容后选择先做草稿。")
+        if not allow_draft:
+            working.validate_unknown_reviews(include_plan=False)
         for proposal in interpretations:
             if proposal not in working.pending_proposals:
                 continue
@@ -1952,6 +2151,7 @@ class SessionState:
         return version
 
     def confirm_requirements(self, *, allow_draft: bool = False) -> int:
+        self.validate_unknown_reviews(include_plan=False)
         if not self.requirements:
             raise SessionStateError("没有可确认的需求。")
         if self.control.get("context_coverage") != "complete":
@@ -1964,7 +2164,7 @@ class SessionState:
             item.get("confirmation") == "review_needed" for item in self.requirements
         ):
             raise SessionStateError("仍有受修改影响的需求需要复核。")
-        if any(gap.get("importance") == "blocking_direction" for gap in self.gaps) and not (allow_draft and self.current_draft_authorization()):
+        if self._blocking_gap_snapshot() and not (allow_draft and self.current_draft_authorization()):
             raise SessionStateError("仍有影响方向的未决项。")
         goal_present, deliverable_present = self._direction_presence(self.requirements)
         if not goal_present:
@@ -1974,16 +2174,17 @@ class SessionState:
         if self.last_readiness is not None:
             authorized_unknown_goal = (
                 allow_draft and self.current_draft_authorization() is not None
-                and any(gap.get("importance") == "blocking_direction" for gap in self.gaps)
+                and bool(self._blocking_gap_snapshot())
             )
             if bool(self.last_readiness.get("goal_identified")) != goal_present and not authorized_unknown_goal:
                 raise SessionStateError("模型的目标充分性判断与当前需求不一致。")
             if bool(self.last_readiness.get("deliverable_identified")) != deliverable_present:
                 raise SessionStateError("模型的交付物充分性判断与当前需求不一致。")
             blocking_ids = {
-                gap.get("gap_id") for gap in self.gaps if gap.get("importance") == "blocking_direction"
+                gap.get("gap_id") for gap in self._blocking_gap_snapshot()
             }
-            if set(self.last_readiness.get("blocking_gap_ids", [])) != blocking_ids:
+            from .clarification import skipped_gap_ids
+            if set(self.last_readiness.get("blocking_gap_ids", [])) - skipped_gap_ids(self) != blocking_ids:
                 raise SessionStateError("模型的阻断缺口判断与当前需求不一致。")
         if self.analysis_basis_version != self.requirement_version:
             raise SessionStateError("当前内容在修改后尚未重新分析，请先分析并复核。")
@@ -1998,7 +2199,8 @@ class SessionState:
     def record_question(self, question_id: str, disposition: str, text: str = "", *, context_gap_ids: list[str] | None = None) -> str | None:
         if disposition not in {"answered", "unsure", "skipped"}:
             raise SessionStateError("问题状态无效。")
-        question = next((row for row in self.pending_questions if row["question_id"] == question_id), None)
+        active = self.questions_for_review(respect_interview_limit=False)
+        question = next((row for row in active if row["question_id"] == question_id), None)
         if question is None:
             raise SessionStateError(f"找不到问题：{question_id}")
         if context_gap_ids is not None:
@@ -2008,6 +2210,12 @@ class SessionState:
         clean = text.strip()
         if disposition == "answered" and not clean:
             raise SessionStateError("回答不能为空。")
+        # Materialize the current batch so answering the first plan question
+        # can invalidate its plan without losing the remaining question cards.
+        self.pending_questions = active
+        from .clarification import review_key
+        gap = next((g for g in self.gaps if g["gap_id"] == question.get("gap_id")), None)
+        clarification_key = question.get("clarification_key") or (review_key(self, "requirements", gap) if gap else None)
         gap_id = question.get("gap_id")
         source_id = self._add_source(clean) if disposition == "answered" else None
         answer_id = self._next_id("a", self.question_history, "answer_id")
@@ -2037,6 +2245,13 @@ class SessionState:
             # This is a snapshot of gaps known when the user submitted the
             # freeform message, not model permission to invent resolved items.
             self.question_history[-1]["context_gap_ids"] = list(context_gap_ids)
+        if clarification_key:
+            self.question_history[-1]["clarification_key"] = clarification_key
+            self.question_history[-1]["clarification_scope"] = question.get("clarification_scope", "requirements")
+        if question.get("plan_unknown"):
+            self.question_history[-1]["plan_unknown"] = deepcopy(question["plan_unknown"])
+        logging.getLogger(__name__).info("User question decision; task=%s question=%s stage=%s choice=%s", self.task_id,
+                                        question_id, question.get("clarification_scope", "m1"), disposition)
         origin = {
             "answered": "ambiguous",
             "unsure": "user_unsure",
@@ -2045,11 +2260,19 @@ class SessionState:
         for unresolved in self.gaps:
             if unresolved.get("gap_id") == gap_id:
                 unresolved["origin"] = origin
+        if disposition == "skipped":
+            logging.getLogger(__name__).info("Skipped question excluded from active gaps and delivery; task=%s question=%s gap=%s",
+                                            self.task_id, question_id, gap_id)
         self.pending_questions = [
             row
             for row in self.pending_questions
             if row["question_id"] != question_id
         ]
+        if question.get("clarification_scope") and disposition in {"skipped", "unsure"}:
+            # Explicit deferral changes no requirement or plan content. It
+            # permits a later confirmation, never performs one itself.
+            self.touch()
+            return None
         assessed_before = self.analysis_basis_version == self.requirement_version
         self._content_changed(preserve_candidates=True)
         # Skipping records a user's choice but does not change the known task.
@@ -2110,8 +2333,14 @@ class SessionState:
         if old.get("gap_id") is not None and gap is None:
             raise SessionStateError("这个问题已经解决；如需更改，请直接补充说明。")
         question = {key: deepcopy(old[key]) for key in ("question_id", "gap_id", "field", "scope", "text")}
-        question.update(options=[], reason="用户主动补答此前的问题", depends_on=deepcopy((gap or {}).get("depends_on", [])))
+        for key in ("clarification_key", "clarification_scope", "plan_unknown"):
+            if key in old:
+                question[key] = deepcopy(old[key])
+        question.update(options=[], reason="用户主动补答此前的问题", user_requested_reopen=True,
+                        depends_on=deepcopy((gap or {}).get("depends_on", [])))
         self.pending_questions.append(question)
+        logging.getLogger(__name__).info("User reopened historical question; task=%s question=%s stage=%s",
+                                        self.task_id, question_id, question.get("clarification_scope", "requirements"))
         self.touch()
         return deepcopy(question)
 

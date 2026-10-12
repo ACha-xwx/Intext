@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PromptSmith</title><link rel="stylesheet" href="workspace.css"></head>
+<body>
+  <aside id="sidebar" aria-label="历史会话">
+    <span class="brand-mark sidebar-logo" aria-label="PromptSmith">P</span>
+    <div class="sidebar-expanded">
+      <div class="sidebar-top"><div class="sidebar-brand"><span class="sidebar-brand-space" aria-hidden="true"></span><span>PromptSmith</span></div><div class="sidebar-tools"><button id="history-search" class="sidebar-icon" aria-label="搜索历史会话" title="搜索 Ctrl K"></button><button id="sidebar-toggle" class="sidebar-icon" aria-label="收起边栏" title="收起边栏" aria-expanded="true"></button></div></div>
+      <button id="new-chat"><span class="new-chat-icon"></span><span class="new-chat-label">开启新对话</span></button>
+    </div>
+    <div class="sidebar-dock" role="group" aria-label="侧栏快捷操作" inert aria-hidden="true">
+      <span class="sidebar-brand-space" aria-hidden="true"></span>
+      <div class="sidebar-capsule">
+        <button id="sidebar-dock-toggle" class="sidebar-icon" aria-label="展开边栏" title="展开边栏" aria-expanded="false"></button>
+        <button id="sidebar-dock-search" class="sidebar-icon" aria-label="搜索历史会话" title="搜索 Ctrl K"></button>
+        <button id="sidebar-dock-new" class="sidebar-icon" aria-label="开启新对话" title="开启新对话"></button>
+      </div>
+    </div>
+    <div class="sidebar-content">
+      <div id="history-status" role="status" hidden></div>
+      <nav id="history-list" aria-label="会话列表"></nav>
+    </div>
+  </aside>
+  <div id="workspace-shell">
+  <header><div class="brand">PromptSmith</div><button id="file-button" aria-haspopup="menu">文件</button><div class="header-actions"><button data-panel="summary">任务摘要</button><button id="settings">设置</button></div></header>
+  <main id="viewport"><div id="hero">让我们一起把一个目标变成一份完整的提示词吧。</div><div id="timeline"></div></main>
+  <section id="settings-page" aria-labelledby="settings-title" hidden></section>
+  <footer><div id="composer-actions"></div><div id="composer"><textarea id="message" rows="2" placeholder="描述你想完成的目标…" aria-label="消息输入框"></textarea><div class="toolbar"><button id="model-button"><span>选择模型</span></button><div class="toolbar-right"><button class="glass" id="depth-button">整理深度<span class="chevron"></span></button><button class="glass" id="category-button">任务类型<span class="chevron"></span></button><button class="send" id="send" disabled aria-label="发送消息"></button></div></div></div><div id="recovery"></div></footer>
+  </div>
+  <div id="popup-layer"></div><div id="toast" role="alert" hidden></div>
+  <script src="workspace.js"></script>
+  <script src="settings.js"></script>
+  <script src="history.js"></script>
+  <script src="editors.js"></script>
+</body></html>

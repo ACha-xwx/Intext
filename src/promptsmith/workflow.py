@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass, field
 from copy import deepcopy
 from pathlib import Path
@@ -22,6 +23,7 @@ from .m2 import M2Assets, apply_m2_response, build_m2_input, m2_system_prompt, p
 from .m5 import M5Assets, apply_m5_response, build_m5_input, parse_m5_response
 from .runlog import RunEvidenceWriter
 from .session import SessionState
+from .task_scope import check_cancelled
 
 
 class JsonCompletionClient(Protocol):
@@ -143,6 +145,39 @@ class Phase12Workflow:
             )
         return False
 
+    def _complete_m1(self, client, prompt, payload, *, attempt):
+        """Diagnose actual calls, without logging user content or changing limits."""
+        logger = logging.getLogger(__name__)
+        def json_bytes(value):
+            return len(json.dumps(value, ensure_ascii=False, separators=(",", ":"), allow_nan=False).encode("utf-8"))
+        logger.debug(
+            "M1 request input cost; request=%s attempt=%s system_bytes=%s payload_bytes=%s schema_bytes=%s",
+            payload["request_id"], attempt, len(prompt.encode("utf-8")), json_bytes(payload),
+            json_bytes(self.assets.output_schema),
+        )
+        try:
+            result = client.complete_json(prompt, payload, self.assets.output_schema)
+        except ApiError as exc:
+            logger.warning("M1 request failed; request=%s attempt=%s kind=%s latency_ms=%s",
+                           payload["request_id"], attempt, exc.kind, exc.latency_ms)
+            raise
+        usage = result.usage or {}
+        def count(value):
+            return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else None
+        input_tokens = count(usage.get("prompt_tokens", usage.get("input_tokens")))
+        output_tokens = count(usage.get("completion_tokens", usage.get("output_tokens")))
+        details = usage.get("completion_tokens_details", usage.get("output_tokens_details")) or {}
+        reasoning = count(details.get("reasoning_tokens")) if isinstance(details, dict) else None
+        answer = (output_tokens - reasoning if output_tokens is not None and reasoning is not None
+                  and reasoning <= output_tokens else None)
+        logger.info(
+            "M1 request completed; request=%s attempt=%s latency_ms=%s input_tokens=%s output_tokens=%s "
+            "reasoning_tokens=%s answer_tokens=%s finish=%s",
+            payload["request_id"], attempt, result.latency_ms, input_tokens, output_tokens,
+            reasoning, answer, result.finish_reason,
+        )
+        return result
+
     def invoke_m1(
         self,
         payload: dict[str, Any],
@@ -153,6 +188,8 @@ class Phase12Workflow:
         request_parameters: dict[str, Any] | None = None,
         compact_retry: bool = False,
     ) -> M1CallOutcome:
+        check_cancelled()
+        category_snapshot = deepcopy(self.session.category_suggestion)
         has_pending_answers = any(
             row.get("disposition") == "answered"
             and row.get("assessment_status") == "pending"
@@ -173,9 +210,18 @@ class Phase12Workflow:
             "request_mode": mode,
         }
         failure_options = {"prompt_version": prompt_version, "request_mode": mode}
+        control = payload.get("control", {})
+        logging.getLogger(__name__).info(
+            "M1 interview request; task=%s request=%s mode=%s policy=%s rounds=%s/%s remaining=%s pending_answers=%s",
+            payload["task_id"], payload["request_id"], mode, control.get("interview_policy", "legacy"),
+            control.get("interview_rounds_used", 0), control.get("interview_round_limit", "legacy"),
+            control.get("interview_rounds_remaining", "legacy"), has_pending_answers,
+        )
         try:
-            api_result = client.complete_json(effective_prompt, payload, self.assets.output_schema)
+            api_result = self._complete_m1(client, effective_prompt, payload, attempt=1)
+            check_cancelled()
         except ApiError as exc:
+            check_cancelled()
             api_result = ApiResult.from_error(exc)
             check = {
                 "valid": False,
@@ -196,224 +242,54 @@ class Phase12Workflow:
             ) from exc
         parsed: dict[str, Any] | None = None
         recovery_mode = "model"
-        correction_errors: list[str] = []
-        correction_evidence: list[Path] = []
-        check: dict[str, Any] | None = None
-        last_failure_kind: str | None = None
-        # A malformed or semantically unsafe model response is a repair signal.
-        # Give the model two chances to reassess the same state before surfacing
-        # a content-validation failure. Network/API errors still fail immediately.
-        for attempt in range(1, 4):
-            if attempt > 1:
-                if last_failure_kind == "semantic_input_error":
-                    correction_prompt = self._m1_semantic_bridge_prompt(
-                        effective_prompt,
-                        "\n".join(correction_errors),
-                        attempt=attempt,
-                    )
-                else:
-                    correction_prompt = self._m1_correction_prompt(
-                        effective_prompt,
-                        "\n".join(correction_errors),
-                        attempt=attempt,
-                    )
+        normalization: list[dict[str, Any]] = []
+        # Validation is local. A single user action must never silently start
+        # two further, potentially minutes-long reasoning requests.
+        try:
+            parsed = parse_m1_response(
+                api_result.content, payload, self.assets.output_schema, incremental=mode != "full",
+                normalization_report=normalization,
+            )
+            check_cancelled()
+            if parsed["status"] == "ok":
+                self._validate_m1_candidate(payload, parsed)
+            check = {
+                "valid": True, "schema": "passed", "semantic": "passed",
+                "business_status": parsed["status"], "error": None, "normalization": normalization,
+                "retry_policy": "user_initiated_only",
+            }
+        except Exception as exc:
+            check_cancelled()
+            kind = "json_error" if isinstance(exc, M1JsonError) else "validation_error"
+            check = {
+                "valid": False, "schema": "failed_or_not_reached", "semantic": "failed_or_not_reached",
+                "business_status": None, "failure_kind": kind, "error": str(exc),
+                "normalization": normalization, "retry_policy": "user_initiated_only",
+                "auto_correction": {"attempt": 1, "action": "manual_retry_required", "previous_errors": []},
+            }
+            evidence_dir = self._write_evidence(
+                payload, api_result, protocol, configured_model, check, request_parameters, **evidence_options
+            )
+            if self._is_recoverable_interview_error(str(exc)):
                 try:
-                    api_result = client.complete_json(correction_prompt, payload, self.assets.output_schema)
-                except ApiError as retry_exc:
-                    retry_result = ApiResult.from_error(retry_exc)
-                    retry_check = {
-                        "valid": False,
-                        "schema": "not_reached",
-                        "semantic": "not_reached",
-                        "business_status": None,
-                        "failure_kind": retry_exc.kind,
-                        "status_code": retry_exc.status_code,
-                        "finish_reason": retry_exc.finish_reason,
-                        "error": str(retry_exc),
-                        "auto_correction": {
-                            "attempt": attempt,
-                            "previous_errors": correction_errors,
-                            "previous_evidence_dirs": [str(path) for path in correction_evidence],
-                        },
-                    }
-                    evidence_dir = self._write_evidence(
-                        payload,
-                        retry_result,
-                        protocol,
-                        configured_model,
-                        retry_check,
-                        request_parameters,
-                        effective_prompt=correction_prompt,
-                        **failure_options,
-                    )
-                    self._record_failure(
-                        payload,
-                        retry_exc.kind,
-                        str(retry_exc),
-                        evidence_dir,
-                        retry_result,
-                        **failure_options,
-                    )
-                    raise M1CallFailure(
-                        str(retry_exc), evidence_dir, kind=retry_exc.kind, api_result=retry_result
-                    ) from retry_exc
-
-            try:
-                parsed = parse_m1_response(
-                    api_result.content, payload, self.assets.output_schema, incremental=mode != "full"
-                )
-                if parsed["status"] == "input_error":
-                    # Treat a provider-side input_error as a repair signal first.
-                    # The prompt already tells the model that semantic
-                    # incompleteness belongs in gaps/questions.  A model can
-                    # still fall back to the legacy error branch, especially
-                    # when a short acronym or an ambiguous answer is involved.
-                    # Give it the same context-aware correction opportunity as
-                    # malformed JSON instead of immediately blocking the user.
-                    error = parsed.get("error") or {}
-                    error_message = str(error.get("message") or "模型未说明输入问题。")
-                    correction_errors.append(
-                        f"模型返回了input_error（{error.get('code', 'unknown')}）：{error_message}；"
-                        "请把语义不完整改为status=ok并继续评估缺口。"
-                    )
-                    last_failure_kind = "semantic_input_error"
-                    failure_check = {
-                        "valid": False,
-                        "schema": "passed",
-                        "semantic": "passed",
-                        "business_status": "input_error",
-                        "failure_kind": "input_error",
-                        "error": error_message,
-                        "auto_correction": {
-                            "attempt": attempt,
-                            "action": "retry_with_contextual_correction" if attempt < 3 else "exhausted",
-                            "previous_errors": correction_errors[:-1],
-                        },
-                    }
-                    failure_prompt = effective_prompt if attempt == 1 else correction_prompt
-                    evidence_dir = self._write_evidence(
-                        payload,
-                        api_result,
-                        protocol,
-                        configured_model,
-                        failure_check,
-                        request_parameters,
-                        effective_prompt=failure_prompt,
-                        **failure_options,
-                    )
-                    correction_evidence.append(evidence_dir)
-                    if attempt < 3:
-                        continue
-                    # Keep the final input_error as a real failure only after
-                    # the repair budget is exhausted.  The UI exposes a new
-                    # analysis action for this status, so the user can retry
-                    # without re-entering the task or losing the answer.
-                    check = failure_check
-                    evidence_options = {
-                        **evidence_options,
-                        "effective_prompt": failure_prompt,
-                    }
-                    break
-                # Parse validation catches malformed output. A copy of the
-                # session catches state-reference mistakes without consuming it.
-                if parsed["status"] == "ok":
+                    parsed = self._build_m1_recovery_candidate(payload, reason=str(exc), category_snapshot=category_snapshot)
                     self._validate_m1_candidate(payload, parsed)
-            except Exception as exc:
-                kind = "json_error" if isinstance(exc, M1JsonError) else "validation_error"
-                correction_errors.append(str(exc))
-                last_failure_kind = "validation_error"
-                failure_check = {
-                    "valid": False,
-                    "schema": "failed_or_not_reached",
-                    "semantic": "failed_or_not_reached",
-                    "business_status": None,
-                    "failure_kind": kind,
-                    "error": str(exc),
-                    "auto_correction": {
-                        "attempt": attempt,
-                        "action": "retry_with_contextual_correction" if attempt < 3 else "exhausted",
-                        "previous_errors": correction_errors[:-1],
-                    },
-                }
-                failure_prompt = effective_prompt if attempt == 1 else correction_prompt
-                evidence_dir = self._write_evidence(
-                    payload,
-                    api_result,
-                    protocol,
-                    configured_model,
-                    failure_check,
-                    request_parameters,
-                    effective_prompt=failure_prompt,
-                    **failure_options,
-                )
-                correction_evidence.append(evidence_dir)
-                if attempt < 3:
-                    continue
-                # A structurally valid response can still contain a semantic
-                # mismatch, for example ``review_requirements`` while the
-                # model still reports a blocking gap.  This is a normal
-                # interview quality problem, not a reason to stop the user.
-                # Keep the current state and return a concrete follow-up so
-                # the next user answer can let the model repair the gap.
-                if self._is_recoverable_interview_error(str(exc)):
-                    try:
-                        parsed = self._build_m1_recovery_candidate(
-                            payload, reason=str(exc)
-                        )
-                        self._validate_m1_candidate(payload, parsed)
-                    except Exception as recovery_exc:
-                        message = f"无法保留当前访谈状态：{recovery_exc}"
-                        self._record_failure(
-                            payload, kind, message, evidence_dir, api_result,
-                            **failure_options,
-                        )
-                        raise M1CallFailure(
-                            message, evidence_dir, kind=kind, api_result=api_result
-                        ) from recovery_exc
-                    recovery_mode = "program_recovery"
-                    check = {
-                        **failure_check,
-                        "valid": True,
-                        "schema": "recovery",
-                        "semantic": "recovery",
-                        "business_status": "ok",
-                        "failure_kind": None,
-                        "error": None,
-                        "recovery_fallback": {
-                            "mode": recovery_mode,
-                            "source_status": "validation_error",
-                            "reason": str(exc),
-                            "previous_evidence_dirs": [str(path) for path in correction_evidence],
-                        },
-                    }
-                    evidence_options = {
-                        **evidence_options,
-                        "effective_prompt": evidence_options.get("effective_prompt", effective_prompt),
-                    }
-                    break
-                message = f"模型自动修正两次后仍未通过需求整理校验：{exc}"
+                except Exception as recovery_exc:
+                    check_cancelled()
+                    message = f"本次需求整理未能采用，已有信息已保留：{recovery_exc}"
+                    self._record_failure(payload, kind, message, evidence_dir, api_result, **failure_options)
+                    raise M1CallFailure(message, evidence_dir, kind=kind, api_result=api_result) from recovery_exc
+                recovery_mode = "program_recovery"
+                check = {**check, "valid": True, "schema": "recovery", "semantic": "recovery",
+                         "business_status": "ok", "failure_kind": None, "error": None,
+                         "recovery_fallback": {"mode": recovery_mode, "reason": str(exc),
+                                               "previous_evidence_dirs": [str(evidence_dir)]}}
+            else:
+                message = f"本次需求整理返回未能采用：{exc}。未自动重试，已有内容已保留。"
                 self._record_failure(payload, kind, message, evidence_dir, api_result, **failure_options)
                 raise M1CallFailure(message, evidence_dir, kind=kind, api_result=api_result) from exc
-
-            check = {
-                "valid": True,
-                "schema": "passed",
-                "semantic": "passed",
-                "business_status": parsed["status"],
-                "error": None,
-            }
-            if attempt > 1:
-                check["auto_correction"] = {
-                    "attempt": attempt,
-                    "previous_errors": correction_errors,
-                    "previous_evidence_dirs": [str(path) for path in correction_evidence],
-                }
-                evidence_options = {
-                    **evidence_options,
-                    "effective_prompt": correction_prompt,
-                }
-            break
-        if parsed is None or check is None:  # pragma: no cover - loop always returns or raises
+        check_cancelled()
+        if parsed is None:  # pragma: no cover - validation returns or raises
             raise M1CallFailure("模型没有返回可用的需求整理结果。", Path(), kind="validation_error")
         evidence_dir = self._write_evidence(
             payload, api_result, protocol, configured_model, check, request_parameters, **evidence_options
@@ -422,9 +298,10 @@ class Phase12Workflow:
             if self._is_semantic_input_error(parsed):
                 reason = str((parsed.get("error") or {}).get("message") or "模型没有形成可靠的语义判断。")
                 try:
-                    parsed = self._build_m1_recovery_candidate(payload, reason=reason)
+                    parsed = self._build_m1_recovery_candidate(payload, reason=reason, category_snapshot=category_snapshot)
                     self._validate_m1_candidate(payload, parsed)
                 except Exception as exc:
+                    check_cancelled()
                     message = f"无法保留当前访谈状态：{exc}"
                     recovery_check = {
                         **check,
@@ -438,7 +315,7 @@ class Phase12Workflow:
                             "mode": "program_recovery",
                             "source_status": "input_error",
                             "reason": reason,
-                            "previous_evidence_dirs": [str(path) for path in correction_evidence],
+                            "previous_evidence_dirs": [str(evidence_dir)],
                         },
                     }
                     failed_evidence = self._write_evidence(
@@ -467,8 +344,9 @@ class Phase12Workflow:
                         "mode": recovery_mode,
                         "source_status": "input_error",
                         "reason": reason,
-                        "previous_evidence_dirs": [str(path) for path in correction_evidence],
+                        "previous_evidence_dirs": [str(evidence_dir)],
                     },
+                    "retry_policy": "user_initiated_only",
                 }
                 evidence_options = {
                     **evidence_options,
@@ -503,7 +381,7 @@ class Phase12Workflow:
                 kind="input_error",
                 api_result=api_result,
             )
-        if mode != "full":
+        if mode != "full" or check.get("normalization"):
             (evidence_dir / "response.effective.json").write_text(
                 json.dumps(parsed, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
             )
@@ -561,13 +439,13 @@ class Phase12Workflow:
     def _is_recoverable_interview_error(message: str) -> bool:
         """Return whether a failed model decision can be continued safely.
 
-        JSON, schema, source-reference and stale-version failures remain real
-        errors.  The messages below describe an otherwise readable response
-        whose quality signal disagrees with its proposed next step.  In that
-        case preserving the current gaps and asking one clear question is
-        safer for the user than showing a technical failure dialog.
+        Never adopt invalid model edits. Without further requests, recover a
+        question from existing state for content/shape failures. Explicit
+        request identity and version mismatches remain rejected.
         """
         text = str(message or "").casefold()
+        if any(marker in text for marker in ("request_id", "task_id", "base_version", "schema_version", "旧版本", "已失效")):
+            return False
         markers = (
             "模型判断与需求复核步骤不一致",
             "模型判断与当前追问步骤不一致",
@@ -579,11 +457,18 @@ class Phase12Workflow:
             "仍有阻断缺口",
             "回答不充分",
             "继续追问",
+            "不存在",
+            "来源",
+            "对齐",
+            "重复",
+            "schema",
+            "json",
         )
         return any(marker.casefold() in text for marker in markers)
 
-    def _build_m1_recovery_candidate(self, payload: dict[str, Any], *, reason: str) -> dict[str, Any]:
-        """Keep the interview usable when the model repeatedly chooses input_error.
+    def _build_m1_recovery_candidate(self, payload: dict[str, Any], *, reason: str,
+                                     category_snapshot: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Keep the interview usable when the model chooses input_error.
 
         The bridge only carries forward state already supplied by the user or
         previously proposed by the model.  If no question is available, it adds
@@ -604,7 +489,7 @@ class Phase12Workflow:
             question.setdefault("reason", "这个信息会影响后续整理方向。")
             question.setdefault("depends_on", [])
             questions.append(question)
-            if len(questions) == 3:
+            if payload.get("schema_version") == "m1.v0.1" and len(questions) == 3:
                 break
 
         skipped_gap_ids = {
@@ -673,8 +558,12 @@ class Phase12Workflow:
                 }
             ]
 
-        category = state.get("selected_category") or "general"
+        category = state.get("selected_category")
         allowed_categories = set(CATEGORY_CONFIG["category_fields"]) | {"general"}
+        previous_category = category_snapshot or {}
+        keep_previous_category = category in (None, "auto") and previous_category.get("primary") in allowed_categories
+        if keep_previous_category:
+            category = previous_category["primary"]
         if category not in allowed_categories:
             category = "general"
         conflicts = [
@@ -725,70 +614,20 @@ class Phase12Workflow:
                 else "我先保留你已经提供的信息。这个方向还没有可靠结论，你可以继续补充线索。"
             ),
         }
+        if keep_previous_category:
+            result["category"] = {key: deepcopy(previous_category[key]) for key in ("primary", "secondary", "reason")}
         if "model_judgment" in self.assets.output_schema.get("properties", {}):
             result["model_judgment"] = {
                 "answer_assessment": "unclear",
                 "critical_gap_ids": blocking_ids,
                 "continue_interview": bool(questions),
                 "confidence": "low",
-                "reason": f"模型连续返回语义型输入问题（{reason}），当前不能把任何推测当成已确认要求。",
+                "reason": f"模型返回语义型输入问题（{reason}），当前不能把任何推测当成已确认要求。",
             }
         return result
 
-    @staticmethod
-    def _m1_correction_prompt(system_prompt: str, validation_error: str, *, attempt: int = 2) -> str:
-        return (
-            f"{system_prompt}\n\n"
-            f"【模型自修正，第{attempt}次尝试】\n"
-            "刚才的返回没有通过应用的结构或状态检查。这是给你的修正信号，不是要展示给用户的错误。"
-            "请重新读取原始任务、本轮用户回答和当前会话状态，先判断回答是 sufficient、partial、unclear 还是 not_provided。"
-            "如果仍有影响任务方向的未知，保留对应 gap，用自然的问题继续追问；用户没有明确要求停止时，不要因为旧的轮数、"
-            "allow_questions 或曾经跳过而机械暂停。用户提供了新线索时，可以换一种更具体的问法或形成新的待确认解释，"
-            "但不要把模型推测写成用户已经确认的要求。不要要求用户重复已经提供的信息，不要把未回答的内容标成已解决。"
-            "如果上一返回是 input_error，但当前输入只是信息不足、简称不明、回答含糊或需要继续核对，必须改为 status=ok，"
-            "保留缺口并返回自然问题；只有输入JSON本身损坏或无法按契约读取时才保留 input_error。"
-            "只要 status=ok，就必须完整填写 model_judgment；answer_assessment、critical_gap_ids、continue_interview、confidence、reason 五个字段一个都不能省略。"
-            "model_judgment 必须和 gaps、readiness、next_action、questions 相互一致：仍有阻断缺口且用户没有明确停止时，"
-            "continue_interview=true，并选择 ask/need_goal/resolve_conflict，同时返回可回答的问题或待确认解释；只有真正足够时才可 review_requirements。"
-            "它不能替代 gap_updates、gaps、readiness 或问题本身。"
-            "不要解释错误，请重新检查并输出合法 JSON，直接给出一个完整、严格符合原输出契约的对象。\n"
-            f"本次检查发现的问题：{validation_error}"
-        )
-
-    @staticmethod
-    def _m1_semantic_bridge_prompt(system_prompt: str, validation_error: str, *, attempt: int = 2) -> str:
-        """Ask the model to reinterpret a semantic dead end before program fallback.
-
-        A parsed ``input_error`` is not a transport failure.  The model still
-        has the original payload and can turn an incomplete answer into a
-        normal interview result with an explicit uncertainty and next question.
-        """
-        return (
-            f"{system_prompt}\n\n"
-            f"【语义桥接，第{attempt}次】\n"
-            "上一返回已经通过 JSON 和字段契约检查，但把‘信息还不完整’误写成了 input_error。"
-            "这不是程序或输入格式错误，请重新读取原始任务、用户原话、当前缺口和问题历史，"
-            "发挥你的自然语言理解能力重新判断本轮回答。"
-            "如果 payload 本身可读取，必须改为 status=ok；不要把语义不完整当作 input_error，"
-            "也不要要求用户先写出简称的标准全称。status=ok 时必须完整填写 model_judgment 的五个字段："
-            "answer_assessment、critical_gap_ids、continue_interview、confidence、reason。请在其中选择 sufficient、partial、"
-            "unclear 或 not_provided，列出仍影响方向的 critical_gap_ids，并用 gaps、gap_updates、"
-            "pending_interpretation 候选或自然问题继续推进。"
-            "如果判断为 partial、unclear 或 not_provided，且仍有 blocking_direction 缺口、用户也没有明确要求停止，"
-            "必须 continue_interview=true、next_action=ask（需要先确认目标时可用 need_goal），并返回至少一个自然问题或待确认候选。"
-            "像 JGS 这类简称，结合领域、用途和材料线索形成一至两个待确认理解，候选必须标为"
-            "pending_interpretation；如果线索不足，就问一个容易回答的具体问题。"
-            "只有用户明确要求停止，或明确说‘先做草稿’、‘暂时不回答’、‘先这样’时，才可以 pause_with_unknowns；"
-            "用户说‘你自己查’时，如果输入中没有真实检索结果，只能说明可以继续核对或建议查找，"
-            "不能假称已经联网查到名称、链接或事实。不要重复用户已经回答的内容，不要凭空补造约束，"
-            "不要把推测写成用户决定。旧的 max_questions、remaining_rounds、allow_questions 只供兼容，"
-            "不能阻止必要追问。输出仍须是完整、严格符合原输出契约的 JSON。"
-            "不要向用户解释桥接过程或错误。\n"
-            f"上次检查记录（只用于修正，不要原样展示）：{validation_error}"
-        )
-
     def _validate_m1_candidate(self, payload: dict[str, Any], parsed: dict[str, Any]) -> None:
-        """Run state validation on a copy so the model can repair bad references."""
+        """Validate on a copy without changing the current session."""
         probe = deepcopy(self.session)
         apply_m1_response(probe, payload, parsed)
 
@@ -902,14 +741,20 @@ class Phase12Workflow:
         request_parameters: dict[str, Any] | None = None,
         compact_retry: bool = False,
     ) -> M2CallOutcome:
+        check_cancelled()
         mode = "compact_retry" if compact_retry else "full"
         effective_prompt = m2_system_prompt(self.m2_assets.system_prompt, compact_retry=compact_retry)
         evidence_options = {"effective_prompt": effective_prompt, "request_mode": mode}
+        logging.getLogger(__name__).info("M2 planning request with interview context; task=%s request=%s questions=%s sources=%s",
+                                        payload["task_id"], payload["request_id"], len(payload.get("interview_context", [])),
+                                        len(payload.get("relevant_materials", [])))
         try:
             api_result = client.complete_json(
                 effective_prompt, payload, self.m2_assets.output_schema
             )
+            check_cancelled()
         except ApiError as exc:
+            check_cancelled()
             api_result = ApiResult.from_error(exc)
             check = {
                 "valid": False,
@@ -1095,13 +940,16 @@ class Phase12Workflow:
         request_parameters: dict[str, Any] | None = None,
     ) -> M5CallOutcome:
         """Call M5, record evidence, and return a validated but unapplied example."""
+        check_cancelled()
         try:
             api_result = client.complete_json(
                 self.m5_assets.system_prompt,
                 payload,
                 self.m5_assets.output_schema,
             )
+            check_cancelled()
         except ApiError as exc:
+            check_cancelled()
             api_result = ApiResult.from_error(exc)
             check = {
                 "valid": False,
@@ -1120,10 +968,12 @@ class Phase12Workflow:
             raise M5CallFailure(str(exc), evidence_dir, kind=exc.kind, api_result=api_result) from exc
 
         try:
+            normalization: list[dict[str, Any]] = []
             parsed = parse_m5_response(
                 api_result.content,
                 payload,
                 self.m5_assets.output_schema,
+                normalization_report=normalization,
             )
             check = {
                 "valid": True,
@@ -1131,6 +981,7 @@ class Phase12Workflow:
                 "semantic": "passed",
                 "business_status": parsed["status"],
                 "error": None,
+                "normalization": normalization,
             }
         except Exception as exc:
             check = {
@@ -1161,6 +1012,10 @@ class Phase12Workflow:
                 evidence_dir,
                 kind="content_error",
                 api_result=api_result,
+            )
+        if normalization:
+            (evidence_dir / "response.effective.json").write_text(
+                json.dumps(parsed, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
             )
         return M5CallOutcome(api_result.content, parsed, api_result, evidence_dir)
 

@@ -41,9 +41,6 @@ from promptsmith.m5 import M5Assets, feedback_candidate, record_m5_feedback
 from promptsmith.session import SessionState, SessionStateError
 from promptsmith.skill_catalog import SkillCatalog
 from promptsmith.storage import load_session, save_session
-from promptsmith.trial import (
-    apply_trial_result, build_trial_request, invoke_trial, record_trial_failure, TrialCallFailure,
-)
 from promptsmith.workflow import Phase12Workflow
 
 DESIGN = ROOT / "resources" / "prompts"
@@ -106,7 +103,7 @@ def _review_state_hash(session: SessionState) -> str:
         "task_id", "task_text", "selected_category", "requirement_version", "sources",
         "requirements", "pending_proposals", "pending_questions", "gaps", "open_conflicts",
         "pending_review_item_ids", "analysis_basis_version", "confirmed_requirements_version",
-        "plan", "skill_state", "final_result", "m5_examples", "m5_feedback", "trial_runs",
+        "plan", "skill_state", "final_result", "m5_examples", "m5_feedback",
     )})
 
 
@@ -238,59 +235,42 @@ class DemoRun:
                 self._verify_selected_catalog(session)
             payload = getattr(delivery, f"prepare_{module}")(request_id, connection_version=0)
         else:
-            payload = build_trial_request(session, request_id, max_output_tokens=1024 if case_id == "D1" else 2048)
+            raise ValueError(f"Unsupported model stage: {module}")
         self.manifest["calls_used"] += 1
         call = {"module": module, "request_id": request_id, "status": "started",
                 "protocol": self.config.protocol, "model": self.config.model, "usage": None,
                 "evidence_dir": None, "started_at": _now(), "input": deepcopy(payload)}
-        if module != "trial":
-            owner = workflow if module in {"m1", "m2", "m5"} else delivery
-            assets = workflow.assets if module == "m1" else getattr(owner, f"{module}_assets")
-            call.update(prompt_version=assets.prompt_version, contract_version=assets.contract_version,
-                        system_prompt_sha256=hashlib.sha256(assets.system_prompt.encode("utf-8")).hexdigest(),
-                        output_schema_sha256=_digest(assets.output_schema))
+        owner = workflow if module in {"m1", "m2", "m5"} else delivery
+        assets = workflow.assets if module == "m1" else getattr(owner, f"{module}_assets")
+        call.update(prompt_version=assets.prompt_version, contract_version=assets.contract_version,
+                    system_prompt_sha256=hashlib.sha256(assets.system_prompt.encode("utf-8")).hexdigest(),
+                    output_schema_sha256=_digest(assets.output_schema))
         case["calls"].append(call)
         self._save()  # Crash/timeout still consumes a reserved call; no silent replay.
         started = time.perf_counter()
         outcome = None
         try:
-            if module == "trial":
-                evidence = self.out_dir / case_id / "trial_evidence" / request_id
-                evidence.mkdir(parents=True, exist_ok=False)
-                _write(evidence / "input.json", payload)
-                call["evidence_dir"] = str(evidence)
-                outcome = invoke_trial(payload, self.client, protocol=self.config.protocol, configured_model=self.config.model)
-                (evidence / "response.raw.txt").write_text(outcome.api_result.content, encoding="utf-8")
-                _write(evidence / "metadata.json", {"model": outcome.api_result.model,
-                       "usage": outcome.api_result.usage, "latency_ms": outcome.api_result.latency_ms,
-                       "protocol": self.config.protocol, "evidence_mode": self.manifest["evidence_mode"]})
-                call["evidence_dir"] = str(evidence)
-                parsed = apply_trial_result(session, payload, outcome)
-            else:
-                owner = workflow if module in {"m1", "m2", "m5"} else delivery
-                outcome = getattr(owner, f"invoke_{module}")(
-                    payload, self.client, protocol=self.config.protocol, configured_model=self.config.model,
-                    request_parameters={"base_url": self.config.base_url, "model": self.config.model,
-                                        "protocol": self.config.protocol, "temperature": 0,
-                                        "response_format": "json_object"})
-                call["evidence_dir"] = str(outcome.evidence_dir)
-                call["parsed_status"] = (outcome.parsed or {}).get("status")
-                kwargs = {"connection_version": 0} if module in {"m3", "m4"} else {}
-                parsed = getattr(owner, f"apply_{module}")(payload, outcome, **kwargs)
-                assets = getattr(owner, f"{module}_assets", None) if module != "m1" else workflow.assets
-                if assets:
-                    call["prompt_version"] = assets.prompt_version
-                    call["contract_version"] = assets.contract_version
+            outcome = getattr(owner, f"invoke_{module}")(
+                payload, self.client, protocol=self.config.protocol, configured_model=self.config.model,
+                request_parameters={"base_url": self.config.base_url, "model": self.config.model,
+                                    "protocol": self.config.protocol, "temperature": 0,
+                                    "response_format": "json_object"})
+            call["evidence_dir"] = str(outcome.evidence_dir)
+            call["parsed_status"] = (outcome.parsed or {}).get("status")
+            kwargs = {"connection_version": 0} if module in {"m3", "m4"} else {}
+            parsed = getattr(owner, f"apply_{module}")(payload, outcome, **kwargs)
+            assets = getattr(owner, f"{module}_assets", None) if module != "m1" else workflow.assets
+            if assets:
+                call["prompt_version"] = assets.prompt_version
+                call["contract_version"] = assets.contract_version
             call.update(status="applied", model=outcome.api_result.model or self.config.model,
                         usage=deepcopy(outcome.api_result.usage), latency_ms=outcome.api_result.latency_ms)
             # Persist the applied state and next stage together in finally. A
             # resume must never repeat a successful call due to stale progress.
             case["stage"] = {"m1": "m1_review", "m2": "plan_review", "m5": "m5_review",
-                             "m3": "skill_review", "m4": "final_review", "trial": "persist"}[module]
+                             "m3": "skill_review", "m4": "final_review"}[module]
             if module == "m5":
                 case["m5_example"] = parsed
-            elif module == "trial":
-                case["trial"] = deepcopy(parsed)
             return parsed
         except Exception as exc:
             api_result = getattr(exc, "api_result", None) or getattr(outcome, "api_result", None)
@@ -299,16 +279,6 @@ class DemoRun:
             if api_result is not None:
                 call.update(model=api_result.model or self.config.model, usage=deepcopy(api_result.usage),
                             latency_ms=api_result.latency_ms)
-            if module == "trial" and call["evidence_dir"]:
-                evidence = Path(call["evidence_dir"])
-                if api_result is not None:
-                    (evidence / "response.raw.txt").write_text(api_result.content, encoding="utf-8")
-                _write(evidence / "metadata.json", {"model": call["model"], "usage": call["usage"],
-                    "latency_ms": call.get("latency_ms"), "protocol": self.config.protocol,
-                    "evidence_mode": self.manifest["evidence_mode"], "error": str(exc),
-                    "response_available": api_result is not None and bool(api_result.content)})
-            if module == "trial" and isinstance(exc, TrialCallFailure):
-                record_trial_failure(session, payload, exc)
             raise
         finally:
             call["elapsed_ms_observed"] = round((time.perf_counter() - started) * 1000)
@@ -360,11 +330,9 @@ class DemoRun:
                         parsed = self._call(case_id, module)
                         case["stage"] = {"m1": "m1_review", "m2": "plan_review",
                                            "m5": "m5_review", "m3": "skill_review",
-                                           "m4": "final_review", "trial": "persist"}[module]
+                                           "m4": "final_review"}[module]
                         if module == "m5":
                             case["m5_example"] = parsed
-                        elif module == "trial":
-                            case["trial"] = deepcopy(parsed)
                     elif stage == "m1_review":
                         self._checkpoint(case_id, {"fixed_task": case["task"],
                             "requirements": session.requirements, "proposals": session.pending_proposals,
@@ -402,8 +370,8 @@ class DemoRun:
                         self._persist_and_export(case_id)
                         case["stage"] = "content_review"
                     elif stage == "content_review":
-                        self._checkpoint(case_id, {"fixed_task": case["task"], "trial_output": case["trial"].get("output"),
-                            "final": session.final_result, "observations": _content_observations(case_id, case["trial"].get("output", "")),
+                        self._checkpoint(case_id, {"fixed_task": case["task"], "final_prompt": session.final_result.get("canonical_body", ""),
+                            "final": session.final_result, "observations": _content_observations(case_id, session.final_result.get("canonical_body", "")),
                             "evidence_mode": self.manifest["evidence_mode"]},
                             {"content_verdict": "passed|failed|partial", "findings": []})
                     else:
@@ -526,7 +494,7 @@ class DemoRun:
                 # Never rebuild an M4 result or erase its pending changes/review IDs here.
                 self._verify_selected_catalog(session)
                 confirm_final(session)
-                updated["stage"] = "trial_call"
+                updated["stage"] = "persist"
             else:
                 updated["stage"] = "final_review"
         elif stage == "content_review":
@@ -568,7 +536,7 @@ class DemoRun:
         reopened = load_session(path)
         validate_current_final(reopened, require_confirmed=True)
         important = ("requirement_version", "requirements", "gaps", "open_conflicts",
-                     "plan", "skill_state", "final_result", "m5_feedback", "trial_runs")
+                     "plan", "skill_state", "final_result", "m5_feedback")
         before, after = session.to_dict(), reopened.to_dict()
         checks = {key: before[key] == after[key] for key in important}
         if not all(checks.values()):

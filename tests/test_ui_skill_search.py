@@ -177,15 +177,42 @@ def test_skill_candidates_are_visible_and_selectable_in_real_window(skill_app):
     assert tree.get_children() == (candidate["candidate_id"],)
     assert tree.winfo_ismapped()
     assert tree.winfo_height() >= 100
-    assert tuple(tree["columns"]) == ("skill", "source", "reason", "work")
+    assert tuple(tree["columns"]) == ("status", "skill", "source", "score", "reason", "work")
+    assert tree.heading("score")["text"] == "推荐系数"
     assert tree.heading("skill")["text"] == "Agent Skill"
-    assert tree.item(candidate["candidate_id"], "values")[:3] == (
-        "local Skill", "内置目录", "local candidate"
+    assert tree.item(candidate["candidate_id"], "values")[:5] == (
+        "可选", "local Skill", "内置目录", "0.00", "local candidate"
     )
 
     tree.selection_set(candidate["candidate_id"])
     app.select_skill_candidates()
     assert [row["skill_id"] for row in app.session.skill_state["bindings"]] == ["local-skill"]
+
+
+def test_recommendations_are_sorted_and_more_candidates_can_be_expanded(skill_app):
+    app, window = skill_app
+    candidates = []
+    for index in range(10):
+        row = _local_candidate(f"ranked-{index}")
+        row["name"] = f"候选 {index}"
+        row["recommendation_score"] = index / 10
+        candidates.append(row)
+    app.session.set_skill_state(status="candidates_ready", basis=app._delivery_basis(),
+                                candidate_batch={"batch_id": "ranked", "catalog_hash": "a" * 64,
+                                                 "result": {"candidates": candidates}}, bindings=[])
+    app.refresh()
+    tree = app.widgets["skill_candidates_tree"]
+    assert tree.get_children() == tuple(f"ranked-{i}" for i in range(9, 3, -1))
+    assert tree.item("ranked-9", "values")[3] == "0.90"
+    inline_tree = app.widgets["conversation_skill_candidates_tree"]
+    assert inline_tree.exists("ranked-9")
+    assert not inline_tree.exists("ranked-0")
+    app.widgets["conversation_skill_show_all"].invoke()
+    assert app.show_all_skills_var.get()
+    assert len(tree.get_children()) == 10
+    assert app.widgets["conversation_skill_candidates_tree"].exists("ranked-0")
+    app.widgets["conversation_skill_show_all"].invoke()
+    assert len(tree.get_children()) == 6
 
 
 def test_skill_toolbar_shows_only_search_and_selection_actions(skill_app):
@@ -199,7 +226,7 @@ def test_skill_toolbar_shows_only_search_and_selection_actions(skill_app):
         assert app.widgets[name].winfo_ismapped(), name
     assert app.widgets["skill_search_url_entry"].winfo_ismapped()
     assert "可选" in app.widgets["skill_search_url_label"].cget("text")
-    assert app.skill_search_url_var.get() == ""
+    assert app.skill_search_url_var.get() == app.preferences["skill_search_url"]
     for name in ("skill_analyze_button", "skill_integrate_button"):
         assert not app.widgets[name].winfo_ismapped(), name
 

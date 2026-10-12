@@ -127,27 +127,9 @@ def run_release_chain(directory: str | Path) -> int:
             if report["final_status"] != "confirmed":
                 raise AssertionError("最终结果未确认")
 
-            report["trial_entry_reachable"] = (
-                "trial_run_button" in app.widgets
-                and str(app.widgets["trial_run_button"].cget("state")) != "disabled"
-            )
-            if not report["trial_entry_reachable"]:
-                raise AssertionError("已确认最终结果的试运行入口不可用")
-            app.trial_tokens_var.set("0")
-            try:
-                app.start_trial_run()
-            except RuntimeError as exc:
-                if "无法开始试运行" not in str(exc):
-                    raise
-            else:
-                raise AssertionError("无效输出上限应在试运行发起前被拒绝")
-            app.trial_tokens_var.set("256")
-            report["trial_validation_failure_recoverable"] = (
-                app.session.final_result.get("status") == "confirmed"
-                and not app.session.trial_runs
-            )
-            if not report["trial_validation_failure_recoverable"]:
-                raise AssertionError("试运行无效输入改变了最终结果")
+            report["trial_feature_removed"] = not any(name.startswith("trial_") for name in app.widgets)
+            if not report["trial_feature_removed"]:
+                raise AssertionError("已退役的试运行入口仍然存在")
 
             before_reopen = app.session.to_dict()
             app.save()

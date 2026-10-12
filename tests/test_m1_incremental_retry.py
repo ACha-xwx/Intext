@@ -106,7 +106,8 @@ def test_delta_gap_update_keeps_or_closes_only_its_evidenced_gap(action: str) ->
 
 def test_omitted_blocking_gap_still_blocks_false_ready_delta() -> None:
     session = answered_session()
-    session.gaps.append(old_gap(blocking=True))
+    # Unknown is retained; explicit user_skipped is now an exclusion.
+    session.gaps.append({**old_gap(blocking=True), "origin": "user_unsure"})
     payload = build_m1_input(session, "blocking-omitted")
     response = delta_result(payload)
     before = deepcopy(session.to_dict())
@@ -205,13 +206,18 @@ def test_delta_user_proposal_requires_current_answer_evidence() -> None:
 
 
 @pytest.mark.parametrize("missing", ["gaps", "conflicts", "proposals", "gap_updates"])
-def test_delta_still_requires_all_schema_fields(missing: str) -> None:
+def test_delta_accepts_missing_collections_but_keeps_unassessed_gaps(missing: str) -> None:
     session = answered_session()
     payload = build_m1_input(session, "missing-field")
     response = delta_result(payload)
     response.pop(missing)
-    with pytest.raises(M1ValidationError, match="Schema"):
-        parse_delta(payload, response)
+    if missing == "gap_updates":
+        with pytest.raises(M1ValidationError, match="阻断|复核|门槛"):
+            parse_delta(payload, response)
+        return
+    parsed = parse_delta(payload, response)
+    apply_m1_response(session, payload, parsed)
+    assert session.question_history and all(row["answer_text"] for row in session.question_history)
 
 
 def test_delta_merge_does_not_hide_duplicate_gap_ids() -> None:
@@ -287,7 +293,7 @@ def test_modes_use_separate_short_prompt_and_full_prompt_is_unchanged() -> None:
     compact = m1_system_prompt(assets.system_prompt, mode="compact_retry")
     assert "本轮只处理新增用户回答" in incremental
     assert assets.system_prompt not in incremental
-    assert len(incremental) < len(assets.system_prompt) * 0.65
+    assert len(incremental) < len(assets.system_prompt)  # Both now share one concise current contract.
     assert "精简重试" in compact and "非必要建议" in compact
     with pytest.raises(ValueError, match="模式"):
         m1_system_prompt(assets.system_prompt, mode="invalid")

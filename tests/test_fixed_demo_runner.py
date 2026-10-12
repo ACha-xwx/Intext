@@ -7,7 +7,7 @@ from copy import deepcopy
 
 import pytest
 
-from promptsmith.api import ApiConfig, ApiResult, ApiError
+from promptsmith.api import ApiConfig, ApiResult
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location(
@@ -156,12 +156,6 @@ class FixedClient:
                 "proposed_changes": [{"change_id": "change-optional", "binding_ids": [p["bindings"][0]["binding_id"]],
                     "kind": "scope", "description": "可附加术语表", "reason": "帮助理解", "affects_hard_constraints": False}] if self.m4_change else []}
 
-    def complete_text(self, _system, user_text, *, max_output_tokens):
-        text = ("摄影社招新：2026年10月10日14:00–16:00在校园南广场体验手机摄影。"
-                "报名截止2026年10月8日：https://example.com/photo-signup。") if "摄影" in user_text else (
-                    "需求规格与测试要点：查看、报名、取消；人数上限、导出名单；禁止重复报名、满额禁止新增。"
-                    "技术栈、登录方式、导出格式待定。此处不编码、部署、创建 issue 或发布。")
-        return ApiResult(text, 4, None, "offline-trial", "fixture")
 
 
 def decide(run, case_id, actions):
@@ -193,7 +187,7 @@ def fixture_decision(run, case_id):
 
 
 @pytest.mark.parametrize("case_id", ["D1", "D2"])
-def test_fixed_case_uses_full_production_contract_then_trial_save_reopen_export(tmp_path, case_id):
+def test_fixed_case_uses_full_production_contract_then_save_reopen_export(tmp_path, case_id):
     client = FixedClient(m1_question=case_id == "D1", m4_change=case_id == "D2")
     run = runner.DemoRun(config(), tmp_path / case_id, [case_id], client=client, evidence_mode="offline_fixture")
     stages = []
@@ -215,10 +209,8 @@ def test_fixed_case_uses_full_production_contract_then_trial_save_reopen_export(
     assert case["final"]["status"] == "confirmed"
     assert all(case["persistence"]["checks"].values())
     assert Path(case["persistence"]["export_path"]).exists()
-    assert case["trial"]["status"] == "completed"
-    assert case["trial"]["usage"] is None
     modules = [r["module"] for r in case["calls"]]
-    assert modules == (["m1", "m5", "m1", "m2", "trial"] if case_id == "D1" else ["m1", "m2", "m3", "m4", "trial"])
+    assert modules == (["m1", "m5", "m1", "m2"] if case_id == "D1" else ["m1", "m2", "m3", "m4"])
     if case_id == "D1":
         assert not run.sessions[case_id].gaps
         assert runner.FIXED_FEEDBACK in run.sessions[case_id].question_history[0]["answer_text"]
@@ -364,30 +356,6 @@ def test_resume_of_interrupted_call_demands_explicit_recovery(tmp_path):
     assert result["status"] == "failed"
     assert result["cases"]["D1"]["failure"]["error_type"] == "InterruptedProgress"
     assert len(client.payloads) == 1
-
-
-def test_trial_failure_preserves_actual_input_raw_and_missing_usage(tmp_path):
-    class FailingTrialClient(FixedClient):
-        def complete_text(self, *_args, **_kwargs):
-            raise ApiError("network", "Offline network failure fixture", latency_ms=7)
-    run = runner.DemoRun(config(), tmp_path / "trial-failure", ["D2"],
-                         client=FailingTrialClient(), evidence_mode="offline_fixture")
-    for _ in range(7):
-        result = run.advance()
-        if result["status"] == "failed":
-            break
-        decide(run, "D2", fixture_decision(run, "D2"))
-    case = result["cases"]["D2"]
-    assert case["failure"]["stage"] == "trial_call"
-    call = case["calls"][-1]
-    evidence = Path(call["evidence_dir"])
-    assert (evidence / "input.json").exists()
-    assert (evidence / "response.raw.txt").read_text(encoding="utf-8") == ""
-    metadata = json.loads((evidence / "metadata.json").read_text(encoding="utf-8"))
-    assert metadata["usage"] is None
-    assert metadata["response_available"] is False
-    assert run.sessions["D2"].final_result["status"] == "confirmed"
-    assert run.sessions["D2"].trial_runs[-1]["status"] == "failed"
 
 
 def test_checkpoint_refuses_decision_if_business_state_changed_after_review(tmp_path):

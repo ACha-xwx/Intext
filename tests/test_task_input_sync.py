@@ -87,13 +87,15 @@ def test_empty_visible_task_focuses_without_sync_or_request(app, previous_task, 
     assert app.primary_action_var.get() == "先输入任务"
     app.widgets["analyze_button"].invoke()
     app.root.update()
-    assert app.root.focus_get() == app.widgets["task_text"]
+    assert app.root.focus_get() == app.widgets["conversation_input"]
     assert setter_calls == []
     assert app.test_submissions == []
     assert app.session.to_dict() == before
 
 
 def test_typing_updates_label_and_connection_changes_without_sync(app):
+    # The retained goal editor is available through the conversation's details.
+    app.toggle_conversation_details(True)
     app.api_key_var.set("")
     app.root.deiconify()
     app.root.focus_force()
@@ -120,6 +122,7 @@ def test_typing_updates_label_and_connection_changes_without_sync(app):
 
 @pytest.mark.parametrize("method", ["right_click", "ctrl_v"])
 def test_paste_cut_and_undo_refresh_without_mutating_session(app, method, monkeypatch):
+    app.toggle_conversation_details(True)
     text = app.widgets["task_text"]
     app.root.deiconify()
     app.root.focus_force()

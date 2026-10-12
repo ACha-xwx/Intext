@@ -56,7 +56,7 @@ def test_m3_manual_no_match_fixture_marks_the_real_work_unmatched() -> None:
         ("request", "request_id"),
     ],
 )
-def test_m3_rejects_invalid_candidate_coverage_and_references(mutation: str, message: str) -> None:
+def test_m3_repairs_advisory_references_but_rejects_other_request(mutation: str, message: str) -> None:
     payload = fixture("m3_normal.manual_fixture.input.json")
     output = fixture("m3_normal.manual_fixture.output.json")
     if mutation == "omit":
@@ -74,8 +74,14 @@ def test_m3_rejects_invalid_candidate_coverage_and_references(mutation: str, mes
     elif mutation == "request":
         output["request_id"] = "another-request"
 
-    with pytest.raises(M3ValidationError, match=message):
-        parse_m3_response(json.dumps(output, ensure_ascii=False), payload, M3Assets.load(DESIGN).output_schema)
+    if mutation == "request":
+        with pytest.raises(M3ValidationError, match=message):
+            parse_m3_response(json.dumps(output, ensure_ascii=False), payload, M3Assets.load(DESIGN).output_schema)
+        return
+    parsed = parse_m3_response(json.dumps(output, ensure_ascii=False), payload, M3Assets.load(DESIGN).output_schema)
+    assert {row["candidate_id"] for row in parsed["assessments"]} == {row["candidate_id"] for row in payload["candidates"]}
+    assert "kw-other" not in parsed["unmatched_key_work_ids"]
+    assert all(value != "cap-not-in-candidate" for row in parsed["assessments"] for value in row["capability_ids"])
 
 
 def test_m3_error_branch_is_exclusive_and_has_no_fake_http_details() -> None:
@@ -262,7 +268,7 @@ def test_m4_no_binding_fixture_allows_a_zero_contribution_result() -> None:
         ("accepted_field", "不符合契约"),
     ],
 )
-def test_m4_rejects_missing_coverage_and_unknown_or_duplicate_references(
+def test_m4_recovers_guidance_for_selected_sources_only(
     mutation: str, message: str
 ) -> None:
     payload = fixture("m4_normal.manual_fixture.input.json")
@@ -297,22 +303,25 @@ def test_m4_rejects_missing_coverage_and_unknown_or_duplicate_references(
     elif mutation == "accepted_field":
         output["accepted"] = True
 
-    with pytest.raises(M4ValidationError, match=message):
-        parse_m4_response(json.dumps(output, ensure_ascii=False), payload, M4Assets.load(DESIGN).output_schema)
+    parsed = parse_m4_response(json.dumps(output, ensure_ascii=False), payload, M4Assets.load(DESIGN).output_schema)
+    assert {row["binding_id"] for row in parsed["contributions"]} == {row["binding_id"] for row in payload["bindings"]}
+    assert all(row["method_actions"] and row["fallback_actions"] for row in parsed["contributions"])
+    assert "accepted" not in parsed and "baseline" not in parsed
 
 
-def test_m4_error_branch_is_exclusive() -> None:
+def test_m4_content_error_becomes_reference_guidance_and_visible_warning() -> None:
     payload = fixture("m4_normal.manual_fixture.input.json")
     output = fixture("m4_error.manual_fixture.output.json")
     parsed = parse_m4_response(
         json.dumps(output, ensure_ascii=False), payload, M4Assets.load(DESIGN).output_schema
     )
-    assert parsed["error"]["code"] == "constraint_conflict"
+    assert parsed["status"] == "ok"
+    assert any("constraint_conflict" in text for text in parsed["contributions"][0]["fallback_actions"])
 
     mixed = deepcopy(output)
     mixed["contributions"] = deepcopy(fixture("m4_normal.manual_fixture.output.json")["contributions"])
-    with pytest.raises(M4ValidationError, match="错误分支"):
-        parse_m4_response(json.dumps(mixed, ensure_ascii=False), payload, M4Assets.load(DESIGN).output_schema)
+    recovered = parse_m4_response(json.dumps(mixed, ensure_ascii=False), payload, M4Assets.load(DESIGN).output_schema)
+    assert recovered["status"] == "ok"
 
 
 def test_build_m4_input_is_a_validated_deep_copy() -> None:
@@ -326,7 +335,7 @@ def test_build_m4_input_is_a_validated_deep_copy() -> None:
 
 
 @pytest.mark.parametrize("mutation", ["omitted_prerequisite", "missing_fallback"])
-def test_m4_unknown_blocking_prerequisite_requires_reference_and_fallback(mutation: str) -> None:
+def test_m4_unknown_prerequisite_gets_read_and_ask_guidance(mutation: str) -> None:
     payload = fixture("m4_normal.manual_fixture.input.json")
     output = fixture("m4_normal.manual_fixture.output.json")
     prerequisite = payload["bindings"][0]["prerequisite_assessments"][0]
@@ -336,10 +345,9 @@ def test_m4_unknown_blocking_prerequisite_requires_reference_and_fallback(mutati
     if mutation == "missing_fallback":
         contribution["prerequisite_ids"] = [prerequisite["prerequisite_id"]]
 
-    with pytest.raises(M4ValidationError, match="阻断性未知前提|fallback"):
-        parse_m4_response(
-            json.dumps(output, ensure_ascii=False), payload, M4Assets.load(DESIGN).output_schema
-        )
+    parsed = parse_m4_response(json.dumps(output, ensure_ascii=False), payload, M4Assets.load(DESIGN).output_schema)
+    assert prerequisite["prerequisite_id"] in parsed["contributions"][0]["prerequisite_ids"]
+    assert any("待核对前提" in text for text in parsed["contributions"][0]["fallback_actions"])
 
 
 def test_m4_unknown_blocking_prerequisite_accepts_an_explicit_fallback() -> None:

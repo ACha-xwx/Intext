@@ -1,19 +1,24 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import os
 import queue
 import sys
+import time
 import tkinter as tk
-from concurrent.futures import Future, ThreadPoolExecutor
+from concurrent.futures import CancelledError, Future, ThreadPoolExecutor
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from threading import Event, Lock
 from tkinter import filedialog, messagebox, simpledialog, ttk
 from typing import Any, Callable
 from urllib.parse import urlsplit
 from uuid import uuid4
+
+from .streaming import observe_stream
 
 from .api import (
     ANTHROPIC_MESSAGES_PROTOCOL,
@@ -22,15 +27,17 @@ from .api import (
     DEFAULT_GENERATION_TIMEOUT_SECONDS,
     CONNECTION_TIMEOUT_SECONDS,
     structured_request_parameters,
+    sampling_request_parameters,
     ApiConfig,
     ApiError,
     ModelListResult,
     client_for_config,
 )
 from .categories import CATEGORY_LABELS
+from .task_scope import TaskScope, check_cancelled
 from .m1 import M1Assets, M1ValidationError
 from .m2 import M2Assets, M2ValidationError
-from .m5 import M5Assets, M5ValidationError, record_m5_feedback as save_m5_feedback
+from .m5 import M5Assets
 from .paths import application_data_dir, resource_root
 from .exporter import export_markdown
 from .finalization import (
@@ -60,6 +67,9 @@ from .local_skill_search import (
 )
 from .skill_ai_selection import SkillAiSelectionError, select_skill_candidates_with_ai
 from .skill_network_discovery import search_network_skill_candidates
+from .local_skill_index import warm_local_skill_index
+from .skill_recommendation import recommendation_score, shortlist_candidates
+from .skill_browser import SOURCE_FILTERS, source_group, table_rows, visible_rows
 from .open_skill_search import OPEN_WEB_SEARCH_URL
 from .skill_search import (
     GITHUB_API_BASE,
@@ -71,13 +81,13 @@ from .session import SessionState, SessionStateError, StaleResponseError
 from .storage import load_session, save_session
 from .workflow import M1CallFailure, M1CallOutcome, M2CallFailure, M2CallOutcome, Phase12Workflow
 from .guided_flow import GuidedFlowMixin
-from .trial import (
-    TrialCallFailure,
-    apply_trial_result,
-    build_trial_request,
-    invoke_trial,
-    record_trial_failure,
-)
+from .debug_console import DebugConsole
+from .runtime_log import RuntimeLog
+from .preferences import FIELDS, update_debug_preference
+from .credentials import credential_context
+from .model_catalog import PROVIDER_PRESETS
+from .typography import Typography, ui_font
+
 
 
 search_local_skill_files = _search_local_skill_files
@@ -138,11 +148,6 @@ PROTOCOL_LABELS = {
     "Anthropic Messages": ANTHROPIC_MESSAGES_PROTOCOL,
 }
 PROTOCOL_NAMES = {value: key for key, value in PROTOCOL_LABELS.items()}
-PROVIDER_PRESETS = {
-    "DeepSeek": {"base_url": "https://api.deepseek.com", "protocol": PROTOCOL_ID, "model": "deepseek-flash"},
-    "OpenAI": {"base_url": "https://api.openai.com/v1", "protocol": OPENAI_RESPONSES_PROTOCOL, "model": ""},
-    "Anthropic": {"base_url": "https://api.anthropic.com/v1", "protocol": ANTHROPIC_MESSAGES_PROTOCOL, "model": ""},
-}
 
 
 def api_config_summary(config: ApiConfig) -> dict[str, Any]:
@@ -156,7 +161,7 @@ def api_config_summary(config: ApiConfig) -> dict[str, Any]:
 
 
 def json_request_parameters(config: ApiConfig) -> dict[str, Any]:
-    return {**api_config_summary(config), **structured_request_parameters(config)}
+    return {**api_config_summary(config), **structured_request_parameters(config), **sampling_request_parameters(config)}
 
 
 def generation_failure_message(purpose: str, exc: Exception, timeout_seconds: float | None) -> str:
@@ -184,12 +189,21 @@ def generation_failure_message(purpose: str, exc: Exception, timeout_seconds: fl
         if kind in {"http_error", "http"}:
             return f"模型服务拒绝了本次生成请求。{retained}请在设置页核对连接地址、接口类型和模型名称，测试连接并点击“确认”后重新生成；反复失败时可提供诊断记录排查。"
     if getattr(exc, "kind", None) != "timeout":
-        return str(exc)
+        next_step = {
+            "m1": "回答已保留。可以补充一句说明后重新整理，或点击重试分析；已有需求可继续核对。",
+            "m2": "需求已保留。可以补充目标或范围后重新生成方案，或在设置中检查模型连接。",
+            "m3": "候选已保留。可以直接选用合适的 Skill，无需等待候选分析成功。",
+            "m4": "所选 Skill 已保留。可以点击“用已选 Skill 直接生成提示词”，或重试模型整合。",
+            "m5": "可以跳过示例，直接回答当前问题，或修改评价标准后重试。",
+        }.get(purpose, "现有内容已保留，可以重试。")
+        return f"{exc}\n\n下一步：{next_step}"
     label = {"m1": "需求分析", "m2": "初始方案生成", "m3": "候选分析",
              "m4": "Agent Skill 指令整合", "m5": "示例生成"}[purpose]
     wait = f"等待超过{timeout_seconds:g}秒" if timeout_seconds is not None else "等待超时"
     retained = "已有回答和需求已保留" if purpose == "m1" else "已有回答、需求和结果已保留"
-    return f"{label}{wait}，{retained}，可检查网络、调整模型后点击重试。"
+    continuation = {"m3": "也可直接选用候选 Skill。", "m4": "也可点击“用已选 Skill 直接生成提示词”。",
+                    "m5": "也可跳过示例并直接回答。"}.get(purpose, "")
+    return f"{label}{wait}，{retained}，可检查网络、调整模型后点击重试。{continuation}"
 
 
 class PromptSmithApp(GuidedFlowMixin):
@@ -201,9 +215,31 @@ class PromptSmithApp(GuidedFlowMixin):
         assets: M1Assets | None = None,
         m2_assets: M2Assets | None = None,
         evidence_root: str | Path | None = None,
+        runtime_log: RuntimeLog | None = None,
+        diagnostics_root: str | Path | None = None,
+        debug_console_factory=None,
     ):
+        startup_started = time.perf_counter()
         self.root = root
-        self.session = session or SessionState.new()
+        data_root = Path(diagnostics_root or (
+            runtime_log.directory.parent if runtime_log is not None else
+            (Path(evidence_root).parent if Path(evidence_root).name == "runs" else Path(evidence_root))
+            if evidence_root is not None else application_data_dir()
+        ))
+        self.runtime_log = runtime_log or RuntimeLog(data_root / "logs").start()
+        self._init_preferences(data_root)
+        self.runtime_log.set_history_limit(self.preferences["debug_history"])
+        self._owns_runtime_log = runtime_log is None
+        self.debug_console = None
+        self._debug_console_factory = debug_console_factory or DebugConsole
+        self._shutdown = False
+        self._tk_root = self.root._root()
+        self._previous_callback_exception = self._tk_root.report_callback_exception
+        self._tk_root.report_callback_exception = self._report_callback_exception
+        self.runtime_log.register_secret(os.environ.get("PROMPTSMITH_GITHUB_TOKEN"))
+        self.runtime_log.register_secret(os.environ.get("PROMPTSMITH_API_KEY"))
+        logging.getLogger(__name__).info("Initializing desktop application; Python %s", sys.version)
+        self.session = session or self._new_preferred_session()
         self.assets = assets or M1Assets.load()
         self.m2_assets = m2_assets or M2Assets.load()
         self.evidence_root = Path(evidence_root or (application_data_dir() / "runs"))
@@ -217,15 +253,14 @@ class PromptSmithApp(GuidedFlowMixin):
             session_instance_token=self._session_instance_token,
         )
         self.delivery_busy = False
+        self._delivery_status_text = ""
+        self._delivery_status_basis = None
         self._active_delivery_request: dict[str, Any] | None = None
-        self._active_m5_request: dict[str, Any] | None = None
-        self._active_trial_request: dict[str, Any] | None = None
         # Tests and deployments may provide an opener without changing the
         # GitHub normalization or the rest of the delivery workflow.
         self.skill_search_opener: Callable[..., Any] | None = None
         self.skill_search_token = os.environ.get("PROMPTSMITH_GITHUB_TOKEN")
-        self.skill_search_timeout = 45.0
-        self._m5_disposition: str | None = None
+        self.skill_search_timeout = self.preferences["search_timeout"]
         self._skill_search_request: dict[str, Any] | None = None
         self._skill_search_busy = False
         self._skill_search_status_text = ""
@@ -234,15 +269,22 @@ class PromptSmithApp(GuidedFlowMixin):
         try:
             self.catalog = SkillCatalog.load(self._catalog_path, source_root=resource_root())
         except (FileNotFoundError, SkillCatalogError):
+            logging.getLogger(__name__).exception("Built-in Skill catalog unavailable: %s", self._catalog_path)
             self.catalog = None
         self.executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="promptsmith")
+        self._retired_executors: list[ThreadPoolExecutor] = []
+        self._session_tasks = TaskScope()
+        self._active_stop_token = uuid4().hex
+        self._application_tasks = TaskScope()
+        self._background_futures: dict[Future, TaskScope] = {}
+        self._background_lock = Lock()
         self.completions: queue.Queue[tuple[Callable[[Any], None], Any]] = queue.Queue()
         self.session_path: Path | None = None
         self.busy = False
         self.busy_kind: str | None = None
         self.connection_version = 0
-        self._connection_state: tuple[str, str, str, str, str] | None = None
-        self._confirmed_connection_state: tuple[str, str, str, str, str] | None = None
+        self._connection_state: tuple[Any, ...] | None = None
+        self._confirmed_connection_state: tuple[Any, ...] | None = None
         self.model_directory_version = 0
         self._model_directory_state: tuple[str, str, str, str] | None = None
         self._last_provider = "DeepSeek"
@@ -252,11 +294,22 @@ class PromptSmithApp(GuidedFlowMixin):
         self.category_by_label["自动判断"] = None
 
         self.status_var = tk.StringVar(value="就绪。真实模型尚未连接。")
-        self.provider_var = tk.StringVar(value=os.environ.get("PROMPTSMITH_PROVIDER", "DeepSeek"))
-        self.protocol_var = tk.StringVar(value="OpenAI Chat Completions")
-        self.api_base_var = tk.StringVar(value=os.environ.get("PROMPTSMITH_API_BASE_URL", "https://api.deepseek.com"))
-        self.api_model_var = tk.StringVar(value=os.environ.get("PROMPTSMITH_MODEL", "deepseek-flash"))
-        self.api_key_var = tk.StringVar(value="")
+        self.debug_console_enabled_var = self.preference_vars["debug_console_enabled"]
+        self.provider_var = tk.StringVar(value=os.environ.get("PROMPTSMITH_PROVIDER", self._saved_connection.get("provider", "DeepSeek")))
+        self.protocol_var = tk.StringVar(value=self._saved_connection.get("protocol") if self._saved_connection.get("protocol") in PROTOCOL_LABELS else "OpenAI Chat Completions")
+        self.api_base_var = tk.StringVar(value=os.environ.get("PROMPTSMITH_API_BASE_URL", self._saved_connection.get("base_url", "https://api.deepseek.com")))
+        self.api_model_var = tk.StringVar(value=os.environ.get("PROMPTSMITH_MODEL", self._saved_connection.get("model", "deepseek-flash")))
+        self._last_provider = self.provider_var.get()
+        current_connection = {"provider": self.provider_var.get(), "protocol": self.protocol_var.get(),
+                              "base_url": self.api_base_var.get()}
+        if self._saved_api_key and credential_context(current_connection) != credential_context(self._saved_connection):
+            self._saved_api_key = ""
+            self._settings_load_warning = "当前接口配置与保存时不同，未恢复 API Key。请在模型设置中重新输入密钥并确认。"
+            self.settings_status_var.set(self._settings_load_warning)
+            logging.getLogger(__name__).warning("Saved API Key not reused: startup connection identity changed")
+        self.api_key_var = tk.StringVar(value=self._saved_api_key)
+        self._saved_api_key = ""
+        self.api_key_var.trace_add("write", lambda *_: self.runtime_log.register_secret(self.api_key_var.get()))
         self.model_confirmation_var = tk.StringVar(value="尚未确认模型设置。测试连接只检查接口；点击“确认”后用于任务。")
         self.category_var = tk.StringVar(value=CATEGORY_LABELS.get(self.session.selected_category, "自动判断"))
         # The interview depth is a user preference for coverage, not a hard
@@ -275,21 +328,19 @@ class PromptSmithApp(GuidedFlowMixin):
         self.plan_next_step_var = tk.StringVar(value="先在需求页确认当前需求。")
         self.plan_section_var = tk.StringVar(value="")
         self.skill_status_var = tk.StringVar(value="尚未查找本地 Skill 目录。")
+        self.show_all_skills_var = tk.BooleanVar(value=False)
+        self.skill_source_filter_var = tk.StringVar(value="全部来源")
         self.skill_search_url_var = tk.StringVar(
             value=(
                 self.session.control.get("skill_search_url")
-                or os.environ.get("PROMPTSMITH_SKILL_SEARCH_URL", "")
+                or os.environ.get("PROMPTSMITH_SKILL_SEARCH_URL", self.preferences["skill_search_url"])
             )
         )
         self.skill_next_step_var = tk.StringVar(value="确认初始方案后，可查找本地或联网 Agent Skill，也可直接跳过。")
         self.final_status_var = tk.StringVar(value="尚未生成最终草稿。")
         self.final_tone_var = tk.StringVar(value="中性")
         self.final_prompt_var = tk.StringVar(value="")
-        self.m5_disposition_var = tk.StringVar(value="")
-        self.trial_tokens_var = tk.StringVar(value="256")
         self.skill_prerequisite_status_var = tk.StringVar(value="仍未知")
-        self.m5_status_var = tk.StringVar(value="输入一个难以描述的评价标准，生成两个可比较示例。")
-        self.trial_status_var = tk.StringVar(value="试运行只会调用当前已确认的最终提示，不会修改需求或最终结果。")
         self._selected_skill_binding_id: str | None = None
         self._plan_section_lookup: dict[str, tuple[str, str]] = {}
         self._final_review_lookup: dict[str, dict[str, Any]] = {}
@@ -306,6 +357,7 @@ class PromptSmithApp(GuidedFlowMixin):
         self._configure_root()
         self._build_menu()
         self._build_layout()
+        self._apply_visual_preferences()
         self._connection_state = self._generation_snapshot()
         self._model_directory_state = self._model_directory_snapshot()
         self.provider_var.trace_add("write", self._on_provider_changed)
@@ -317,37 +369,111 @@ class PromptSmithApp(GuidedFlowMixin):
             self.api_key_var,
         ):
             variable.trace_add("write", self._on_connection_changed)
+        for key, variable in self.preference_vars.items():
+            if FIELDS[key].category == "模型":
+                variable.trace_add("write", self._on_connection_changed)
+        self._restore_model_settings_confirmation()
+        self._refresh_model_confirmation()
         self.refresh()
+        if self._settings_load_warning:
+            self.status_var.set(self._settings_load_warning)
+        for name in ("status_var", "skill_status_var"):
+            variable = getattr(self, name)
+            variable.trace_add("write", lambda *_args, var=variable, source=name:
+                               logging.getLogger("promptsmith.status").info("%s: %s", source, var.get()))
+        logging.getLogger(__name__).info("Desktop ready: initialization=%.3fs native_font=%s; model evidence directory: %s",
+                                         time.perf_counter()-startup_started, self.typography.family, self.evidence_root)
+        if self.debug_console_enabled_var.get():
+            self.set_debug_console_enabled(persist=False)
         self._completion_after_id = self.root.after(50, self._poll_completions)
+        roots = self._skill_roots()
+        self._submit(lambda: warm_local_skill_index(roots), lambda _value: None, lambda _exc: None,
+                     session_scoped=False)
+
+    def _report_callback_exception(self, exc_type, value, traceback) -> None:
+        logging.getLogger(__name__).error("Unhandled Tk callback exception",
+                                          exc_info=(exc_type, value, traceback))
+        self._previous_callback_exception(exc_type, value, traceback)
+
+    def _show_error(self, title, message, **options):
+        logging.getLogger("promptsmith.ui.error").error(
+            "%s: %s", title, message,
+            exc_info=sys.exc_info() if sys.exc_info()[0] is not None else None,
+        )
+        return messagebox.showerror(title, message, **options)
+
+    def _show_info(self, title, message, **options):
+        logging.getLogger("promptsmith.ui.notice").info(
+            "%s: %s", title, message, exc_info=sys.exc_info() if sys.exc_info()[0] else None,
+        )
+        return messagebox.showinfo(title, message, **options)
+
+    def _show_warning(self, title, message, **options):
+        logging.getLogger("promptsmith.ui.notice").warning(
+            "%s: %s", title, message, exc_info=sys.exc_info() if sys.exc_info()[0] else None,
+        )
+        return messagebox.showwarning(title, message, **options)
+
+    def set_debug_console_enabled(self, *, persist: bool = True) -> None:
+        enabled = self.debug_console_enabled_var.get()
+        if enabled and self.debug_console is None:
+            self.debug_console = self._debug_console_factory(self.root, self.runtime_log, self._close_debug_console)
+            self.debug_console.apply_preferences(self.preferences)
+            logging.getLogger(__name__).info("Debug console opened")
+        elif not enabled and self.debug_console is not None:
+            self.debug_console.close()
+            self.debug_console = None
+            logging.getLogger(__name__).info("Debug console closed; in-memory log collection continues")
+        elif enabled:
+            self.debug_console.window.lift()
+        if persist:
+            try:
+                update_debug_preference(self._preferences_path, enabled)
+                self.preferences["debug_console_enabled"] = enabled
+                logging.getLogger(__name__).debug("Debug window preference saved to settings.json: enabled=%s", enabled)
+            except (OSError, ValueError):
+                logging.getLogger(__name__).exception("Cannot save debug console preference")
+                message = "控制台已切换，但开关未保存。请检查设置文件权限或点击“保存设置”后重试。"
+                self.status_var.set(message)
+                self.settings_status_var.set(message)
+
+    def _close_debug_console(self) -> None:
+        self.debug_console_enabled_var.set(False)
+        self.set_debug_console_enabled()
 
     def _configure_root(self) -> None:
+        from .display import display_scale
         self.root.title("PromptSmith · 需求引导式提示构建助手")
         # Tk may see a smaller logical desktop under Windows display scaling.
         # Keep the fixed next-step bar on-screen and let page content scroll.
         available_width = max(320, self.root.winfo_screenwidth() - 40)
         available_height = max(240, self.root.winfo_screenheight() - 100)
         # Target 1440×810, fitting both dimensions together to keep 16:9.
-        size_units = min(90, available_width // 16, available_height // 9)
+        scale = display_scale(self.root)
+        size_units = min(round(self.preferences["window_width"] * scale) // 16, available_width // 16, available_height // 9)
         width, height = size_units * 16, size_units * 9
         self.root.geometry(f"{width}x{height}")
         self.root.minsize(min(960, width), min(540, height))
         self.root.protocol("WM_DELETE_WINDOW", self.close)
+        logging.getLogger(__name__).info("Desktop display: tk_scaling=%.3f density=%.3f window=%sx%s",
+                                         float(self.root.tk.call("tk", "scaling")), scale, width, height)
         style = ttk.Style(self.root)
         if "vista" in style.theme_names():
             style.theme_use("vista")
-        style.configure("Title.TLabel", font=("Microsoft YaHei UI", 17, "bold"))
-        style.configure("Section.TLabel", font=("Microsoft YaHei UI", 12, "bold"))
+        self.typography = Typography(self.root, self.preferences)
+        style.configure("Title.TLabel", font=ui_font(self.root, "title", "bold"))
+        style.configure("Section.TLabel", font=ui_font(self.root, "body", "bold"))
         style.configure("Muted.TLabel", foreground="#5f6368")
         style.configure("Danger.TLabel", foreground="#a1362f")
-        style.configure("Treeview", rowheight=34, font=("Microsoft YaHei UI", 12))
-        style.configure("Treeview.Heading", font=("Microsoft YaHei UI", 11, "bold"))
-        style.configure("TLabel", font=("Microsoft YaHei UI", 12))
-        style.configure("TButton", font=("Microsoft YaHei UI", 12))
-        style.configure("TEntry", font=("Microsoft YaHei UI", 12))
+        style.configure("Treeview", rowheight=max(34,ui_font(self.root).metrics("linespace")+12), font=ui_font(self.root))
+        style.configure("Treeview.Heading", font=ui_font(self.root, "heading", "bold"))
+        style.configure("TLabel", font=ui_font(self.root))
+        style.configure("TButton", font=ui_font(self.root))
+        style.configure("TEntry", font=ui_font(self.root))
 
     def _build_menu(self) -> None:
-        menu = tk.Menu(self.root)
-        file_menu = tk.Menu(menu, tearoff=False)
+        menu = tk.Menu(self.root, font=ui_font(self.root))
+        file_menu = tk.Menu(menu, tearoff=False, font=ui_font(self.root))
         file_menu.add_command(label="新建会话", command=self.new_session)
         file_menu.add_command(label="打开会话...", command=self.open_session)
         file_menu.add_command(label="保存", command=self.save)
@@ -414,8 +540,8 @@ class PromptSmithApp(GuidedFlowMixin):
             )
         )
 
-    def _scrollable_page(self, name: str) -> tuple[ttk.Frame, ttk.Frame]:
-        page = ttk.Frame(self.notebook)
+    def _scrollable_page(self, name: str, *, parent=None) -> tuple[ttk.Frame, ttk.Frame]:
+        page = ttk.Frame(parent or self.notebook)
         page.columnconfigure(0, weight=1)
         page.rowconfigure(0, weight=1)
         canvas = tk.Canvas(page, highlightthickness=0, borderwidth=0)
@@ -544,6 +670,11 @@ class PromptSmithApp(GuidedFlowMixin):
                     and canvas.winfo_rooty() <= y < canvas.winfo_rooty() + canvas.winfo_height()
                 ):
                     continue
+                if any(path.startswith(str(inner) + ".") and not (
+                    inner.winfo_rootx() <= x < inner.winfo_rootx()+inner.winfo_width()
+                    and inner.winfo_rooty() <= y < inner.winfo_rooty()+inner.winfo_height()
+                ) for inner in self._page_canvases if inner is not canvas):
+                    continue
             except tk.TclError:
                 continue
             matches.append(widget)
@@ -555,7 +686,7 @@ class PromptSmithApp(GuidedFlowMixin):
     def _nearest_inner_scrollable(widget: tk.Misc, page_canvas: tk.Canvas) -> tk.Misc | None:
         current = widget
         while current is not page_canvas:
-            if current.winfo_class() in {"Text", "Treeview", "Listbox"}:
+            if current.winfo_class() in {"Text", "Treeview", "Listbox", "Canvas"}:
                 return current
             parent_name = current.winfo_parent()
             if not parent_name:
@@ -600,206 +731,6 @@ class PromptSmithApp(GuidedFlowMixin):
         self._wheel_direction = 0
         self._wheel_remainder = 0
 
-    def _legacy_build_requirements_page(self, page: ttk.Frame) -> None:
-        page.columnconfigure(0, weight=1)
-        page.rowconfigure(2, weight=1)
-        page.rowconfigure(3, weight=0)
-
-        api = ttk.LabelFrame(page, text="模型连接（仅当前运行会话）", padding=10)
-        api.grid(row=0, column=0, sticky="ew")
-        api.columnconfigure(1, weight=1)
-        api.columnconfigure(3, weight=1)
-        ttk.Label(api, text="服务名称").grid(row=0, column=0, sticky="w")
-        provider_combo = ttk.Combobox(
-            api,
-            textvariable=self.provider_var,
-            values=tuple(PROVIDER_PRESETS),
-            state="normal",
-        )
-        provider_combo.grid(row=0, column=1, sticky="ew", padx=(8, 18))
-        ttk.Label(api, text="协议").grid(row=0, column=2, sticky="w")
-        protocol_combo = ttk.Combobox(
-            api,
-            textvariable=self.protocol_var,
-            values=tuple(PROTOCOL_LABELS),
-            state="readonly",
-        )
-        protocol_combo.grid(row=0, column=3, sticky="ew", padx=(8, 8))
-        ttk.Label(api, text="模型 ID").grid(row=1, column=0, sticky="w", pady=(8, 0))
-        model_entry = ttk.Combobox(api, textvariable=self.api_model_var, state="normal")
-        model_entry.grid(row=1, column=1, sticky="ew", padx=(8, 18), pady=(8, 0))
-        model_list_button = ttk.Button(api, text="获取模型列表", command=self.fetch_models)
-        model_list_button.grid(row=1, column=2, sticky="w", pady=(8, 0))
-        ttk.Label(api, text="列表不会自动改写当前模型").grid(row=1, column=3, sticky="w", padx=(8, 8), pady=(8, 0))
-        ttk.Label(api, text="接口地址").grid(row=2, column=0, sticky="w", pady=(8, 0))
-        base_entry = ttk.Entry(api, textvariable=self.api_base_var)
-        base_entry.grid(row=2, column=1, sticky="ew", padx=(8, 18), pady=(8, 0))
-        ttk.Label(api, text="API Key").grid(row=2, column=2, sticky="w", pady=(8, 0))
-        key_entry = ttk.Entry(api, textvariable=self.api_key_var, show="●")
-        key_entry.grid(row=2, column=3, sticky="ew", padx=(8, 8), pady=(8, 0))
-        test_button = ttk.Button(api, text="测试连接", command=self.test_connection)
-        test_button.grid(row=0, column=4, rowspan=3, padx=(8, 0))
-        self.widgets.update(
-            {
-                "api_model_entry": model_entry,
-                "api_model_combo": model_entry,
-                "provider_combo": provider_combo,
-                "protocol_combo": protocol_combo,
-                "api_base_entry": base_entry,
-                "api_key_entry": key_entry,
-                "model_list_button": model_list_button,
-                "test_connection_button": test_button,
-            }
-        )
-
-        task = ttk.LabelFrame(page, text="任务输入", padding=10)
-        task.grid(row=1, column=0, sticky="ew", pady=(10, 10))
-        task.columnconfigure(0, weight=1)
-        task_text = tk.Text(task, height=4, wrap="word", undo=True, font=("Microsoft YaHei UI", 11))
-        task_text.grid(row=0, column=0, columnspan=4, sticky="ew")
-        ttk.Label(task, text="类别").grid(row=1, column=0, sticky="w", pady=(8, 0))
-        category = ttk.Combobox(
-            task,
-            textvariable=self.category_var,
-            values=["自动判断", *CATEGORY_LABELS.values()],
-            state="readonly",
-            width=18,
-        )
-        category.grid(row=1, column=1, sticky="w", padx=(8, 12), pady=(8, 0))
-        category.bind("<<ComboboxSelected>>", self._on_category_selected)
-        analyze = ttk.Button(task, textvariable=self.primary_action_var, command=self.run_primary_action)
-        analyze.grid(row=1, column=2, sticky="e", padx=(0, 8), pady=(8, 0))
-        task.columnconfigure(2, weight=1)
-        self.widgets.update(
-            {
-                "task_text": task_text,
-                "category_combo": category,
-                "analyze_button": analyze,
-            }
-        )
-        task_text.bind("<<Modified>>", self._on_task_text_modified, add="+")
-        content = ttk.Panedwindow(page, orient="horizontal")
-        content.grid(row=2, column=0, sticky="nsew")
-        left = ttk.Frame(content)
-        right = ttk.Frame(content)
-        content.add(left, weight=3)
-        content.add(right, weight=2)
-        left.columnconfigure(0, weight=1)
-        left.rowconfigure(1, weight=1, minsize=48)
-        left.rowconfigure(4, weight=1, minsize=42)
-        right.columnconfigure(0, weight=1)
-        right.rowconfigure(3, weight=1, minsize=55)
-        right.rowconfigure(6, weight=1, minsize=55)
-
-        ttk.Label(left, textvariable=self.summary_var, style="Section.TLabel").grid(row=0, column=0, sticky="w")
-        requirements = self._tree(left, ("field", "text", "status"), (100, 360, 90), height=4)
-        requirements._promptsmith_container.grid(row=1, column=0, sticky="nsew", pady=(5, 6))
-        req_buttons = ttk.Frame(left)
-        req_buttons.grid(row=2, column=0, sticky="ew")
-        ttk.Button(req_buttons, text="编辑选中", command=self.edit_selected_requirement).pack(side="left")
-        ttk.Button(req_buttons, text="撤销选中", command=self.withdraw_selected_requirement).pack(side="left", padx=6)
-        review_requirements_button = ttk.Button(req_buttons, text="标记已复核", command=self.review_selected_requirements)
-        review_requirements_button.pack(side="left")
-        ttk.Button(req_buttons, text="确认当前需求", command=self.confirm_requirements).pack(side="right")
-        ttk.Label(left, text="模型候选（接受前不改变需求）", style="Section.TLabel").grid(
-            row=3, column=0, sticky="w", pady=(12, 0)
-        )
-        proposals = self._tree(left, ("operation", "field", "text"), (80, 100, 360), height=3)
-        proposals._promptsmith_container.grid(row=4, column=0, sticky="nsew", pady=(5, 6))
-        candidate_buttons = ttk.Frame(left)
-        candidate_buttons.grid(row=5, column=0, sticky="ew")
-        ttk.Button(candidate_buttons, text="接受选中", command=self.accept_selected_proposals).pack(side="left")
-        ttk.Button(candidate_buttons, text="接受全部", command=self.accept_all_proposals).pack(side="left", padx=6)
-        ttk.Button(candidate_buttons, text="忽略全部", command=self.dismiss_proposals).pack(side="left")
-
-        m5_frame = ttk.LabelFrame(left, text="M5 评价标准示例（可选）", padding=8)
-        m5_frame.grid(row=6, column=0, sticky="ew", pady=(12, 0))
-        m5_frame.columnconfigure(1, weight=1)
-        ttk.Label(m5_frame, text="标准").grid(row=0, column=0, sticky="w")
-        m5_criterion = ttk.Entry(m5_frame)
-        m5_criterion.grid(row=0, column=1, sticky="ew", padx=(6, 6))
-        m5_generate = ttk.Button(m5_frame, text="生成示例", command=self.start_m5_generation)
-        m5_generate.grid(row=0, column=2, sticky="e")
-        ttk.Label(m5_frame, textvariable=self.m5_status_var, style="Muted.TLabel", wraplength=520).grid(
-            row=1, column=0, columnspan=3, sticky="w", pady=(5, 4)
-        )
-        m5_examples = tk.Text(
-            m5_frame, height=6, wrap="word", state="disabled", background="#f4f5f7",
-            font=("Microsoft YaHei UI", 11),
-        )
-        m5_examples.grid(row=2, column=0, columnspan=3, sticky="ew", pady=(0, 5))
-        m5_choices = ttk.Frame(m5_frame)
-        m5_choices.grid(row=3, column=0, columnspan=3, sticky="ew")
-        m5_option_a = ttk.Button(m5_choices, text="更接近 A", command=lambda: self.select_m5_disposition("a"))
-        m5_option_a.pack(side="left")
-        m5_option_b = ttk.Button(m5_choices, text="更接近 B", command=lambda: self.select_m5_disposition("b"))
-        m5_option_b.pack(side="left", padx=5)
-        m5_neither = ttk.Button(m5_choices, text="都不喜欢", command=lambda: self.select_m5_disposition("neither"))
-        m5_neither.pack(side="left")
-        m5_skip = ttk.Button(m5_choices, text="跳过", command=lambda: self.select_m5_disposition("skipped"))
-        m5_skip.pack(side="left", padx=5)
-        m5_feedback = ttk.Entry(m5_frame)
-        m5_feedback.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(5, 0))
-        m5_feedback_button = ttk.Button(m5_frame, text="保存反馈到待审候选", command=self.record_m5_feedback)
-        m5_feedback_button.grid(row=4, column=2, sticky="e", padx=(6, 0), pady=(5, 0))
-
-        ttk.Label(right, textvariable=self.next_step_var, style="Section.TLabel", wraplength=390).grid(
-            row=0, column=0, sticky="ew", pady=(0, 8)
-        )
-        ttk.Label(right, text="引导问题", style="Section.TLabel").grid(row=1, column=0, sticky="w")
-        ttk.Label(right, textvariable=self.assistant_var, wraplength=390, style="Muted.TLabel").grid(
-            row=2, column=0, sticky="ew", pady=(4, 6)
-        )
-        questions = self._tree(right, ("field", "text"), (100, 330), height=3)
-        questions._promptsmith_container.grid(row=3, column=0, sticky="nsew")
-        answer = ttk.Entry(right, textvariable=self.answer_var)
-        answer.grid(row=4, column=0, sticky="ew", pady=(6, 4))
-        answer_buttons = ttk.Frame(right)
-        answer_buttons.grid(row=5, column=0, sticky="ew")
-        ttk.Button(answer_buttons, text="回答", command=lambda: self.record_question("answered")).pack(side="left")
-        ttk.Button(answer_buttons, text="不确定", command=lambda: self.record_question("unsure")).pack(side="left", padx=6)
-        ttk.Button(answer_buttons, text="跳过", command=lambda: self.record_question("skipped")).pack(side="left")
-        detail_frame = ttk.Frame(right)
-        detail_frame.grid(row=6, column=0, sticky="nsew", pady=(5, 0))
-        detail_frame.columnconfigure(0, weight=1)
-        detail_frame.rowconfigure(0, weight=1)
-        details = tk.Text(
-            detail_frame,
-            height=2,
-            wrap="word",
-            state="disabled",
-            background="#f4f5f7",
-            font=("Microsoft YaHei UI", 11),
-        )
-        details.grid(row=0, column=0, sticky="nsew")
-        detail_scroll = ttk.Scrollbar(detail_frame, orient="vertical", command=details.yview)
-        detail_scroll.grid(row=0, column=1, sticky="ns")
-        details.configure(yscrollcommand=detail_scroll.set)
-        requirements.bind("<<TreeviewSelect>>", lambda _event: self._show_selected_details("requirement"))
-        proposals.bind("<<TreeviewSelect>>", lambda _event: self._show_selected_details("proposal"))
-        questions.bind("<<TreeviewSelect>>", lambda _event: self._show_selected_details("question"))
-        self.widgets.update(
-            {
-                "requirements_tree": requirements,
-                "review_requirements_button": review_requirements_button,
-                "proposals_tree": proposals,
-                "questions_tree": questions,
-                "answer_entry": answer,
-                "details_text": details,
-                "m5_criterion_entry": m5_criterion,
-                "m5_generate_button": m5_generate,
-                "m5_option_a_button": m5_option_a,
-                "m5_option_b_button": m5_option_b,
-                "m5_neither_button": m5_neither,
-                "m5_skip_button": m5_skip,
-                "m5_feedback_entry": m5_feedback,
-                "m5_feedback_button": m5_feedback_button,
-                "m5_examples_text": m5_examples,
-            }
-        )
-        for widget in (provider_combo, model_entry, base_entry, key_entry, task_text, answer, details, m5_criterion, m5_feedback, m5_examples):
-            self._bind_context_menu(widget)
-
     def _legacy_build_plan_page(self, page: ttk.Frame) -> None:
         page.columnconfigure(0, weight=1)
         page.rowconfigure(2, weight=1)
@@ -828,7 +759,7 @@ class PromptSmithApp(GuidedFlowMixin):
         right.rowconfigure(3, weight=2, minsize=70)
 
         ttk.Label(left, text="目标", style="Section.TLabel").grid(row=0, column=0, sticky="w")
-        goal = tk.Text(left, height=3, wrap="word", undo=True, font=("Microsoft YaHei UI", 11))
+        goal = tk.Text(left, height=3, wrap="word", undo=True, font=ui_font(self.root))
         goal.grid(row=1, column=0, sticky="ew", pady=(4, 4))
         goal_buttons = ttk.Frame(left)
         goal_buttons.grid(row=2, column=0, sticky="ew", pady=(0, 8))
@@ -866,7 +797,7 @@ class PromptSmithApp(GuidedFlowMixin):
             row=0, column=1, padx=(6, 0)
         )
         overview = tk.Text(
-            right, height=8, wrap="word", state="disabled", background="#f4f5f7", font=("Microsoft YaHei UI", 11)
+            right, height=8, wrap="word", state="disabled", background="#f4f5f7", font=ui_font(self.root)
         )
         overview.grid(row=1, column=0, sticky="nsew", pady=(4, 8))
         overview_scroll = ttk.Scrollbar(right, orient="vertical", command=overview.yview)
@@ -923,7 +854,7 @@ class PromptSmithApp(GuidedFlowMixin):
         search_url_label.pack(side="left", padx=(8, 4))
         search_url = ttk.Entry(controls, textvariable=self.skill_search_url_var, width=34)
         search_url.pack(side="left", padx=(0, 6))
-        select_button = ttk.Button(controls, text="选用所选", command=self.select_skill_candidates)
+        select_button = ttk.Button(controls, text="选用所选", command=lambda: self._select_skill_browser_rows("skill"))
         select_button.pack(side="left", padx=6)
         analyze_button = ttk.Button(controls, text="AI分析候选", command=self.analyze_skill_candidates)
         cancel_button = ttk.Button(controls, text="取消选用", command=self.cancel_selected_skills)
@@ -934,26 +865,19 @@ class PromptSmithApp(GuidedFlowMixin):
         skip_button = ttk.Button(controls, text="跳过 Skill", command=self.skip_skills)
         skip_button.pack(side="left", padx=6)
         integrate_button = ttk.Button(controls, text="AI整合所选 Skill", command=self.integrate_selected_skills)
-        ttk.Label(page, textvariable=self.skill_status_var, style="Muted.TLabel", wraplength=1000).grid(
-            row=3, column=0, sticky="ew", pady=(0, 8)
+        feedback = ttk.Frame(page)
+        feedback.grid(row=3, column=0, sticky="ew", pady=(0, 8))
+        feedback.columnconfigure(0, weight=1)
+        ttk.Label(feedback, textvariable=self.skill_status_var, style="Muted.TLabel", wraplength=1000).grid(
+            row=0, column=0, sticky="ew"
         )
+        direct_button = ttk.Button(feedback, text="用已选 Skill 直接生成提示词", command=self.generate_no_skill_final, state="disabled")
+        direct_button.grid(row=1, column=0, sticky="w", pady=(5, 0))
 
         candidate_frame = ttk.Frame(page)
         candidate_frame.grid(row=4, column=0, sticky="nsew")
         candidate_frame.columnconfigure(0, weight=1)
-        candidate_frame.rowconfigure(1, weight=1)
-        ttk.Label(candidate_frame, text="匹配的 Skill（可多选）", style="Section.TLabel").grid(
-            row=0, column=0, sticky="w", pady=(0, 5)
-        )
-        candidates = self._tree(
-            candidate_frame,
-            ("skill", "source", "reason", "work"),
-            (230, 180, 430, 140),
-            height=7,
-        )
-        candidates.heading("source", text="来源")
-        candidates.heading("reason", text="适配理由")
-        candidates._promptsmith_container.grid(row=1, column=0, sticky="nsew")
+        candidates = self._build_skill_browser(candidate_frame, "skill")
         selected_frame = ttk.Frame(page)
         selected_frame.grid(row=5, column=0, sticky="ew", pady=(8, 0))
         selected_frame.columnconfigure(0, weight=1)
@@ -962,7 +886,7 @@ class PromptSmithApp(GuidedFlowMixin):
         )
         selected = self._tree(selected_frame, ("skill", "work", "mode", "status"), (220, 180, 160, 120), height=3)
         selected._promptsmith_container.grid(row=1, column=0, sticky="ew")
-        detail = tk.Text(page, height=7, wrap="word", state="disabled", background="#f4f5f7", font=("Microsoft YaHei UI", 11))
+        detail = tk.Text(page, height=7, wrap="word", state="disabled", background="#f4f5f7", font=ui_font(self.root))
         detail.grid(row=6, column=0, sticky="ew", pady=(8, 0))
         prerequisite_frame = ttk.LabelFrame(page, text="适配前提核对", padding=8)
         prerequisite_frame.grid(row=7, column=0, sticky="ew", pady=(8, 0))
@@ -986,7 +910,6 @@ class PromptSmithApp(GuidedFlowMixin):
             prerequisite_controls, text="保存前提判断", command=self.update_selected_skill_prerequisite
         )
         update_prerequisite_button.pack(side="left")
-        candidates.bind("<<TreeviewSelect>>", lambda _event: self._show_selected_skill())
         selected.bind("<<TreeviewSelect>>", lambda _event: self._show_selected_skill_binding())
         prerequisites.bind("<<TreeviewSelect>>", lambda _event: self._show_selected_skill_prerequisite())
         self.widgets.update({
@@ -1003,6 +926,7 @@ class PromptSmithApp(GuidedFlowMixin):
             "skill_cancel_request_button": cancel_request_button,
             "skill_skip_button": skip_button,
             "skill_integrate_button": integrate_button,
+            "skill_direct_button": direct_button,
             "skill_prerequisites_tree": prerequisites,
             "skill_prerequisite_status_combo": prerequisite_status,
             "skill_update_prerequisite_button": update_prerequisite_button,
@@ -1033,7 +957,7 @@ class PromptSmithApp(GuidedFlowMixin):
         copy_final_button.pack(side="right", padx=6)
         ttk.Button(controls, text="导出 Markdown", command=self.export_final_markdown).pack(side="right", padx=6)
         ttk.Button(controls, text="导出草稿", command=self.export_draft_markdown).pack(side="right")
-        preview = tk.Text(page, wrap="word", state="disabled", font=("Microsoft YaHei UI", 11))
+        preview = tk.Text(page, wrap="word", state="disabled", font=ui_font(self.root))
         preview.grid(row=3, column=0, sticky="nsew")
         scroll = ttk.Scrollbar(page, orient="vertical", command=preview.yview)
         scroll.grid(row=3, column=1, sticky="ns")
@@ -1042,37 +966,11 @@ class PromptSmithApp(GuidedFlowMixin):
         ttk.Label(page, text="最终任务提示预览", style="Section.TLabel").grid(
             row=4, column=0, sticky="w", pady=(8, 4)
         )
-        task_prompt = tk.Text(page, height=6, wrap="word", state="disabled", font=("Microsoft YaHei UI", 11))
+        task_prompt = tk.Text(page, height=6, wrap="word", state="disabled", font=ui_font(self.root))
         task_prompt.grid(row=5, column=0, sticky="nsew")
         task_prompt_scroll = ttk.Scrollbar(page, orient="vertical", command=task_prompt.yview)
         task_prompt_scroll.grid(row=5, column=1, sticky="ns")
         task_prompt.configure(yscrollcommand=task_prompt_scroll.set)
-
-        trial_frame = ttk.LabelFrame(page, text="最终提示试运行", padding=8)
-        trial_frame.grid(row=6, column=0, columnspan=2, sticky="ew", pady=(8, 0))
-        trial_frame.columnconfigure(0, weight=1)
-        ttk.Label(trial_frame, textvariable=self.trial_status_var, style="Muted.TLabel", wraplength=980).grid(
-            row=0, column=0, columnspan=3, sticky="ew"
-        )
-        trial_run_button = ttk.Button(trial_frame, text="运行一次", command=self.start_trial_run)
-        trial_run_button.grid(row=1, column=0, sticky="w", pady=(5, 0))
-        trial_cancel_button = ttk.Button(trial_frame, text="取消试运行", command=self.cancel_trial_run, state="disabled")
-        trial_cancel_button.grid(row=1, column=1, sticky="w", padx=(6, 0), pady=(5, 0))
-        trial_limit = ttk.Frame(trial_frame)
-        trial_limit.grid(row=1, column=2, sticky="e", pady=(5, 0))
-        ttk.Label(trial_limit, text="输出上限").pack(side="left")
-        trial_tokens = ttk.Spinbox(trial_limit, from_=1, to=4096, width=6, textvariable=self.trial_tokens_var)
-        trial_tokens.pack(side="left", padx=(5, 0))
-        trial_output = tk.Text(trial_frame, height=5, wrap="word", state="disabled", font=("Microsoft YaHei UI", 11))
-        trial_output.grid(row=2, column=0, columnspan=3, sticky="ew", pady=(6, 0))
-        trial_scroll = ttk.Scrollbar(trial_frame, orient="vertical", command=trial_output.yview)
-        trial_scroll.grid(row=2, column=3, sticky="ns", pady=(6, 0))
-        trial_output.configure(yscrollcommand=trial_scroll.set)
-        trial_history = tk.Text(
-            trial_frame, height=3, wrap="word", state="disabled", background="#f4f5f7",
-            font=("Microsoft YaHei UI", 10),
-        )
-        trial_history.grid(row=3, column=0, columnspan=3, sticky="ew", pady=(5, 0))
 
         suggestions_frame = ttk.LabelFrame(page, text="M2 建议", padding=8)
         suggestions_frame.grid(row=7, column=0, columnspan=2, sticky="nsew", pady=(8, 0))
@@ -1081,7 +979,7 @@ class PromptSmithApp(GuidedFlowMixin):
         suggestions = self._tree(suggestions_frame, ("text", "kind", "status"), (440, 160, 100), height=4)
         suggestions._promptsmith_container.grid(row=0, column=0, sticky="nsew")
         suggestion_details = tk.Text(
-            suggestions_frame, height=3, wrap="word", state="disabled", background="#f4f5f7", font=("Microsoft YaHei UI", 11)
+            suggestions_frame, height=3, wrap="word", state="disabled", background="#f4f5f7", font=ui_font(self.root)
         )
         suggestion_details.grid(row=1, column=0, sticky="ew", pady=(4, 4))
         suggestion_buttons = ttk.Frame(suggestions_frame)
@@ -1107,7 +1005,7 @@ class PromptSmithApp(GuidedFlowMixin):
         m4_changes = self._tree(m4_frame, ("text", "kind", "status"), (440, 150, 100), height=3)
         m4_changes._promptsmith_container.grid(row=0, column=0, sticky="nsew")
         m4_details = tk.Text(
-            m4_frame, height=3, wrap="word", state="disabled", background="#f4f5f7", font=("Microsoft YaHei UI", 11)
+            m4_frame, height=3, wrap="word", state="disabled", background="#f4f5f7", font=ui_font(self.root)
         )
         m4_details.grid(row=1, column=0, sticky="ew", pady=(4, 4))
         m4_buttons = ttk.Frame(m4_frame)
@@ -1129,7 +1027,7 @@ class PromptSmithApp(GuidedFlowMixin):
         review_items = self._tree(review_frame, ("kind", "text", "status"), (150, 440, 100), height=4)
         review_items._promptsmith_container.grid(row=0, column=0, sticky="nsew")
         review_details = tk.Text(
-            review_frame, height=3, wrap="word", state="disabled", background="#f4f5f7", font=("Microsoft YaHei UI", 11)
+            review_frame, height=3, wrap="word", state="disabled", background="#f4f5f7", font=ui_font(self.root)
         )
         review_details.grid(row=1, column=0, sticky="ew", pady=(4, 4))
         process_review_button = ttk.Button(
@@ -1160,13 +1058,8 @@ class PromptSmithApp(GuidedFlowMixin):
             "final_review_items_tree": review_items,
             "final_review_details_text": review_details,
             "process_final_review_item_button": process_review_button,
-            "trial_run_button": trial_run_button,
-            "trial_cancel_button": trial_cancel_button,
-            "trial_tokens_spinbox": trial_tokens,
-            "trial_output_text": trial_output,
-            "trial_history_text": trial_history,
         })
-        for widget in (preview, task_prompt, suggestion_details, m4_details, review_details, trial_output, trial_history):
+        for widget in (preview, task_prompt, suggestion_details, m4_details, review_details):
             self._bind_context_menu(widget)
 
     def _tree(self, parent: tk.Misc, columns: tuple[str, ...], widths: tuple[int, ...], *, height: int) -> ttk.Treeview:
@@ -1206,19 +1099,24 @@ class PromptSmithApp(GuidedFlowMixin):
         tree.bind("<Control-a>", lambda _event, target=tree: self._select_tree_all(target), add="+")
         return tree
 
-    def _api_config(self, *, timeout_seconds: float = DEFAULT_GENERATION_TIMEOUT_SECONDS) -> ApiConfig:
+    def _api_config(self, *, timeout_seconds: float | None = None) -> ApiConfig:
         if not self._model_settings_confirmed():
             raise ValueError("请在设置页面点击“确认”，确认当前模型设置后再继续。")
         return self._draft_api_config(timeout_seconds=timeout_seconds)
 
-    def _draft_api_config(self, *, timeout_seconds: float = DEFAULT_GENERATION_TIMEOUT_SECONDS) -> ApiConfig:
+    def _draft_api_config(self, *, timeout_seconds: float | None = None) -> ApiConfig:
+        values = self._model_preference_values()
         return ApiConfig(
             base_url=self.api_base_var.get().strip(),
             model=self.api_model_var.get().strip(),
             api_key=self.api_key_var.get(),
-            timeout_seconds=timeout_seconds,
+            timeout_seconds=values["generation_timeout"] if timeout_seconds is None else timeout_seconds,
             provider=self.provider_var.get().strip(),
             protocol=PROTOCOL_LABELS[self.protocol_var.get()],
+            max_tokens=values["max_tokens"] or None,
+            temperature="auto" if values["temperature"] == "auto" else float(values["temperature"]) if values["temperature"] else None,
+            top_p=float(values["top_p"]) if values["top_p"] else None,
+            reasoning_effort=values["reasoning_effort"],
         )
 
     def _model_settings_confirmed(self) -> bool:
@@ -1241,11 +1139,14 @@ class PromptSmithApp(GuidedFlowMixin):
             self._draft_api_config()
         except ValueError as exc:
             self.status_var.set(f"模型设置未确认：{exc}")
-            messagebox.showerror("无法确认模型设置", str(exc), parent=self.root)
+            self._show_error("无法确认模型设置", str(exc), parent=self.root)
+            return
+        if not self.save_settings(model_only=True, confirm_model=True):
             return
         self._confirmed_connection_state = self._generation_snapshot()
         self._refresh_model_confirmation()
-        self.status_var.set("模型设置已确认；可以返回工作区继续。")
+        self.status_var.set("模型设置已确认并保存；下次启动自动恢复，可以返回工作区继续。")
+        logging.getLogger(__name__).info("Model settings explicitly confirmed and persisted")
         self._refresh_primary_action()
 
     def _client(self, config: ApiConfig):
@@ -1259,8 +1160,9 @@ class PromptSmithApp(GuidedFlowMixin):
             self.api_key_var.get(),
         )
 
-    def _generation_snapshot(self) -> tuple[str, str, str, str, str]:
-        return (*self._connection_snapshot(), self.api_model_var.get().strip())
+    def _generation_snapshot(self) -> tuple[Any, ...]:
+        parameters = tuple(self.preference_vars[key].get() for key, spec in FIELDS.items() if spec.category == "模型")
+        return (*self._connection_snapshot(), self.api_model_var.get().strip(), *parameters)
 
     def _model_directory_snapshot(self) -> tuple[str, str, str, str]:
         return self._connection_snapshot()
@@ -1293,6 +1195,8 @@ class PromptSmithApp(GuidedFlowMixin):
             self._model_directory_state = directory_current
             return
         if current != self._connection_state:
+            if self._confirmed_connection_state is not None:
+                logging.getLogger(__name__).info("Model confirmation invalidated: model settings edited; reconfirmation required")
             self.connection_version += 1
             self._connection_state = current
             self._confirmed_connection_state = None
@@ -1314,7 +1218,7 @@ class PromptSmithApp(GuidedFlowMixin):
             base_url=self.api_base_var.get().strip(),
             model=self.api_model_var.get().strip() or "directory-only",
             api_key=self.api_key_var.get(),
-            timeout_seconds=CONNECTION_TIMEOUT_SECONDS,
+            timeout_seconds=self._model_preference_values()["connection_timeout"],
             provider=self.provider_var.get().strip(),
             protocol=PROTOCOL_LABELS[self.protocol_var.get()],
         )
@@ -1330,21 +1234,6 @@ class PromptSmithApp(GuidedFlowMixin):
         if "generate_plan_button" in self.widgets:
             self.widgets["generate_plan_button"].configure(state=state)
             self.widgets["confirm_plan_button"].configure(state=state)
-        for name in (
-            "m5_generate_button",
-            "m5_option_a_button",
-            "m5_option_b_button",
-            "m5_neither_button",
-            "m5_skip_button",
-            "m5_feedback_button",
-            "trial_run_button",
-        ):
-            if name in self.widgets:
-                self.widgets[name].configure(state=state)
-        if "trial_cancel_button" in self.widgets:
-            self.widgets["trial_cancel_button"].configure(
-                state="normal" if self._active_trial_request is not None else "disabled"
-            )
         if text:
             self.status_var.set(text)
         self._refresh_model_confirmation()
@@ -1356,7 +1245,7 @@ class PromptSmithApp(GuidedFlowMixin):
         try:
             config = self._model_directory_config()
         except ValueError as exc:
-            messagebox.showerror("配置不完整", str(exc), parent=self.root)
+            self._show_error("配置不完整", str(exc), parent=self.root)
             return
         snapshot = self._model_directory_snapshot()
         request_connection_version = self.model_directory_version
@@ -1403,7 +1292,7 @@ class PromptSmithApp(GuidedFlowMixin):
             self._set_busy(False, "连接配置已变化，已忽略旧模型列表失败结果。")
             return
         self._set_busy(False, f"获取模型列表失败：{exc}")
-        messagebox.showerror("获取模型列表失败", f"{exc}\n仍可手动填写模型 ID。", parent=self.root)
+        self._show_error("获取模型列表失败", f"{exc}\n仍可手动填写模型 ID。", parent=self.root)
 
     def _bind_context_menu(self, widget: tk.Misc) -> None:
         widget.bind("<Button-3>", lambda event, target=widget: self._show_context_menu(event, target), add="+")
@@ -1490,7 +1379,7 @@ class PromptSmithApp(GuidedFlowMixin):
     def _show_context_menu(self, event: tk.Event, widget: tk.Misc) -> tk.Menu:
         capabilities = self._context_menu_capabilities(widget)
         has_selection = self._has_selection(widget)
-        menu = tk.Menu(self.root, tearoff=False)
+        menu = tk.Menu(self.root, tearoff=False, font=ui_font(self.root))
 
         def add(label: str, action: str, enabled: bool) -> None:
             menu.add_command(
@@ -1539,7 +1428,7 @@ class PromptSmithApp(GuidedFlowMixin):
             if row:
                 return f"{row['operation']}\n{row['field']}\n{row['text']}\n{row.get('scope', '')}\n{row.get('reason', '')}"
         elif tree is self.widgets.get("questions_tree"):
-            row = next((item for item in self.session.pending_questions if item["question_id"] == item_id), None)
+            row = next((item for item in self.session.questions_for_review() if item["question_id"] == item_id), None)
             if row:
                 return f"{row['text']}\n适用范围：{row.get('scope', '')}\n可选回答：{'、'.join(row.get('options', []))}"
         elif tree is self.widgets.get("plan_steps_tree"):
@@ -1571,7 +1460,7 @@ class PromptSmithApp(GuidedFlowMixin):
         row_id = tree.identify_row(event.y)
         if row_id and row_id not in tree.selection():
             tree.selection_set(row_id)
-        menu = tk.Menu(self.root, tearoff=False)
+        menu = tk.Menu(self.root, tearoff=False, font=ui_font(self.root))
         selected = bool(tree.selection())
         menu.add_command(
             label="\u590d\u5236\u9009\u4e2d\u5185\u5bb9",
@@ -1652,7 +1541,7 @@ class PromptSmithApp(GuidedFlowMixin):
             return PrimaryAction(
                 "focus_final",
                 "继续最终交付",
-                "最终结果已确认，可复制、导出或主动进行短文本试运行。",
+                "最终结果已确认，可复制或导出。",
             )
 
         # No final result yet: Skill is an optional post-plan decision.  The
@@ -1713,8 +1602,8 @@ class PromptSmithApp(GuidedFlowMixin):
                 "处理冲突",
                 f"先处理冲突：{conflict.get('description', conflict.get('conflict_id', '未命名冲突'))}",
             )
-        if self.session.pending_questions:
-            question = self.session.pending_questions[0]
+        if self.session.questions_for_review():
+            question = self.session.questions_for_review()[0]
             return PrimaryAction(
                 "focus_question",
                 "回答问题",
@@ -1792,7 +1681,7 @@ class PromptSmithApp(GuidedFlowMixin):
             try:
                 self._sync_input()
             except (ValueError, SessionStateError) as exc:
-                messagebox.showerror("无法同步任务", str(exc), parent=self.root)
+                self._show_error("无法同步任务", str(exc), parent=self.root)
                 return
             if self.session.requirement_version != version_before:
                 self.refresh()
@@ -1805,7 +1694,7 @@ class PromptSmithApp(GuidedFlowMixin):
         if action.kind == "focus_conflict":
             self.widgets["details_text"].focus_set()
         elif action.kind == "focus_question":
-            question_id = self.session.pending_questions[0]["question_id"]
+            question_id = self.session.questions_for_review()[0]["question_id"]
             self.widgets["questions_tree"].selection_set(question_id)
             self.widgets["questions_tree"].see(question_id)
             self._show_selected_details("question")
@@ -1849,7 +1738,6 @@ class PromptSmithApp(GuidedFlowMixin):
                         button.focus_set()
                         return
             for name in (
-                "trial_run_button",
                 "confirm_final_button",
                 "copy_final_button",
                 "export_final_button",
@@ -1870,18 +1758,124 @@ class PromptSmithApp(GuidedFlowMixin):
         elif action.kind == "retry_compact":
             self.start_analysis(compact_retry=True)
 
-    def _submit(self, operation: Callable[[], Any], success: Callable[[Any], None], error: Callable[[Exception], None]) -> None:
-        future = self.executor.submit(operation)
+    def _submit(self, operation: Callable[[], Any], success: Callable[[Any], None],
+                error: Callable[[Exception], None], *, session_scoped: bool = True) -> None:
+        label = getattr(operation, "__qualname__", type(operation).__name__)
+        task_id = self.session.task_id
+        scope = self._session_tasks if session_scoped else self._application_tasks
+        session_token = self._session_instance_token
+        operation_id = uuid4().hex
+        if session_scoped:
+            self._active_stop_token = operation_id
+        stream_ready = Event()
+        stream_seen = False
+        delivery_owner = self._active_delivery_request
+        capture = session_scoped and getattr(operation, "__name__", "") not in {"test_connection", "list_models"}
+        history_count = len(self.session.question_history)
+        activities = [["当前目标", self.session.task_text[:45]]]
+        if self.session.confirmed_requirements_version == self.session.requirement_version and self.session.requirements:
+            activities.append(["读取已确认要求", f"{len(self.session.requirements)} 项"])
+        if self.session.question_history:
+            activities.append(["汇总用户回答", f"{len(self.session.question_history)} 条"])
+        if self.session.plan.get("content"):
+            activities.append(["参考当前方案", f"{len(self.session.plan['content'].get('steps', []))} 个步骤"])
+        if self.session.skill_state.get("bindings"):
+            activities.append(["已选 Skill", f"{len(self.session.skill_state['bindings'])} 项"])
+        def capture_event(event):
+            nonlocal stream_seen
+            stream_seen = True
+            self._response_events.put((scope, session_token, delivery_owner,
+                {**event, "operation": operation_id, "activities": activities, "history_count": history_count,
+                 "delivery_request_id": delivery_owner.get("request_id") if delivery_owner is not None else None}))
+
+        def logged_operation():
+            started = time.perf_counter()
+            logger = logging.getLogger("promptsmith.worker")
+            logger.debug("Background operation started: %s; task=%s", label, task_id)
+            try:
+                with scope.activate(), observe_stream(capture_event if capture else None):
+                    result = operation()
+                    scope.check()
+            except CancelledError:
+                logger.info("Background operation cancelled: %s; task=%s; elapsed=%.3fs",
+                            label, task_id, time.perf_counter() - started)
+                raise
+            except Exception as exc:
+                if capture:
+                    capture_event({"event": "operation_failed", "text": str(exc)})
+                logger.exception("Background operation failed: %s; task=%s; elapsed=%.3fs",
+                                 label, task_id, time.perf_counter() - started)
+                raise
+            logger.debug("Background operation completed: %s; task=%s; elapsed=%.3fs",
+                         label, task_id, time.perf_counter() - started)
+            return result
+        future = self.executor.submit(logged_operation)
+        with self._background_lock:
+            self._background_futures[future] = scope
+
+        def deliver(callback, value):
+            # Check on the Tk thread too: the result can already be queued when
+            # the user creates/opens another conversation.
+            if self._shutdown or scope.cancelled or (delivery_owner is not None and delivery_owner.get("_stream_cancelled")):
+                logging.getLogger("promptsmith.worker").debug(
+                    "Discarded completion from cancelled scope: %s; task=%s", label, task_id)
+                return
+            if not stream_ready.is_set():
+                self._response_deliveries[operation_id] = (stream_ready, lambda item: deliver(callback, item), value)
+                logging.getLogger("promptsmith.worker").debug("Completion waits for stream metadata: operation=%s task=%s", operation_id, task_id)
+                return
+            callback(value)
 
         def done(completed: Future) -> None:
+            if stream_seen:
+                capture_event({"event": "completion_fence", "ready": stream_ready})
+            else:
+                stream_ready.set()
             try:
                 value = completed.result()
+            except CancelledError:
+                logging.getLogger("promptsmith.worker").debug(
+                    "Cancelled background task has no UI completion: %s; task=%s", label, task_id)
             except Exception as exc:
-                self.completions.put((error, exc))
+                self.completions.put((lambda value: deliver(error, value), exc))
             else:
-                self.completions.put((success, value))
+                self.completions.put((lambda value: deliver(success, value), value))
+            finally:
+                with self._background_lock:
+                    self._background_futures.pop(completed, None)
 
         future.add_done_callback(done)
+
+    def _cancel_session_tasks(self, reason: str, *, reset_skill_view: bool = True) -> None:
+        scope = self._session_tasks
+        scope.cancel()
+        with self._background_lock:
+            futures = [future for future, owner in self._background_futures.items() if owner is scope]
+        cancelled = sum(future.cancel() for future in futures)
+        if any(not future.done() for future in futures):
+            # Retire any still-unwinding transport or custom client so new work
+            # can start immediately in its own executor.
+            previous_executor = self.executor
+            self.executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="promptsmith")
+            previous_executor.shutdown(wait=False)
+            self._retired_executors.append(previous_executor)
+        self._session_tasks = TaskScope()
+        self._active_stop_token = uuid4().hex
+        if reset_skill_view:
+            self.skill_source_filter_var.set("全部来源")
+            self.show_all_skills_var.set(False)
+            self._skill_browser_lookup = {}
+        logging.getLogger("promptsmith.worker").info(
+            "Conversation background tasks invalidated; reason=%s task=%s active=%d queued_cancelled=%d",
+            reason, self.session.task_id, len(futures), cancelled)
+
+    def _phase_request_is_current(self, payload: dict[str, Any], session_token: str | None) -> bool:
+        current = (not self._shutdown and payload.get("task_id") == self.session.task_id
+                   and (session_token is None or session_token == self._session_instance_token))
+        if not current:
+            logging.getLogger("promptsmith.worker").debug(
+                "Ignored old model callback; request=%s task=%s", payload.get("request_id"), payload.get("task_id"))
+        return current
 
     def _poll_completions(self) -> None:
         while True:
@@ -1889,16 +1883,20 @@ class PromptSmithApp(GuidedFlowMixin):
                 callback, value = self.completions.get_nowait()
             except queue.Empty:
                 break
-            callback(value)
-        self._completion_after_id = self.root.after(50, self._poll_completions)
+            try:
+                callback(value)
+            except Exception:
+                self._tk_root.report_callback_exception(*sys.exc_info())
+        if not self._shutdown:
+            self._completion_after_id = self.root.after(50, self._poll_completions)
 
     def test_connection(self) -> None:
         if self.busy:
             return
         try:
-            config = self._draft_api_config(timeout_seconds=CONNECTION_TIMEOUT_SECONDS)
+            config = self._draft_api_config(timeout_seconds=self._model_preference_values()["connection_timeout"])
         except ValueError as exc:
-            messagebox.showerror("配置不完整", str(exc), parent=self.root)
+            self._show_error("配置不完整", str(exc), parent=self.root)
             return
         self.busy_kind = "connection_test"
         self._set_busy(True, "正在测试模型连接，窗口仍可移动和重绘...")
@@ -1917,7 +1915,7 @@ class PromptSmithApp(GuidedFlowMixin):
 
     def _connection_failed(self, exc: Exception) -> None:
         self._set_busy(False, f"连接失败：{exc}")
-        messagebox.showerror("连接失败", str(exc), parent=self.root)
+        self._show_error("连接失败", str(exc), parent=self.root)
 
     def _sync_input(self) -> None:
         text = self.widgets["task_text"].get("1.0", "end-1c").strip()
@@ -1952,12 +1950,14 @@ class PromptSmithApp(GuidedFlowMixin):
             payload = self.workflow.prepare_m1(request_id)
             self.session.bind_request_connection_version(request_id, self.connection_version)
         except (ValueError, SessionStateError, M1ValidationError) as exc:
-            messagebox.showerror("无法开始分析", str(exc), parent=self.root)
+            self._show_error("无法开始分析", str(exc), parent=self.root)
             return
         self.busy_kind = "m1"
         self._set_busy(True, "正在分析需求；返回前可查看界面，但不要关闭程序...")
         client = self._client(config)
-        operation = lambda: self.workflow.invoke_m1(
+        workflow = self.workflow
+        session_token = self._session_instance_token
+        operation = lambda: workflow.invoke_m1(
             payload,
             client,
             protocol=config.protocol,
@@ -1967,8 +1967,9 @@ class PromptSmithApp(GuidedFlowMixin):
         )
         self._submit(
             operation,
-            lambda outcome: self._analysis_ok(payload, outcome, connection_snapshot),
-            lambda exc: self._analysis_failed(payload, exc, connection_snapshot, config.timeout_seconds),
+            lambda outcome: self._analysis_ok(payload, outcome, connection_snapshot, session_token=session_token),
+            lambda exc: self._analysis_failed(payload, exc, connection_snapshot, config.timeout_seconds,
+                                              session_token=session_token),
         )
 
     def _analysis_ok(
@@ -1976,7 +1977,10 @@ class PromptSmithApp(GuidedFlowMixin):
         payload: dict[str, Any],
         outcome: M1CallOutcome,
         connection_snapshot: tuple[str, str, str, str] | None = None,
+        *, session_token: str | None = None,
     ) -> None:
+        if not self._phase_request_is_current(payload, session_token):
+            return
         if connection_snapshot is not None and connection_snapshot != self._generation_snapshot():
             self.session.pending_requests.pop(payload["request_id"], None)
             self._set_busy(False, "连接配置已变化，已忽略旧需求分析结果。")
@@ -2012,7 +2016,7 @@ class PromptSmithApp(GuidedFlowMixin):
             frozen(self.session.pending_proposals),
             frozen(self.session.open_conflicts),
             frozen(self.session.gaps),
-            frozen(self.session.pending_questions),
+            frozen(self.session.questions_for_review()),
             tuple(self.session.pending_review_item_ids),
             frozen(self.session.gap_update_history),
             frozen(self.session.question_reopen_history),
@@ -2026,7 +2030,10 @@ class PromptSmithApp(GuidedFlowMixin):
         exc: Exception,
         connection_snapshot: tuple[str, str, str, str] | None = None,
         timeout_seconds: float | None = None,
+        *, session_token: str | None = None,
     ) -> None:
+        if not self._phase_request_is_current(payload, session_token):
+            return
         if connection_snapshot is not None and connection_snapshot != self._generation_snapshot():
             self.session.pending_requests.pop(payload["request_id"], None)
             self._set_busy(False, "连接配置已变化，已忽略旧需求分析失败结果。")
@@ -2043,130 +2050,28 @@ class PromptSmithApp(GuidedFlowMixin):
         message = generation_failure_message("m1", exc, timeout_seconds)
         kind = getattr(exc, "kind", None)
         if kind == "truncated":
+            result = getattr(exc, "api_result", None)
+            usage = (getattr(result, "usage", None) or getattr(exc, "response_usage", None) or {})
+            details = usage.get("completion_tokens_details") or {}
+            reasoning_tokens = details.get("reasoning_tokens") if isinstance(details, dict) else None
+            output_tokens = usage.get("completion_tokens")
+            reasoning_only = (not (getattr(result, "content", None) or getattr(exc, "response_content", "")).strip()
+                              and isinstance(reasoning_tokens, int) and isinstance(output_tokens, int)
+                              and output_tokens > 0 and reasoning_tokens >= output_tokens)
             message = (
                 "本轮需求分析输出被长度限制截断，未提交不完整结果；已有回答和需求已保留。"
                 "点击“重试分析”可以再试一次；如仍失败，可更换模型或分批补充。"
             )
+            if reasoning_only:
+                message = (f"本次模型将全部 {output_tokens:,} 个输出 token 用于思考，尚未返回正文；未自动重试，已有回答和需求已保留。"
+                           "如果只是在核对表里修改候选，可直接确认，无需再整理；否则可更换模型，或自行调整思考强度后重试。")
         elif kind == "json_error":
-            message = "模型两次返回都没有形成可用结果；已有回答和需求已保留，可以重试或更换模型。"
+            message = "本次返回没有形成可用结果；未自动重试。已有回答和需求已保留，可以主动重试或更换模型。"
+        elif kind == "validation_error":
+            message = "本次返回的内容关联不一致，未采用，也未自动重试。已有回答和需求已保留；可修改内容或点击“重试分析”。"
         self._set_busy(False, f"分析失败：{message}{evidence}")
         self.refresh()
-        messagebox.showerror("需求分析失败", f"{message}{evidence}\n任务输入和已有需求未丢失。", parent=self.root)
-
-    def start_m5_generation(self) -> None:
-        if self.busy or self._active_m5_request is not None:
-            return
-        try:
-            self._sync_input()
-            criterion = self.widgets["m5_criterion_entry"].get().strip()
-            config = self._api_config()
-            request_id = f"m5-{uuid4().hex}"
-            payload = self.workflow.prepare_m5(request_id, criterion_description=criterion)
-        except (ValueError, SessionStateError, M5ValidationError) as exc:
-            messagebox.showerror("无法生成示例", str(exc), parent=self.root)
-            return
-        session_at_start = self.session
-        session_token = self._session_instance_token
-        connection_snapshot = self._generation_snapshot()
-        request = {
-            "payload": payload,
-            "session": session_at_start,
-            "session_token": session_token,
-            "connection_snapshot": connection_snapshot,
-            "timeout_seconds": config.timeout_seconds,
-        }
-        self._active_m5_request = request
-        self.busy_kind = "m5"
-        self._set_busy(True, "正在生成两个可比较示例...")
-        client = self._client(config)
-        workflow = self.workflow
-        self._submit(
-            lambda: workflow.invoke_m5(
-                payload,
-                client,
-                protocol=config.protocol,
-                configured_model=config.model,
-                request_parameters=json_request_parameters(config),
-            ),
-            lambda outcome: self._m5_ok(request, outcome),
-            lambda exc: self._m5_failed(request, exc),
-        )
-
-    def _m5_request_is_current(self, request: dict[str, Any]) -> bool:
-        return (
-            self._active_m5_request is request
-            and self.session is request["session"]
-            and self._session_instance_token == request["session_token"]
-            and self._generation_snapshot() == request["connection_snapshot"]
-        )
-
-    def _m5_ok(self, request: dict[str, Any], outcome: Any) -> None:
-        if not self._m5_request_is_current(request):
-            if self._active_m5_request is request:
-                self._active_m5_request = None
-                self._set_busy(False, "会话或连接已变化，已忽略旧示例。")
-                self.refresh()
-            return
-        try:
-            self._sync_input()
-            self.workflow.apply_m5(request["payload"], outcome)
-        except StaleResponseError as exc:
-            self._set_busy(False, f"已拒绝旧示例：{exc}")
-        except Exception as exc:
-            self._m5_failed(request, exc)
-            return
-        else:
-            self._set_busy(False, "示例已生成；请选择 A、B、都不喜欢或跳过，并保存反馈。")
-        self._active_m5_request = None
-        self._m5_disposition = None
-        self.refresh()
-
-    def _m5_failed(self, request: dict[str, Any], exc: Exception) -> None:
-        if not self._m5_request_is_current(request):
-            if self._active_m5_request is request:
-                self._active_m5_request = None
-                self._set_busy(False, "会话或连接已变化，已忽略旧示例错误。")
-                self.refresh()
-            return
-        self._active_m5_request = None
-        message = generation_failure_message("m5", exc, request.get("timeout_seconds"))
-        self._set_busy(False, f"示例生成失败：{message}；已有需求和候选已保留。")
-        self.refresh()
-
-    def select_m5_disposition(self, disposition: str) -> None:
-        if disposition not in {"a", "b", "neither", "skipped"}:
-            return
-        self._m5_disposition = disposition
-        labels = {"a": "A", "b": "B", "neither": "都不喜欢", "skipped": "跳过"}
-        self.m5_status_var.set(f"已选择：{labels[disposition]}。补充反馈后点击“保存反馈到待审候选”。")
-
-    def record_m5_feedback(self) -> None:
-        example_id = self.session.m5_state.get("example_id")
-        disposition = self._m5_disposition
-        if not example_id or not disposition:
-            messagebox.showinfo("请选择示例倾向", "请先生成示例并选择 A、B、都不喜欢或跳过。", parent=self.root)
-            return
-        feedback = self.widgets["m5_feedback_entry"].get().strip()
-        try:
-            row = save_m5_feedback(self.session, example_id, disposition, feedback)
-        except (SessionStateError, M5ValidationError) as exc:
-            messagebox.showerror("无法保存反馈", str(exc), parent=self.root)
-            return
-        candidate = row.get("candidate")
-        if candidate is not None:
-            proposal = deepcopy(candidate)
-            proposal["proposal_id"] = proposal.pop("candidate_id")
-            proposal["source_request_id"] = row.get("example_id")
-            proposal["source_base_version"] = self.session.requirement_version
-            proposal["valid_for_version"] = self.session.requirement_version
-            self.session.pending_proposals.append(proposal)
-            self.session.touch()
-            self.m5_status_var.set("反馈已保存为待审候选；接受前不会改变正式需求。")
-        else:
-            self.m5_status_var.set("反馈已记录；未生成需求候选。")
-        self.widgets["m5_feedback_entry"].delete(0, "end")
-        self._m5_disposition = None
-        self.refresh()
+        self._show_error("需求分析失败", f"{message}{evidence}\n任务输入和已有需求未丢失。", parent=self.root)
 
     def _on_category_selected(self, _event: tk.Event | None = None) -> None:
         selected = self.category_by_label[self.category_var.get()]
@@ -2183,12 +2088,12 @@ class PromptSmithApp(GuidedFlowMixin):
 
     def _accept_proposals(self, proposal_ids: list[str]) -> None:
         if not proposal_ids:
-            messagebox.showinfo("没有候选", "请选择候选，或等待模型返回。", parent=self.root)
+            self._show_info("没有候选", "请选择候选，或等待模型返回。", parent=self.root)
             return
         try:
             self.session.accept_proposals(proposal_ids)
         except SessionStateError as exc:
-            messagebox.showerror("无法接受候选", str(exc), parent=self.root)
+            self._show_error("无法接受候选", str(exc), parent=self.root)
         self.refresh()
 
     def dismiss_proposals(self) -> None:
@@ -2198,10 +2103,10 @@ class PromptSmithApp(GuidedFlowMixin):
             self.session.dismiss_proposals()
             self.refresh()
 
-    def edit_selected_requirement(self) -> None:
-        selected = self.widgets["requirements_tree"].selection()
+    def edit_selected_requirement(self, item_id=None) -> None:
+        selected = (item_id,) if item_id else self.widgets["requirements_tree"].selection()
         if len(selected) != 1:
-            messagebox.showinfo("请选择一项", "请选择一条需求进行编辑。", parent=self.root)
+            self._show_info("请选择一项", "请选择一条需求进行编辑。", parent=self.root)
             return
         item = next(row for row in self.session.requirements if row["item_id"] == selected[0])
         result = self._multi_text_dialog(
@@ -2213,7 +2118,7 @@ class PromptSmithApp(GuidedFlowMixin):
         try:
             self.session.edit_requirement(item["item_id"], result["text"])
         except SessionStateError as exc:
-            messagebox.showerror("无法编辑", str(exc), parent=self.root)
+            self._show_error("无法编辑", str(exc), parent=self.root)
         self.refresh()
 
     def _multi_text_dialog(
@@ -2245,7 +2150,7 @@ class PromptSmithApp(GuidedFlowMixin):
             frame.grid(row=index * 2 + 1, column=0, sticky="nsew", pady=(3, 8))
             frame.columnconfigure(0, weight=1)
             frame.rowconfigure(0, weight=1)
-            editor = tk.Text(frame, height=5 if len(fields) > 1 else 12, wrap="word", undo=True, font=("Microsoft YaHei UI", 11))
+            editor = tk.Text(frame, height=5 if len(fields) > 1 else 12, wrap="word", undo=True, font=ui_font(self.root))
             editor.grid(row=0, column=0, sticky="nsew")
             scroll = ttk.Scrollbar(frame, orient="vertical", command=editor.yview)
             scroll.grid(row=0, column=1, sticky="ns")
@@ -2274,28 +2179,32 @@ class PromptSmithApp(GuidedFlowMixin):
     def withdraw_selected_requirement(self) -> None:
         selected = self.widgets["requirements_tree"].selection()
         if len(selected) != 1:
-            messagebox.showinfo("请选择一项", "请选择一条需求进行撤销。", parent=self.root)
+            self._show_info("请选择一项", "请选择一条需求进行撤销。", parent=self.root)
             return
         if not messagebox.askyesno("撤销需求", "撤销选中的需求？旧值会保留在会话历史中。", parent=self.root):
             return
         try:
             self.session.withdraw_requirement(selected[0])
         except SessionStateError as exc:
-            messagebox.showerror("无法撤销", str(exc), parent=self.root)
+            self._show_error("无法撤销", str(exc), parent=self.root)
         self.refresh()
 
     def confirm_requirements(self) -> None:
+        if self._return_to_unknown_questions():
+            return
         try:
             self._sync_input()
             version = self.session.confirm_requirements()
         except SessionStateError as exc:
-            messagebox.showerror("暂不能确认", str(exc), parent=self.root)
+            self._show_error("暂不能确认", str(exc), parent=self.root)
             return
         self.status_var.set(f"已由用户确认需求版本 {version}，可生成完整初始方案。")
         self.refresh()
 
     def start_plan_generation(self) -> None:
         if self.busy:
+            return
+        if self._return_to_unknown_questions():
             return
         try:
             self._sync_input()
@@ -2305,24 +2214,28 @@ class PromptSmithApp(GuidedFlowMixin):
             payload = self.workflow.prepare_m2(request_id)
             self.session.bind_request_connection_version(request_id, self.connection_version)
         except (ValueError, SessionStateError, M2ValidationError) as exc:
-            messagebox.showerror("无法生成方案", str(exc), parent=self.root)
+            self._show_error("无法生成方案", str(exc), parent=self.root)
             return
         self.busy_kind = "m2"
         self._plan_navigation_at_start = (self._navigation_revision, self.notebook.select())
         self._set_busy(True, "正在依据已确认需求生成完整初始方案...")
         client = self._client(config)
-        operation = lambda: self.workflow.invoke_m2(
+        workflow = self.workflow
+        session_token = self._session_instance_token
+        compact_retry = workflow.m2_retry_recommended()
+        operation = lambda: workflow.invoke_m2(
             payload,
             client,
             protocol=config.protocol,
             configured_model=config.model,
             request_parameters=json_request_parameters(config),
-            compact_retry=self.workflow.m2_retry_recommended(),
+            compact_retry=compact_retry,
         )
         self._submit(
             operation,
-            lambda outcome: self._plan_ok(payload, outcome, connection_snapshot),
-            lambda exc: self._plan_failed(payload, exc, connection_snapshot, config.timeout_seconds),
+            lambda outcome: self._plan_ok(payload, outcome, connection_snapshot, session_token=session_token),
+            lambda exc: self._plan_failed(payload, exc, connection_snapshot, config.timeout_seconds,
+                                          session_token=session_token),
         )
 
     def _plan_ok(
@@ -2330,7 +2243,10 @@ class PromptSmithApp(GuidedFlowMixin):
         payload: dict[str, Any],
         outcome: M2CallOutcome,
         connection_snapshot: tuple[str, str, str, str],
+        *, session_token: str | None = None,
     ) -> None:
+        if not self._phase_request_is_current(payload, session_token):
+            return
         if connection_snapshot != self._generation_snapshot():
             self.session.pending_requests.pop(payload["request_id"], None)
             self._set_busy(False, "连接配置已变化，已忽略旧方案返回。")
@@ -2347,12 +2263,16 @@ class PromptSmithApp(GuidedFlowMixin):
             self._plan_failed(payload, exc, connection_snapshot)
             return
         unknown_count = len(self.session.plan["content"].get("unresolved_items", []))
+        question_count = len(self.session.questions_for_review())
         guidance = (
-            f"已保留 {unknown_count} 项待确认细节；可先继续生成提示，使用时再补充。"
+            f"有 {question_count} 项内容需要逐项核对；请回答或跳过这些问题。"
+            if question_count else f"已保留 {unknown_count} 项未定信息供下游 AI 处理，请核对方案后确认。"
             if unknown_count else "请核对方案，确认后即可生成提示。"
         )
+        logging.getLogger(__name__).info("Plan clarification review ready; task=%s unknowns=%d questions=%d",
+                                        self.session.task_id, unknown_count, question_count)
         self._set_busy(False, f"方案草稿已生成。{guidance}")
-        draft_ready = self.session.current_draft_authorization() is not None
+        draft_ready = self.session.current_draft_authorization() is not None and not question_count
         if draft_ready:
             try:
                 draft = build_final_draft(self.session, allow_unconfirmed_plan=True)
@@ -2363,7 +2283,10 @@ class PromptSmithApp(GuidedFlowMixin):
         self.refresh()
         origin = getattr(self, "_plan_navigation_at_start", None)
         if origin is None or origin == (self._navigation_revision, self.notebook.select()):
-            self.show_workspace(3 if draft_ready else 1)
+            if self.notebook.index(self.notebook.select()) == 0:
+                self._conversation_scroll_latest(force=True)
+            else:
+                self.show_workspace(3 if draft_ready else 1)
         else:
             self.status_var.set(f"方案已生成，可以点击上方“方案”查看；当前编辑位置已保留。{guidance}")
 
@@ -2373,7 +2296,10 @@ class PromptSmithApp(GuidedFlowMixin):
         exc: Exception,
         connection_snapshot: tuple[str, str, str, str],
         timeout_seconds: float | None = None,
+        *, session_token: str | None = None,
     ) -> None:
+        if not self._phase_request_is_current(payload, session_token):
+            return
         if connection_snapshot != self._generation_snapshot():
             self.session.pending_requests.pop(payload["request_id"], None)
             self._set_busy(False, "连接配置已变化，已忽略旧方案失败结果。")
@@ -2390,7 +2316,7 @@ class PromptSmithApp(GuidedFlowMixin):
         message = generation_failure_message("m2", exc, timeout_seconds)
         self._set_busy(False, message)
         self.refresh()
-        messagebox.showwarning(
+        self._show_warning(
             "本次方案尚未生成", f"{message}{evidence}", parent=self.root
         )
 
@@ -2401,7 +2327,7 @@ class PromptSmithApp(GuidedFlowMixin):
         try:
             self.session.edit_plan_goal(text)
         except SessionStateError as exc:
-            messagebox.showerror("无法修改目标", str(exc), parent=self.root)
+            self._show_error("无法修改目标", str(exc), parent=self.root)
             return
         self.status_var.set("方案目标已修改，方案确认已失效，关键工作需要重新复核。")
         self.refresh()
@@ -2410,7 +2336,7 @@ class PromptSmithApp(GuidedFlowMixin):
         content = self.session.plan.get("content") or {}
         goal = content.get("goal")
         if not goal:
-            messagebox.showinfo("尚无方案", "请先生成初始方案。", parent=self.root)
+            self._show_info("尚无方案", "请先生成初始方案。", parent=self.root)
             return
         values = self._multi_text_dialog(
             "\u7f16\u8f91\u65b9\u6848\u76ee\u6807",
@@ -2424,14 +2350,14 @@ class PromptSmithApp(GuidedFlowMixin):
         try:
             self.session.edit_plan_goal_details(**values)
         except SessionStateError as exc:
-            messagebox.showerror("无法修改目标", str(exc), parent=self.root)
+            self._show_error("无法修改目标", str(exc), parent=self.root)
         self.refresh()
 
     def edit_selected_plan_section(self) -> None:
         selected = self.plan_section_var.get()
         target = self._plan_section_lookup.get(selected)
         if target is None:
-            messagebox.showinfo("请选择栏目", "请选择一个可编辑的方案栏目。", parent=self.root)
+            self._show_info("请选择栏目", "请选择一个可编辑的方案栏目。", parent=self.root)
             return
         section_type, entity_id = target
         content = self.session.plan.get("content") or {}
@@ -2463,7 +2389,7 @@ class PromptSmithApp(GuidedFlowMixin):
         try:
             self.session.edit_plan_section(section_type, entity_id, updates)
         except SessionStateError as exc:
-            messagebox.showerror("无法编辑栏目", str(exc), parent=self.root)
+            self._show_error("无法编辑栏目", str(exc), parent=self.root)
         self.refresh()
 
     def edit_selected_plan_step(self) -> None:
@@ -2471,7 +2397,7 @@ class PromptSmithApp(GuidedFlowMixin):
             return
         selected = self.widgets["plan_steps_tree"].selection()
         if len(selected) != 1:
-            messagebox.showinfo("请选择步骤", "请选择一个方案步骤。", parent=self.root)
+            self._show_info("请选择步骤", "请选择一个方案步骤。", parent=self.root)
             return
         content = self.session.plan.get("content") or {}
         step = next((row for row in content.get("steps", []) if row["step_id"] == selected[0]), None)
@@ -2483,7 +2409,7 @@ class PromptSmithApp(GuidedFlowMixin):
         try:
             self.session.edit_plan_step(step["step_id"], **values)
         except SessionStateError as exc:
-            messagebox.showerror("无法编辑步骤", str(exc), parent=self.root)
+            self._show_error("无法编辑步骤", str(exc), parent=self.root)
         self.refresh()
 
     def add_plan_step(self) -> None:
@@ -2495,7 +2421,7 @@ class PromptSmithApp(GuidedFlowMixin):
         try:
             self.session.add_plan_step(**values)
         except SessionStateError as exc:
-            messagebox.showerror("无法新增步骤", str(exc), parent=self.root)
+            self._show_error("无法新增步骤", str(exc), parent=self.root)
         self.refresh()
 
     @staticmethod
@@ -2532,7 +2458,7 @@ class PromptSmithApp(GuidedFlowMixin):
             ttk.Label(shell, text=label, style="Section.TLabel").grid(
                 row=row, column=column, sticky="w", padx=(0 if column == 0 else 6, 6 if column == 0 else 0)
             )
-            editor = tk.Text(shell, height=3, wrap="word", undo=True, font=("Microsoft YaHei UI", 11))
+            editor = tk.Text(shell, height=3, wrap="word", undo=True, font=ui_font(self.root))
             editor.grid(
                 row=row + 1,
                 column=column,
@@ -2554,8 +2480,8 @@ class PromptSmithApp(GuidedFlowMixin):
         link_frame.columnconfigure(1, weight=1)
         ttk.Label(link_frame, text="依赖步骤", style="Section.TLabel").grid(row=0, column=0, sticky="w")
         ttk.Label(link_frame, text="关联需求", style="Section.TLabel").grid(row=0, column=1, sticky="w", padx=(8, 0))
-        step_list = tk.Listbox(link_frame, selectmode="multiple", exportselection=False, height=5, font=("Microsoft YaHei UI", 11))
-        req_list = tk.Listbox(link_frame, selectmode="multiple", exportselection=False, height=5, font=("Microsoft YaHei UI", 11))
+        step_list = tk.Listbox(link_frame, selectmode="multiple", exportselection=False, height=5, font=ui_font(self.root))
+        req_list = tk.Listbox(link_frame, selectmode="multiple", exportselection=False, height=5, font=ui_font(self.root))
         step_list.grid(row=1, column=0, sticky="nsew")
         req_list.grid(row=1, column=1, sticky="nsew", padx=(8, 0))
         dependency_ids = []
@@ -2582,7 +2508,7 @@ class PromptSmithApp(GuidedFlowMixin):
             title = editors["title"].get("1.0", "end-1c").strip()
             purpose = editors["purpose"].get("1.0", "end-1c").strip()
             if not title or not purpose:
-                messagebox.showerror("内容不完整", "步骤标题和目的不能为空。", parent=dialog)
+                self._show_error("内容不完整", "步骤标题和目的不能为空。", parent=dialog)
                 return
             result = {
                 "title": title,
@@ -2612,14 +2538,14 @@ class PromptSmithApp(GuidedFlowMixin):
             return
         selected = self.widgets["plan_steps_tree"].selection()
         if len(selected) != 1:
-            messagebox.showinfo("请选择步骤", "请选择一个方案步骤。", parent=self.root)
+            self._show_info("请选择步骤", "请选择一个方案步骤。", parent=self.root)
             return
         if not messagebox.askyesno("删除步骤", "删除选中步骤？", parent=self.root):
             return
         try:
             self.session.delete_plan_step(selected[0])
         except SessionStateError as exc:
-            messagebox.showerror("无法删除步骤", str(exc), parent=self.root)
+            self._show_error("无法删除步骤", str(exc), parent=self.root)
         self.refresh()
 
     def move_selected_plan_step(self, offset: int) -> None:
@@ -2627,12 +2553,12 @@ class PromptSmithApp(GuidedFlowMixin):
             return
         selected = self.widgets["plan_steps_tree"].selection()
         if len(selected) != 1:
-            messagebox.showinfo("请选择步骤", "请选择一个方案步骤。", parent=self.root)
+            self._show_info("请选择步骤", "请选择一个方案步骤。", parent=self.root)
             return
         try:
             self.session.move_plan_step(selected[0], offset)
         except SessionStateError as exc:
-            messagebox.showerror("无法调整顺序", str(exc), parent=self.root)
+            self._show_error("无法调整顺序", str(exc), parent=self.root)
         self.refresh()
         self.widgets["plan_steps_tree"].selection_set(selected[0])
 
@@ -2641,7 +2567,7 @@ class PromptSmithApp(GuidedFlowMixin):
         try:
             self.session.mark_key_work_reviewed(selected)
         except SessionStateError as exc:
-            messagebox.showerror("无法完成复核", str(exc), parent=self.root)
+            self._show_error("无法完成复核", str(exc), parent=self.root)
             return
         self.status_var.set("选中的关键工作已由用户复核。")
         self.refresh()
@@ -2649,7 +2575,7 @@ class PromptSmithApp(GuidedFlowMixin):
     def edit_selected_key_work(self) -> None:
         selected = self.widgets["plan_key_work_tree"].selection()
         if len(selected) != 1:
-            messagebox.showinfo("请选择关键工作", "请选择一项关键工作。", parent=self.root)
+            self._show_info("请选择关键工作", "请选择一项关键工作。", parent=self.root)
             return
         content = self.session.plan.get("content") or {}
         row = next(
@@ -2664,7 +2590,7 @@ class PromptSmithApp(GuidedFlowMixin):
         try:
             self.session.edit_plan_section("key_work", row["key_work_id"], values)
         except SessionStateError as exc:
-            messagebox.showerror("无法编辑关键工作", str(exc), parent=self.root)
+            self._show_error("无法编辑关键工作", str(exc), parent=self.root)
         self.refresh()
 
     def _key_work_dialog(self, row: dict[str, Any]) -> dict[str, Any] | None:
@@ -2694,7 +2620,7 @@ class PromptSmithApp(GuidedFlowMixin):
             ttk.Label(shell, text=label, style="Section.TLabel").grid(
                 row=grid_row, column=column, sticky="w", padx=(0 if column == 0 else 6, 6 if column == 0 else 0)
             )
-            editor = tk.Text(shell, height=3, wrap="word", undo=True, font=("Microsoft YaHei UI", 11))
+            editor = tk.Text(shell, height=3, wrap="word", undo=True, font=ui_font(self.root))
             editor.grid(
                 row=grid_row + 1,
                 column=column,
@@ -2713,8 +2639,8 @@ class PromptSmithApp(GuidedFlowMixin):
         links.columnconfigure(1, weight=1)
         ttk.Label(links, text="关联步骤", style="Section.TLabel").grid(row=0, column=0, sticky="w")
         ttk.Label(links, text="关联需求", style="Section.TLabel").grid(row=0, column=1, sticky="w", padx=(6, 0))
-        step_list = tk.Listbox(links, selectmode="multiple", exportselection=False, font=("Microsoft YaHei UI", 11))
-        req_list = tk.Listbox(links, selectmode="multiple", exportselection=False, font=("Microsoft YaHei UI", 11))
+        step_list = tk.Listbox(links, selectmode="multiple", exportselection=False, font=ui_font(self.root))
+        req_list = tk.Listbox(links, selectmode="multiple", exportselection=False, font=ui_font(self.root))
         step_list.grid(row=1, column=0, sticky="nsew")
         req_list.grid(row=1, column=1, sticky="nsew", padx=(6, 0))
         step_ids = []
@@ -2739,7 +2665,7 @@ class PromptSmithApp(GuidedFlowMixin):
             title = editors["title"].get("1.0", "end-1c").strip()
             goal = editors["goal"].get("1.0", "end-1c").strip()
             if not title or not goal:
-                messagebox.showerror("内容不完整", "关键工作标题和目标不能为空。", parent=dialog)
+                self._show_error("内容不完整", "关键工作标题和目标不能为空。", parent=dialog)
                 return
             result = {
                 "title": title,
@@ -2812,7 +2738,12 @@ class PromptSmithApp(GuidedFlowMixin):
         try:
             version = self.session.confirm_plan()
         except (SessionStateError, M2ValidationError) as exc:
-            messagebox.showerror("暂不能确认方案", str(exc), parent=self.root)
+            if self.session.questions_for_review():
+                self.status_var.set(str(exc))
+                self.refresh()
+                self.show_workspace(0)
+                return
+            self._show_error("暂不能确认方案", str(exc), parent=self.root)
             return
         self.status_var.set(f"已由用户确认方案版本 {version}。")
         self.refresh()
@@ -2824,12 +2755,12 @@ class PromptSmithApp(GuidedFlowMixin):
     def record_question(self, disposition: str) -> None:
         selected = self.widgets["questions_tree"].selection()
         if len(selected) != 1:
-            messagebox.showinfo("请选择问题", "请选择一条问题。", parent=self.root)
+            self._show_info("请选择问题", "请选择一条问题。", parent=self.root)
             return
         try:
             self.session.record_question(selected[0], disposition, self.answer_var.get())
         except SessionStateError as exc:
-            messagebox.showerror("无法记录", str(exc), parent=self.root)
+            self._show_error("无法记录", str(exc), parent=self.root)
             return
         self.answer_var.set("")
         self.status_var.set("回答原话已记录，相关未知仍保留；点击“分析 / 继续”判断是否已补足。")
@@ -2840,7 +2771,7 @@ class PromptSmithApp(GuidedFlowMixin):
         try:
             self.session.mark_requirements_reviewed(selected)
         except SessionStateError as exc:
-            messagebox.showerror("无法完成复核", str(exc), parent=self.root)
+            self._show_error("无法完成复核", str(exc), parent=self.root)
             return
         self.status_var.set("选中的受影响需求已由用户复核。")
         self.refresh()
@@ -2885,49 +2816,10 @@ class PromptSmithApp(GuidedFlowMixin):
         )
         self._fill_tree(
             "questions_tree",
-            self.session.pending_questions,
+            self.session.questions_for_review(),
             "question_id",
             lambda row: (FIELD_LABELS.get(row["field"], row["field"]), row["text"]),
         )
-        details = []
-        if self.session.category_suggestion:
-            primary = self.session.category_suggestion["primary"]
-            details.append(f"类别建议：{CATEGORY_LABELS.get(primary, primary)}")
-        if self.session.open_conflicts:
-            details.append("\n冲突：")
-            details.extend(f"• {row['description']}" for row in self.session.open_conflicts)
-        if self.session.gaps:
-            details.append("\n未决项：")
-            details.extend(
-                f"• {row['description']} [{IMPORTANCE_LABELS.get(row['importance'], row['importance'])}]"
-                for row in self.session.gaps
-            )
-        if not details:
-            details.append("暂无类别建议、冲突或未决项。")
-        widget = self.widgets["details_text"]
-        widget.configure(state="normal")
-        widget.delete("1.0", "end")
-        widget.insert("1.0", "\n".join(details))
-        widget.configure(state="disabled")
-        m5_example = next(
-            (row for row in reversed(self.session.m5_examples)
-             if row.get("task_id") == self.session.task_id
-             and row.get("base_version") == self.session.requirement_version),
-            None,
-        )
-        if m5_example:
-            example = m5_example.get("example") or {}
-            m5_lines = [
-                f"比较维度：{example.get('dimension', '')}",
-                f"A：{example.get('option_a', '')}",
-                f"B：{example.get('option_b', '')}",
-                f"区别：{example.get('difference_summary', '')}",
-            ]
-            if example.get("unsupported_assumptions"):
-                m5_lines.append("示例中未经确认的信息：" + "；".join(example["unsupported_assumptions"]))
-            self._set_text_widget(self.widgets["m5_examples_text"], "\n".join(m5_lines))
-        else:
-            self._set_text_widget(self.widgets["m5_examples_text"], "尚未生成当前需求版本的示例。")
         self._refresh_plan_page()
         self._refresh_delivery_pages()
         self._refresh_guided()
@@ -3195,7 +3087,16 @@ class PromptSmithApp(GuidedFlowMixin):
             self._skill_search_busy = False
 
     def _local_skill_search_operation(self, request: dict[str, Any]):
-        files = discover_local_skill_candidates(request["key_works"], context_text=request["task_text"])
+        preferences = request.get("preferences", self.preferences)
+        def progress(message):
+            check_cancelled()
+            self.completions.put((lambda value: self._local_skill_search_progress(request, value), message))
+        progress("正在复用并更新本地 Skill 索引…")
+        root_options = {"roots": request["skill_roots"]} if request.get("skill_roots") is not None else {}
+        files = discover_local_skill_candidates(request["key_works"], context_text=request["task_text"],
+                                                max_candidates=preferences["local_candidates"], **root_options)
+        index = files.diagnostics
+        progress(f"索引含 {files.scanned_files} 个文件；复用 {index.get('cache_hits', 0)} 项，粗筛保留 {len(files.candidates)} 项")
         collected = list(files.candidates)
         seen = {
             (str(row.get("skill_id", "")), str(row.get("key_work_id", "")))
@@ -3215,29 +3116,38 @@ class PromptSmithApp(GuidedFlowMixin):
                         catalog_candidates.append(row)
                         collected.append(row)
             except Exception as exc:
+                logging.getLogger(__name__).exception("Built-in Skill matching failed")
                 catalog_error = str(exc)
         try:
             if request.get("client") is None:
                 raise SkillAiSelectionError(
                     request.get("ai_client_error") or "\u672a\u914d\u7f6e\u53ef\u7528\u7684 AI \u6a21\u578b\uff0c\u5df2\u4fdd\u7559\u641c\u96c6\u5230\u7684\u672c\u5730\u5019\u9009\u3002"
                 )
+            review_diagnostics: dict[str, Any] = {}
             selected = select_skill_candidates_with_ai(
                 request["client"], collected,
                 task_text=request["task_text"], key_works=request["key_works"],
-                progress=lambda message: self.completions.put((
-                    lambda value: self._local_skill_search_progress(request, value), message
-                )),
+                progress=progress,
+                diagnostics=review_diagnostics,
+                **self._skill_review_options(preferences),
             )
+            files.diagnostics["ai_review"] = review_diagnostics
             ai_review_status = "completed"
             ai_review_error = None
+        except CancelledError:
+            raise
         except Exception as exc:
             # Preserve the local scan if the optional model review fails.
-            selected = deepcopy(collected)
+            logging.getLogger(__name__).warning("Local Skill AI review unavailable; using shortlist", exc_info=True)
+            selected = shortlist_candidates(collected, task_text=request["task_text"], key_works=request["key_works"],
+                                             limit=preferences["shortlist_limit"])
             ai_review_status = "unavailable"
             ai_review_error = str(exc)
             for row in selected:
                 row["ai_review_status"] = ai_review_status
                 row["ai_review_error"] = ai_review_error
+                row["recommendation_score"] = recommendation_score(row)
+                row["recommendation_basis"] = "名称/描述粗筛，AI 尚未核验"
                 row.setdefault("match_reason", "已收集本地 Skill 信息，AI 筛选暂未完成，可先查看内容后自行判断。")
         return files, collected, catalog_candidates, selected, ai_review_status, ai_review_error, catalog_error
 
@@ -3269,21 +3179,34 @@ class PromptSmithApp(GuidedFlowMixin):
         batch["ai_reviewed"] = ai_review_status == "completed"
         batch["ai_review_status"] = ai_review_status
         batch["ai_review_error"] = ai_review_error
+        # Older built-in catalog rows may omit origin in a local search.
+        for row in selected:
+            row.setdefault("origin", (row.get("record_snapshot") or {}).get("origin") or "local")
+        previous = self.session.skill_state.get("candidate_batch") or {}
+        previous_rows = self._candidate_rows() if self._skill_basis_is_current() else []
+        merged = merge_candidates(previous_rows, selected, catalog_hash=batch.get("catalog_hash", ""))
+        batch["result"] = merged["result"]
+        batch["catalog_hash"] = merged["catalog_hash"]
+        batch["sources"] = merged["sources"]
+        for key in ("network_batch_id", "network_catalog_hash", "query"):
+            if previous_rows and key in previous:
+                batch[key] = previous[key]
         candidates = batch["result"]["candidates"]
-        status = "candidates_ready" if candidates else "no_match"
+        bindings = list(self.session.skill_state.get("bindings", []))
+        status = "selected" if bindings else "candidates_ready" if candidates else "no_match"
         try:
             self.session.set_skill_state(
                 status=status,
                 basis=self._delivery_basis(),
                 candidate_batch=batch,
-                bindings=list(self.session.skill_state.get("bindings", [])),
+                bindings=bindings,
             )
         except SessionStateError as exc:
             self._local_skill_search_error(request, exc)
             return
         self._record_skill_search_state(
             status="local_done",
-            local={"status": "ok" if candidates else "no_match", "count": len(candidates),
+            local={"status": "ok" if selected else "no_match", "count": len(selected),
                    "scanned_files": files.scanned_files,
                    "catalog_count": len(catalog_candidates)},
             last_error=None,
@@ -3296,13 +3219,16 @@ class PromptSmithApp(GuidedFlowMixin):
             )
         else:
             self._skill_search_status_text = (
-            f"已收集并分析 {files.scanned_files} 个本地 Skill 文件，保留 {len(candidates)} 项参考候选；可直接选用或继续联网搜索。"
-            if candidates
-            else f"AI 已阅读 {files.scanned_files} 个本地 Skill 文件，没有筛出适配候选；可继续联网搜索或跳过。"
+            f"已索引 {files.scanned_files} 个本地文件，本轮保留 {len(selected)} 项参考候选。"
+            if selected
+            else f"本地索引含 {files.scanned_files} 个 Skill 文件，少量候选核验后没有适配项；可继续联网搜索或跳过。"
             )
         if catalog_error:
             self._skill_search_status_text += f"\u5185\u7f6e\u76ee\u5f55\u8bfb\u53d6\u4e0d\u5b8c\u6574\uff1a{catalog_error}"
+        self._skill_search_status_text += f" 累计保留 {len(candidates)} 项（含已有联网结果），已选 {len(bindings)} 项。"
         self.skill_status_var.set(self._skill_search_status_text)
+        logging.getLogger(__name__).info("Local Skill results accumulated: task=%s previous=%d incoming=%d total=%d selected=%d",
+            self.session.task_id, len(previous_rows), len(selected), len(candidates), len(bindings))
         self.refresh()
 
     def _local_skill_search_error(self, request: dict[str, Any], exc: Exception) -> None:
@@ -3319,8 +3245,10 @@ class PromptSmithApp(GuidedFlowMixin):
         self.refresh()
 
     def find_skills(self) -> None:
+        if self._return_to_unknown_questions():
+            return
         if self.session.plan.get("status") != "confirmed":
-            messagebox.showerror("暂不能查找 Skill", "请先确认当前初始方案。", parent=self.root)
+            self._show_error("暂不能查找 Skill", "请先确认当前初始方案。", parent=self.root)
             return
         if self._skill_search_busy:
             return
@@ -3334,7 +3262,7 @@ class PromptSmithApp(GuidedFlowMixin):
             ai_client_error = f"未配置可用的 AI 模型：{'、'.join(missing)}。"
         else:
             try:
-                client = self._client(self._api_config(timeout_seconds=self.skill_search_timeout))
+                client = self._client(self._api_config(timeout_seconds=self.preferences["search_model_timeout"]))
             except (ValueError, ApiError) as exc:
                 ai_client_error = f"无法连接 AI 筛选服务：{exc}"
         request = {
@@ -3347,7 +3275,10 @@ class PromptSmithApp(GuidedFlowMixin):
             "client": client,
             "ai_client_error": ai_client_error,
             "catalog": self.catalog,
+            "preferences": dict(self.preferences),
+            "skill_roots": self._skill_roots(),
         }
+        request["previous_search_state"] = deepcopy(self.session.skill_state.get("search_state") or {})
         self._skill_search_request = request
         self._skill_search_busy = True
         self._skill_search_status_text = "正在查找本地 Skill…"
@@ -3374,6 +3305,9 @@ class PromptSmithApp(GuidedFlowMixin):
             opener=request.get("opener"),
             search_url=request["search_url"],
             web_search_url=request["web_search_url"],
+            max_verified_candidates=request.get("preferences", self.preferences)["network_candidates"],
+            review_options=self._skill_review_options(request.get("preferences", self.preferences)),
+            cache_ttl_seconds=request.get("preferences", self.preferences)["network_cache_seconds"],
             progress=lambda message: self.completions.put((
                 lambda value: self._network_skill_search_progress(request, value), message
             )),
@@ -3403,7 +3337,8 @@ class PromptSmithApp(GuidedFlowMixin):
         merged["network_batch_id"] = result.batch_id
         merged["network_catalog_hash"] = result.catalog_hash
         candidates = merged["result"]["candidates"]
-        status = "candidates_ready" if candidates else "no_match"
+        bindings = list(self.session.skill_state.get("bindings", []))
+        status = "selected" if bindings else "candidates_ready" if candidates else "no_match"
         diagnostics = result.diagnostics if isinstance(result.diagnostics, dict) else {}
         source_errors = diagnostics.get("errors", [])
         source_errors = [str(error) for error in source_errors if isinstance(error, str) and error.strip()]
@@ -3414,7 +3349,7 @@ class PromptSmithApp(GuidedFlowMixin):
                 status=status,
                 basis=self._delivery_basis(),
                 candidate_batch=merged,
-                bindings=list(self.session.skill_state.get("bindings", [])),
+                bindings=bindings,
             )
         except SessionStateError as exc:
             self._network_skill_search_error(request, exc)
@@ -3427,6 +3362,7 @@ class PromptSmithApp(GuidedFlowMixin):
                 "merged_count": len(candidates),
                 "source_errors": source_errors,
                 "source_diagnostics": deepcopy(source_diagnostics) if isinstance(source_diagnostics, dict) else {},
+                "http": deepcopy(diagnostics.get("http", {})),
             },
             last_error=None,
         )
@@ -3442,7 +3378,12 @@ class PromptSmithApp(GuidedFlowMixin):
             self._skill_search_status_text += f" 来源状态：{source_summary}。"
         if source_errors:
             self._skill_search_status_text += f" 部分来源不可用：{source_errors[0][:120]}"
+        access_issues = (diagnostics.get("http") or {}).get("access_issues", [])
+        if access_issues:
+            self._skill_search_status_text += " 已跳过被拒绝或受限的入口；可以选用现有结果，或稍后重试联网搜索。"
         self.skill_status_var.set(self._skill_search_status_text)
+        logging.getLogger(__name__).info("Network Skill results accumulated: task=%s previous=%d incoming=%d total=%d selected=%d",
+            self.session.task_id, len(local_candidates), len(result.candidates), len(candidates), len(bindings))
         self.refresh()
 
     @staticmethod
@@ -3474,6 +3415,8 @@ class PromptSmithApp(GuidedFlowMixin):
                 verified_text = "?"
             if status == "error":
                 parts.append(f"{label}失败")
+            elif status == "partial":
+                parts.append(f"{label}部分可用，收集{verified_text}项")
             elif status == "no_match":
                 parts.append(f"{label}无匹配")
             else:
@@ -3489,19 +3432,21 @@ class PromptSmithApp(GuidedFlowMixin):
             last_error=str(exc),
         )
         self._finish_skill_search(request)
-        self._skill_search_status_text = f"联网搜索失败：{exc}；本地候选已保留，可以重试。"
+        self._skill_search_status_text = f"联网搜索失败：{exc}；已有候选和已选 Skill 已保留。可以选用现有结果、跳过 Skill，或稍后重试联网搜索。"
         self.skill_status_var.set(self._skill_search_status_text)
         self.refresh()
 
     def search_online_skills(self) -> None:
+        if self._return_to_unknown_questions():
+            return
         if self.session.plan.get("status") != "confirmed":
-            messagebox.showerror("暂不能联网搜索", "请先确认当前初始方案。", parent=self.root)
+            self._show_error("暂不能联网搜索", "请先确认当前初始方案。", parent=self.root)
             return
         if self._skill_search_busy:
             return
         search_state = self.session.skill_state.get("search_state") or {}
         if search_state.get("local") is None and not self._candidate_rows():
-            messagebox.showinfo("请先查找本地 Skill", "先完成本地 Skill 查找，再决定是否继续联网搜索。", parent=self.root)
+            self._show_info("请先查找本地 Skill", "先完成本地 Skill 查找，再决定是否继续联网搜索。", parent=self.root)
             return
         missing = self._missing_generation_config()
         if missing:
@@ -3510,7 +3455,7 @@ class PromptSmithApp(GuidedFlowMixin):
             self.refresh()
             return
         try:
-            client = self._client(self._api_config(timeout_seconds=self.skill_search_timeout))
+            client = self._client(self._api_config(timeout_seconds=self.preferences["search_model_timeout"]))
         except (ValueError, ApiError) as exc:
             self._skill_search_status_text = f"无法开始 AI 联网筛选 Skill：{exc}"
             self.skill_status_var.set(self._skill_search_status_text)
@@ -3530,9 +3475,11 @@ class PromptSmithApp(GuidedFlowMixin):
             "client": client,
             "github_token": self.skill_search_token or os.environ.get("PROMPTSMITH_GITHUB_TOKEN"),
             "opener": self.skill_search_opener,
-            "web_search_url": os.environ.get("PROMPTSMITH_WEB_SEARCH_URL", OPEN_WEB_SEARCH_URL),
+            "web_search_url": os.environ.get("PROMPTSMITH_WEB_SEARCH_URL", self.preferences["web_search_url"]),
             "timeout_seconds": self.skill_search_timeout,
+            "preferences": dict(self.preferences),
         }
+        request["previous_search_state"] = deepcopy(self.session.skill_state.get("search_state") or {})
         self._skill_search_request = request
         self._skill_search_busy = True
         self._skill_search_status_text = "正在联网搜索 Skill（并行：Skill 索引、GitHub、开放网页）：生成检索词并收集公开信息…"
@@ -3548,6 +3495,134 @@ class PromptSmithApp(GuidedFlowMixin):
             lambda value: self._network_skill_search_ok(request, value),
             lambda exc: self._network_skill_search_error(request, exc),
         )
+
+    def _build_skill_browser(self, parent: ttk.Frame, prefix: str) -> ttk.Treeview:
+        """The conversation and detail page share filters and table semantics."""
+        parent.columnconfigure(0, weight=1)
+        header = ttk.Frame(parent)
+        header.grid(row=0, column=0, sticky="ew", pady=(0, 5))
+        ttk.Label(header, text="来源").pack(side="left")
+        source = ttk.Combobox(header, textvariable=self.skill_source_filter_var,
+                              values=SOURCE_FILTERS, state="readonly", width=10)
+        source.pack(side="left", padx=6)
+        source.bind("<<ComboboxSelected>>", lambda _event: self._skill_browser_filter_changed())
+        show_all = ttk.Checkbutton(header, text="显示全部候选", variable=self.show_all_skills_var,
+                                   command=self._skill_browser_filter_changed)
+        show_all.pack(side="left", padx=6)
+        self.widgets[prefix + "_source_filter"] = source
+        self.widgets[prefix + "_show_all"] = show_all
+        count = ttk.Label(parent, style="Muted.TLabel", wraplength=640)
+        count.grid(row=1, column=0, sticky="ew", pady=(0, 5))
+        tree = self._tree(parent, ("status", "skill", "source", "score", "reason", "work"),
+                          (85, 185, 150, 100, 290, 185), height=7)
+        tree.heading("status", text="选用状态")
+        tree.heading("score", text="推荐系数")
+        tree.heading("reason", text="任务用途")
+        tree.column("reason", stretch=True, minwidth=160)
+        tree._promptsmith_container.grid(row=2, column=0, sticky="ew")
+        tree.bind("<<TreeviewSelect>>", lambda _event: self._show_skill_browser_selection(prefix))
+        self.widgets[prefix + "_candidates_tree"] = tree
+        self.widgets[prefix + "_candidate_count"] = count
+        if prefix == "conversation_skill":
+            actions = ttk.Frame(parent)
+            actions.grid(row=3, column=0, sticky="ew", pady=6)
+            token = self._conversation_render_token
+            for key, label, operation in (
+                ("select_skills", "选用所选", self._select_skill_browser_rows),
+                ("cancel_skills", "取消所选", self._cancel_skill_browser_rows),
+            ):
+                button = ttk.Button(actions, text=label, state="disabled",
+                    command=lambda op=operation: self._conversation_action(token, lambda: op(prefix)))
+                button.pack(side="left", padx=(0, 8))
+                self.widgets[prefix + "_" + key] = button
+                self._conversation_buttons[key] = button
+            detail_frame, details = self._reading_text(parent, height=5)
+            detail_frame.grid(row=4, column=0, sticky="ew", pady=(0, 6))
+            self.widgets[prefix + "_details_text"] = details
+        return tree
+
+    def _skill_browser_filter_changed(self) -> None:
+        logging.getLogger(__name__).debug("Skill table filter changed: task=%s source=%s show_all=%s",
+            self.session.task_id, self.skill_source_filter_var.get(), self.show_all_skills_var.get())
+        self.refresh()
+
+    def _refresh_skill_browser(self, prefix: str) -> None:
+        tree = self.widgets[prefix + "_candidates_tree"]
+        previous = tree.selection()
+        yview = tree.yview()[0]
+        candidates = self._candidate_rows()
+        bindings = self.session.skill_state.get("bindings", [])
+        rows = table_rows(candidates, bindings)
+        shown = visible_rows(rows, source=self.skill_source_filter_var.get(),
+                             show_all=self.show_all_skills_var.get(), limit=self.preferences["display_limit"])
+        lookup = getattr(self, "_skill_browser_lookup", {})
+        lookup[prefix] = {row["candidate_id"]: row for row in rows}
+        self._skill_browser_lookup = lookup
+        work_titles = {row["key_work_id"]: row.get("title") or row["key_work_id"] for row in self._key_works()}
+        self._fill_tree(prefix + "_candidates_tree", shown, "candidate_id", lambda row: (
+            "已选快照" if row.get("_binding_only") else "已选" if row.get("_binding_ids") else
+                "已选其他版本" if row.get("_already_selected") else
+                "可选" if row.get("selection_allowed") else "不可选",
+            row.get("name") or (row.get("record_snapshot") or {}).get("name") or row.get("skill_id", ""),
+            self._candidate_display_source(row),
+            "—" if row.get("_binding_only") else f"{recommendation_score(row):.2f}" +
+                ("（初筛）" if row.get("ai_review_status") == "unavailable" else ""),
+            " ".join(self._candidate_display_reason(row).split()),
+            work_titles.get(row.get("key_work_id"), row.get("key_work_id", "")),
+        ))
+        retained = [key for key in previous if tree.exists(key)]
+        if retained:
+            tree.selection_set(*retained)
+        tree.yview_moveto(yview)
+        counts = {group: sum(source_group(row) == group for row in candidates) for group in ("本地", "联网", "内置")}
+        self.widgets[prefix + "_candidate_count"].configure(text=(
+            f"本地 {counts['本地']} · 联网 {counts['联网']} · 内置 {counts['内置']} · 已选 {len(bindings)} · 当前展示 {len(shown)} 项\n"
+            "推荐名额在来源间分配，当前筛选内的已选项始终保留；系数 0～1 越高越推荐。选中行查看详情，Ctrl / Shift 可多选。"))
+        self._show_skill_browser_selection(prefix)
+        logging.getLogger(__name__).debug("Skill table rendered: task=%s table=%s source=%s counts=%s selected=%d shown=%d",
+            self.session.task_id, prefix, self.skill_source_filter_var.get(), counts, len(bindings), len(shown))
+
+    def _show_skill_browser_selection(self, prefix: str) -> None:
+        tree = self.widgets.get(prefix + "_candidates_tree")
+        if tree is None or not tree.winfo_exists():
+            return
+        lookup = getattr(self, "_skill_browser_lookup", {}).get(prefix, {})
+        rows = [lookup[key] for key in tree.selection() if key in lookup]
+        locked = self._conversation_locked()
+        all_selected = bool(rows) and all(row.get("_already_selected") for row in rows)
+        select_label = ("已选中该 Skill" if len(rows) == 1 else "所选 Skill 均已选中") if all_selected else (
+            "选用此 Skill" if len(rows) == 1 else "选用所选")
+        selectable = not locked and self._skill_basis_is_current() and any(
+            row.get("selection_allowed") and not row.get("_already_selected") for row in rows)
+        cancellable = any(row.get("_binding_ids") for row in rows)
+        if prefix == "skill":
+            cancellable = cancellable or bool(self.widgets["skill_selected_tree"].selection())
+        select_key = "skill_select_button" if prefix == "skill" else prefix + "_select_skills"
+        cancel_key = "skill_cancel_button" if prefix == "skill" else prefix + "_cancel_skills"
+        self.widgets[select_key].configure(text=select_label, state="normal" if selectable else "disabled")
+        self.widgets[cancel_key].configure(state="normal" if not locked and cancellable else "disabled")
+        if prefix == "skill":
+            self._show_selected_skill()
+            return
+        text = (self._candidate_detail_with_analysis(rows[0]) if len(rows) == 1 else
+                f"已选中 {len(rows)} 行，可批量选用或取消；选中单行查看完整用途、来源和限制。" if rows else
+                "选中一行查看完整用途、来源路径和限制；已选快照保留原选用内容。")
+        self._set_text_widget(self.widgets[prefix + "_details_text"], text)
+
+    def _select_skill_browser_rows(self, prefix: str) -> None:
+        lookup = self._skill_browser_lookup.get(prefix, {})
+        ids = [key for key in self.widgets[prefix + "_candidates_tree"].selection()
+               if key in lookup and lookup[key].get("selection_allowed")
+               and not lookup[key].get("_already_selected") and not lookup[key].get("_binding_only")]
+        if ids:
+            self.select_skill_candidates(ids)
+
+    def _cancel_skill_browser_rows(self, prefix: str) -> None:
+        lookup = self._skill_browser_lookup.get(prefix, {})
+        ids = [binding_id for key in self.widgets[prefix + "_candidates_tree"].selection()
+               for binding_id in lookup.get(key, {}).get("_binding_ids", [])]
+        if ids:
+            self.cancel_selected_skills(ids)
 
     def _candidate_rows(self) -> list[dict[str, Any]]:
         batch = self.session.skill_state.get("candidate_batch") or {}
@@ -3568,30 +3643,31 @@ class PromptSmithApp(GuidedFlowMixin):
 
     @staticmethod
     def _candidate_display_source(row: dict[str, Any]) -> str:
-        origin = row.get("origin")
-        if origin == "local_file":
+        group = source_group(row)
+        if group == "本地":
             return "本地文件"
-        if origin == "remote":
+        if group == "联网":
             source_url = row.get("source_url") or (row.get("record_snapshot") or {}).get("source_url")
             host = urlsplit(source_url).hostname if isinstance(source_url, str) else None
-            return host or "联网 Skill"
+            return "联网 · " + host if host else "联网 Skill"
         return "内置目录"
 
-    def select_skill_candidates(self) -> None:
+    def select_skill_candidates(self, candidate_ids: list[str] | None = None) -> None:
         if not self._skill_basis_is_current():
-            messagebox.showerror("候选已过期", "当前方案已变化，请重新筛选本地目录。", parent=self.root)
+            self._show_error("候选已过期", "当前方案已变化，请重新筛选本地目录。", parent=self.root)
             return
-        selected_ids = list(self.widgets["skill_candidates_tree"].selection())
+        selected_ids = list(self.widgets["skill_candidates_tree"].selection()) if candidate_ids is None else candidate_ids
         if not selected_ids:
-            messagebox.showinfo("请选择候选", "请选择至少一个目录候选。", parent=self.root)
+            self._show_info("请选择候选", "请选择至少一个目录候选。", parent=self.root)
             return
         candidates = {row["candidate_id"]: row for row in self._candidate_rows()}
         existing = list(self.session.skill_state.get("bindings", []))
+        previous_count = len(existing)
         seen = {(row.get("skill_id"), row.get("key_work_id"), row.get("usage_mode", "method_adaptation")) for row in existing}
         for candidate_id in selected_ids:
             candidate = candidates.get(candidate_id)
             if not candidate or not candidate.get("selection_allowed"):
-                messagebox.showerror("不能选用", "该候选当前不可选，可能缺少可用来源信息或与当前任务不兼容。", parent=self.root)
+                self._show_error("不能选用", "该候选当前不可选，可能缺少可用来源信息或与当前任务不兼容。", parent=self.root)
                 return
             key = (candidate["skill_id"], candidate["key_work_id"], candidate.get("usage_mode", "method_adaptation"))
             if key in seen:
@@ -3625,6 +3701,10 @@ class PromptSmithApp(GuidedFlowMixin):
                 "limitations": list(candidate.get("limitations", [])),
             })
             seen.add(key)
+        if len(existing) == previous_count:
+            logging.getLogger(__name__).debug("Duplicate Skill selection ignored: task=%s requested=%d selected=%d",
+                self.session.task_id, len(selected_ids), previous_count)
+            return
         self.session.set_skill_state(
             status="selected",
             basis=self.session.skill_state.get("basis"),
@@ -3632,10 +3712,16 @@ class PromptSmithApp(GuidedFlowMixin):
             bindings=existing,
         )
         self.skill_status_var.set(f"已选用 {len(existing)} 项 Agent Skill；尚未整合为最终草稿。")
+        logging.getLogger(__name__).info("Skill selection updated: task=%s requested=%d selected=%d",
+            self.session.task_id, len(selected_ids), len(existing))
         self.refresh()
 
-    def cancel_selected_skills(self) -> None:
-        selected_ids = set(self.widgets["skill_selected_tree"].selection())
+    def cancel_selected_skills(self, binding_ids: list[str] | None = None) -> None:
+        selected_ids = set(self.widgets["skill_selected_tree"].selection() if binding_ids is None else binding_ids)
+        if binding_ids is None:
+            lookup = getattr(self, "_skill_browser_lookup", {}).get("skill", {})
+            selected_ids.update(binding_id for key in self.widgets["skill_candidates_tree"].selection()
+                                for binding_id in lookup.get(key, {}).get("_binding_ids", []))
         if not selected_ids:
             return
         had_final_result = self.session.final_result.get("status") in {"draft", "confirmed", "stale"}
@@ -3647,17 +3733,21 @@ class PromptSmithApp(GuidedFlowMixin):
             bindings=bindings,
         )
         self.skill_status_var.set("已取消选中的 Agent Skill；需要重新整合最终草稿。")
+        logging.getLogger(__name__).info("Skill selection cancelled: task=%s requested=%d remaining=%d",
+            self.session.task_id, len(selected_ids), len(bindings))
         self.refresh()
         if had_final_result:
             self.status_var.set("已取消 Agent Skill 选用；原最终结果已过期，请重新整合并确认。")
             self.final_status_var.set("最终结果已过期（Agent Skill 选用已变化），请重新整合并确认。")
 
     def skip_skills(self) -> None:
+        if self._return_to_unknown_questions():
+            return
         try:
             self.session.set_skill_state(status="skipped", basis=self._delivery_basis(), candidate_batch=self.session.skill_state.get("candidate_batch"), bindings=[])
             self.generate_no_skill_final()
         except SessionStateError as exc:
-            messagebox.showerror("无法跳过 Skill", str(exc), parent=self.root)
+            self._show_error("无法跳过 Skill", str(exc), parent=self.root)
 
     def analyze_skill_candidates(self) -> None:
         if self.delivery_busy:
@@ -3665,11 +3755,11 @@ class PromptSmithApp(GuidedFlowMixin):
         missing = self._missing_generation_config()
         if missing:
             message = f"AI分析候选需要先补全：{'、'.join(missing)}。候选和现有分析会保留。"
-            self.skill_status_var.set(message)
-            messagebox.showinfo("需要模型配置", message, parent=self.root)
+            self._set_delivery_feedback(message)
+            self._show_info("需要模型配置", message, parent=self.root)
             return
         if not self._skill_basis_is_current() or not self._candidate_rows():
-            messagebox.showinfo("尚无可分析候选", "请先基于当前已确认方案筛选 Agent Skill 候选。", parent=self.root)
+            self._show_info("尚无可分析候选", "请先基于当前已确认方案筛选 Agent Skill 候选。", parent=self.root)
             return
         try:
             config = self._api_config()
@@ -3678,24 +3768,30 @@ class PromptSmithApp(GuidedFlowMixin):
                 request_id, connection_version=self.connection_version
             )
         except (DeliveryWorkflowError, SessionStateError, ValueError) as exc:
-            messagebox.showerror("无法分析候选", str(exc), parent=self.root)
+            logging.getLogger(__name__).exception("M3 request preparation failed; task=%s", self.session.task_id)
+            message = generation_failure_message("m3", exc, None)
+            self._set_delivery_feedback(message)
+            self._show_error("无法分析候选", message, parent=self.root)
+            self.refresh()
             return
         self._start_delivery_request("m3", payload, config)
 
     def integrate_selected_skills(self) -> None:
+        if self._return_to_unknown_questions():
+            return
         if self.delivery_busy:
             return
         if not self._skill_basis_is_current() or self.session.skill_state.get("status") != "selected":
-            messagebox.showerror("Agent Skill 选用已过期", "请基于当前已确认方案重新筛选并选用 Agent Skill。", parent=self.root)
+            self._show_error("Agent Skill 选用已过期", "请基于当前已确认方案重新筛选并选用 Agent Skill。", parent=self.root)
             return
         if not self.session.skill_state.get("bindings"):
-            messagebox.showinfo("尚未选用 Agent Skill", "请先选用至少一个 Agent Skill，或选择全部跳过。", parent=self.root)
+            self._show_info("尚未选用 Agent Skill", "请先选用至少一个 Agent Skill，或选择全部跳过。", parent=self.root)
             return
         missing = self._missing_generation_config()
         if missing:
-            message = f"AI整合所选 Agent Skill 需要先补全：{'、'.join(missing)}。当前选用的 Skill 和已有结果会保留；也可以跳过。"
-            self.skill_status_var.set(message)
-            messagebox.showinfo("需要模型配置", message, parent=self.root)
+            message = f"AI整合所选 Agent Skill 需要先补全：{'、'.join(missing)}。也可点击“用已选 Skill 直接生成提示词”，保留当前选择。"
+            self._set_delivery_feedback(message)
+            self._show_info("需要模型配置", message, parent=self.root)
             return
         try:
             config = self._api_config()
@@ -3704,7 +3800,11 @@ class PromptSmithApp(GuidedFlowMixin):
                 request_id, connection_version=self.connection_version
             )
         except (DeliveryWorkflowError, SessionStateError, ValueError) as exc:
-            messagebox.showerror("无法准备 Agent Skill 整合", str(exc), parent=self.root)
+            logging.getLogger(__name__).exception("M4 request preparation failed; task=%s", self.session.task_id)
+            message = generation_failure_message("m4", exc, None)
+            self._set_delivery_feedback(message)
+            self._show_error("无法准备 Agent Skill 整合", message, parent=self.root)
+            self.refresh()
             return
         self._start_delivery_request("m4", payload, config)
 
@@ -3723,7 +3823,7 @@ class PromptSmithApp(GuidedFlowMixin):
         }
         self._active_delivery_request = request
         self.delivery_busy = True
-        self.skill_status_var.set("正在进行 AI 候选分析…" if purpose == "m3" else "正在用 AI 整合所选 Agent Skill…")
+        self._set_delivery_feedback("正在进行 AI 候选分析…" if purpose == "m3" else "正在用 AI 整合所选 Agent Skill…")
         self._refresh_delivery_controls()
         client = self._client(config)
         if purpose == "m3":
@@ -3782,28 +3882,34 @@ class PromptSmithApp(GuidedFlowMixin):
                     current_session_token=self._session_instance_token,
                 )
         except DeliveryStaleResponseError as exc:
+            logging.getLogger(__name__).warning("%s response discarded as stale; request=%s", purpose, request["request_id"], exc_info=True)
             self._finish_delivery_request(request)
-            self.skill_status_var.set(f"模型返回时来源已变化，本次结果已丢弃：{exc}")
+            self._set_delivery_feedback(f"模型返回时来源已变化，本次结果已丢弃：{exc}。请重新选择 Skill 或生成提示词。")
             self.refresh()
             return
         except Exception as exc:
+            logging.getLogger(__name__).exception("%s response application failed; request=%s", purpose, request["request_id"])
             self._finish_delivery_request(request)
             message = generation_failure_message(purpose, exc, request.get("timeout_seconds"))
-            self.skill_status_var.set(f"AI{'分析' if purpose == 'm3' else '整合'}失败；原有结果已保留。{message}")
-            messagebox.showerror("AI调用未接收", message, parent=self.root)
+            self._set_delivery_feedback(f"AI{'分析' if purpose == 'm3' else '整合'}失败；原有结果已保留。{message}")
+            self.status_var.set(message)
+            self._show_error("AI调用未接收", message, parent=self.root)
             self.refresh()
             return
 
         self._finish_delivery_request(request)
         if purpose == "m3":
-            self.skill_status_var.set("AI候选分析完成；分析结果仅供参考，请自行选用或忽略候选。")
+            self._set_delivery_feedback("AI候选分析完成；分析结果仅供参考，请自行选用或忽略候选。")
             self.refresh()
             self.notebook.select(2)
         else:
-            self.skill_status_var.set("AI已整合所选 Agent Skill；请逐项处理变化建议并复核最终草稿。")
+            self._set_delivery_feedback("已将所选 Skill 的来源和任务用途写入提示词；未知和建议随正文保留，可直接复制或导出。")
             self.status_var.set("Skill 整合草稿已生成；后置建议已写入提示词，可到结果页确认。")
             self.refresh()
-            self.notebook.select(3)
+            if self.notebook.index(self.notebook.select()) == 0:
+                self._conversation_scroll_latest(force=True)
+            else:
+                self.notebook.select(3)
 
     def _delivery_request_failed(self, request: dict[str, Any], exc: Exception) -> None:
         if not self._delivery_request_is_current(request):
@@ -3811,8 +3917,10 @@ class PromptSmithApp(GuidedFlowMixin):
         request["workflow"].cancel(request["request_id"])
         self._finish_delivery_request(request)
         message = generation_failure_message(request["purpose"], exc, request.get("timeout_seconds"))
-        self.skill_status_var.set(f"AI调用未完成；现有候选和最终结果已保留：{message}")
-        messagebox.showerror("AI调用失败", message, parent=self.root)
+        self._set_delivery_feedback(f"AI调用未完成；现有候选和最终结果已保留：{message}")
+        self.status_var.set(message)
+        self.refresh()
+        self._show_error("AI调用失败", message, parent=self.root)
 
     def _finish_delivery_request(self, request: dict[str, Any]) -> None:
         if self._active_delivery_request is not request:
@@ -3821,15 +3929,62 @@ class PromptSmithApp(GuidedFlowMixin):
         self._active_delivery_request = None
         self._refresh_delivery_controls()
 
+    def _delivery_feedback_basis(self) -> tuple[Any, ...]:
+        return (self._session_instance_token, self._delivery_basis(), self.session.skill_state.get("revision", 0))
+
+    def _set_delivery_feedback(self, message: str) -> None:
+        self._delivery_status_text = message
+        self._delivery_status_basis = self._delivery_feedback_basis()
+        self.skill_status_var.set(message)
+
     def cancel_delivery_request(self) -> None:
-        request = self._active_delivery_request
-        if request is None:
+        self.cancel_active_request()
+
+    def cancel_active_request(self) -> None:
+        """Stop work in this session without clearing its answers or results."""
+        if not self._conversation_locked():
             return
-        request["workflow"].cancel(request["request_id"])
-        self._finish_delivery_request(request)
-        self.skill_status_var.set("已取消本次 AI 请求；迟到的模型结果会被丢弃。")
+        request = self._active_delivery_request
+        operation_token = self._active_stop_token
+        search_request = self._skill_search_request
+        stage = self.busy_kind or ("delivery" if request is not None else "skill_search")
+        if request is not None:
+            request["_stream_cancelled"] = True
+            request["workflow"].cancel(request["request_id"])
+            self._finish_delivery_request(request)
+        self._cancel_session_tasks("user_stop", reset_skill_view=False)
+        self.session.pending_requests.clear()
+        self._skill_search_request = None
+        self._skill_search_busy = False
+        if search_request is not None:
+            key = "local" if search_request.get("kind") == "local" else "network"
+            prior = (search_request.get("previous_search_state") or {}).get(key)
+            source = deepcopy(prior) if isinstance(prior, dict) and prior.get("status") != "running" else {"status": "cancelled", "count": 0}
+            self._record_skill_search_state(status="cancelled", **{key: source}, last_error=None)
+            self._skill_search_status_text = "已停止 Skill 搜索，已有候选与选择保留；可重新查找或继续联网搜索。"
+            self.skill_status_var.set(self._skill_search_status_text)
+        self._response_deliveries.clear()
+        for record in self._trace_records.values():
+            if (record.get("status") == "working" or record.get("operation") == operation_token
+                    or request is not None and record.get("delivery_request_id") == request["request_id"]):
+                record["status"] = "cancelled"
+                record["elapsed"] = time.monotonic() - self._trace_started.get(record["id"], time.monotonic())
+                widget = self._trace_widgets.get(record["id"])
+                if widget is not None:
+                    widget.close()
+                    widget.finish()
+        feedback = "已停止本次处理，自动重试已取消。已有回答和成果已保留；可继续整理或重新生成。"
+        if request is not None:
+            self._set_delivery_feedback(feedback)
+        self.session.touch()
+        self._set_busy(False, feedback)
+        self.refresh()
+        logging.getLogger(__name__).info("User stopped active request; task=%s stage=%s; retries_disabled=True results_preserved=True",
+                                        self.session.task_id, stage)
 
     def _reset_delivery_workflow(self) -> None:
+        self._delivery_status_text = ""
+        self._delivery_status_basis = None
         active = self._active_delivery_request
         if active is not None:
             active["workflow"].cancel(active["request_id"])
@@ -3867,21 +4022,25 @@ class PromptSmithApp(GuidedFlowMixin):
             self.widgets["skill_integrate_button"].configure(
                 state="normal" if available and not self.delivery_busy and not self.busy else "disabled"
             )
+            self.widgets["skill_direct_button"].configure(
+                state="normal" if available and not self.delivery_busy and not self.busy and not self._skill_search_busy else "disabled"
+            )
+        self._refresh_primary_action()
 
     def update_selected_skill_prerequisite(self) -> None:
         selected = self.widgets["skill_prerequisites_tree"].selection()
         if len(selected) != 1 or not self._selected_skill_binding_id:
-            messagebox.showinfo("请选择适配前提", "先选择一项适配前提，再保存核对结果。", parent=self.root)
+            self._show_info("请选择适配前提", "先选择一项适配前提，再保存核对结果。", parent=self.root)
             return
         statuses = {"已满足": "satisfied", "仍未知": "unknown", "不兼容": "incompatible"}
         status = statuses.get(self.skill_prerequisite_status_var.get())
         if status is None:
-            messagebox.showerror("核对结果无效", "请选择满足、仍未知或不兼容。", parent=self.root)
+            self._show_error("核对结果无效", "请选择满足、仍未知或不兼容。", parent=self.root)
             return
         bindings = deepcopy(self.session.skill_state.get("bindings", []))
         binding = next((row for row in bindings if row.get("binding_id") == self._selected_skill_binding_id), None)
         if binding is None:
-            messagebox.showerror("Agent Skill 选用已变化", "请重新选择当前有效的 Agent Skill。", parent=self.root)
+            self._show_error("Agent Skill 选用已变化", "请重新选择当前有效的 Agent Skill。", parent=self.root)
             return
         prerequisite_id = selected[0]
         assessment = next(
@@ -3889,7 +4048,7 @@ class PromptSmithApp(GuidedFlowMixin):
             None,
         )
         if assessment is None:
-            messagebox.showerror("前提已变化", "该前提已不属于当前绑定，请重新选择。", parent=self.root)
+            self._show_error("前提已变化", "该前提已不属于当前绑定，请重新选择。", parent=self.root)
             return
         assessment["status"] = status
         assessment["source"] = "user_reported"
@@ -3901,7 +4060,7 @@ class PromptSmithApp(GuidedFlowMixin):
                 bindings=bindings,
             )
         except SessionStateError as exc:
-            messagebox.showerror("无法保存前提判断", str(exc), parent=self.root)
+            self._show_error("无法保存前提判断", str(exc), parent=self.root)
             return
         self.skill_status_var.set("适配前提已记录为用户说明；此前草稿因来源变化需要重新整合。")
         self.refresh()
@@ -3970,7 +4129,7 @@ class PromptSmithApp(GuidedFlowMixin):
     def _decide_selected_m4_change(self, decision: str) -> None:
         selected = self.widgets["m4_changes_tree"].selection()
         if len(selected) != 1:
-            messagebox.showinfo("请选择变化", "请先选择一项待处理的 M4 变化。", parent=self.root)
+            self._show_info("请选择变化", "请先选择一项待处理的 M4 变化。", parent=self.root)
             return
         change_id = selected[0]
         row = next(
@@ -3979,146 +4138,62 @@ class PromptSmithApp(GuidedFlowMixin):
             None,
         )
         if row is None:
-            messagebox.showerror("变化已过期", "该变化已不属于当前最终草稿。", parent=self.root)
+            self._show_error("变化已过期", "该变化已不属于当前最终草稿。", parent=self.root)
             return
         if decision == "accepted" and row.get("affects_hard_constraints"):
-            messagebox.showinfo("不能接受该变化", "该变化影响已确认硬约束，请回到需求或方案阶段处理。", parent=self.root)
+            self._show_info("不能接受该变化", "该变化影响已确认硬约束，请回到需求或方案阶段处理。", parent=self.root)
             return
         try:
             decide_m4_change(self.session, change_id, decision)
         except (DeliveryValidationError, SessionStateError) as exc:
-            messagebox.showerror("无法处理 M4 变化", str(exc), parent=self.root)
+            self._show_error("无法处理 M4 变化", str(exc), parent=self.root)
             return
         self.status_var.set("M4变化已接受；请继续处理其余变化并复核最终草稿。" if decision == "accepted" else "M4变化已拒绝；请继续处理其余变化并复核最终草稿。")
         self.refresh()
 
     def generate_no_skill_final(self) -> None:
+        if self.busy or self.delivery_busy or self._skill_search_busy:
+            return
+        if self._return_to_unknown_questions():
+            return
         try:
             draft = build_final_draft(self.session)
             stage_final_draft(self.session, draft, expected_basis=draft["basis"])
         except (DeliveryValidationError, SessionStateError) as exc:
-            messagebox.showerror("无法生成最终草稿", str(exc), parent=self.root)
+            self._show_error("无法生成最终草稿", str(exc), parent=self.root)
             return
-        self.final_status_var.set("无 Skill 最终草稿已生成，等待用户复核确认。")
-        self.status_var.set("无 Skill 最终草稿已生成；正文由当前已确认方案确定性组装。")
+        has_skills = bool(self.session.skill_state.get("bindings"))
+        if has_skills:
+            self._set_delivery_feedback("已用当前选用的 Skill 生成提示词；格式和前提待下游 AI 核对，可以复制或导出。")
+        logging.getLogger(__name__).info("Generated prompt directly; selected_skills=%d", len(self.session.skill_state.get("bindings", [])))
+        self.final_status_var.set("提示词已生成，可以复制或导出。")
+        self.status_var.set("已保留所选 Skill 的名称、来源和用途；未验证信息由下游 AI 继续核对。" if has_skills else "提示词已从当前已确认方案生成。")
         self.refresh()
-        self.notebook.select(3)
-
-    def start_trial_run(self) -> None:
-        if self.busy or self._active_trial_request is not None:
-            return
-        try:
-            config = self._api_config()
-            max_output_tokens = int(self.trial_tokens_var.get())
-            payload = build_trial_request(
-                self.session, f"trial-{uuid4().hex}", max_output_tokens=max_output_tokens
-            )
-        except (ValueError, SessionStateError) as exc:
-            messagebox.showerror("无法开始试运行", str(exc), parent=self.root)
-            return
-        session_at_start = self.session
-        request = {
-            "payload": payload,
-            "session": session_at_start,
-            "session_token": self._session_instance_token,
-            "connection_snapshot": self._generation_snapshot(),
-        }
-        self._active_trial_request = request
-        self.busy_kind = "trial"
-        self._set_busy(True, "正在进行一次短文本试运行...")
-        self.widgets["trial_cancel_button"].configure(state="normal")
-        client = self._client(config)
-        self._submit(
-            lambda: invoke_trial(
-                payload,
-                client,
-                protocol=config.protocol,
-                configured_model=config.model,
-            ),
-            lambda outcome: self._trial_ok(request, outcome),
-            lambda exc: self._trial_failed(request, exc),
-        )
-
-    def _trial_request_is_current(self, request: dict[str, Any]) -> bool:
-        return (
-            self._active_trial_request is request
-            and self.session is request["session"]
-            and self._session_instance_token == request["session_token"]
-            and self._generation_snapshot() == request["connection_snapshot"]
-        )
-
-    def _finish_trial_request(self, request: dict[str, Any]) -> None:
-        if self._active_trial_request is request:
-            self._active_trial_request = None
-        self._set_busy(False)
-        if "trial_cancel_button" in self.widgets:
-            self.widgets["trial_cancel_button"].configure(state="disabled")
-
-    def _trial_ok(self, request: dict[str, Any], outcome: Any) -> None:
-        if not self._trial_request_is_current(request):
-            if self._active_trial_request is request:
-                self._finish_trial_request(request)
-                self.refresh()
-            return
-        try:
-            self._sync_input()
-            row = apply_trial_result(
-                self.session,
-                request["payload"],
-                outcome,
-                protocol=outcome.protocol,
-                configured_model=outcome.configured_model,
-            )
-        except StaleResponseError as exc:
-            self.trial_status_var.set(f"试运行结果已过期：{exc}")
-        except Exception as exc:
-            self.trial_status_var.set(f"试运行结果未应用：{exc}")
+        if self.notebook.index(self.notebook.select()) == 0:
+            self._conversation_scroll_latest(force=True)
         else:
-            self.trial_status_var.set(
-                f"试运行完成 · {row.get('latency_ms')} ms · 用量：{row.get('usage') or '未提供'}"
-            )
-        self._finish_trial_request(request)
-        self.refresh()
+            self.notebook.select(3)
 
-    def _trial_failed(self, request: dict[str, Any], exc: Exception) -> None:
-        if not self._trial_request_is_current(request):
-            if self._active_trial_request is request:
-                self._finish_trial_request(request)
-                self.refresh()
-            return
-        try:
-            failure = exc if isinstance(exc, TrialCallFailure) else TrialCallFailure(str(exc))
-            row = record_trial_failure(
-                self.session,
-                request["payload"],
-                failure,
-                protocol=failure.protocol,
-                configured_model=failure.configured_model,
-            )
-            self.trial_status_var.set(f"试运行失败，已保留历史记录：{row.get('error_message') or exc}")
-        except StaleResponseError as stale:
-            self.trial_status_var.set(f"试运行失败响应已过期：{stale}")
-        self._finish_trial_request(request)
-        self.refresh()
 
-    def cancel_trial_run(self) -> None:
-        request = self._active_trial_request
-        if request is None:
-            return
-        request["session"].pending_requests.pop(request["payload"]["request_id"], None)
-        request["session"].touch()
-        self._finish_trial_request(request)
-        self.trial_status_var.set("已取消试运行；迟到结果不会写入当前会话。")
-        self.refresh()
+
+
+
+
 
     def _show_selected_skill(self) -> None:
         selected = self.widgets["skill_candidates_tree"].selection()
         if len(selected) != 1:
+            self._set_text_widget(self.widgets["skill_details_text"], "选中单行查看完整用途、来源和限制；Ctrl / Shift 可多选。")
             return
-        row = next((item for item in self._candidate_rows() if item.get("candidate_id") == selected[0]), None)
+        row = getattr(self, "_skill_browser_lookup", {}).get("skill", {}).get(selected[0])
         if row is None:
             return
-        details = self._skill_detail_text(row)
+        self._set_text_widget(self.widgets["skill_details_text"], self._candidate_detail_with_analysis(row))
+
+    def _candidate_detail_with_analysis(self, row: dict[str, Any]) -> str:
+        details = self._skill_detail_text(row, binding=bool(row.get("_binding_only")))
+        if row.get("_already_selected") and not row.get("_binding_ids"):
+            details += "\n\n此 Skill 已用于该关键工作，当前选用的是其他来源或版本。可在已选快照中查看、取消，再选用此版本。"
         batch = self.session.skill_state.get("candidate_batch") or {}
         analysis = batch.get("m3_analysis", {}).get("result", {}) if isinstance(batch, dict) else {}
         assessment = next(
@@ -4133,9 +4208,10 @@ class PromptSmithApp(GuidedFlowMixin):
             details += f"计划输入：{'；'.join(assessment.get('planned_inputs', [])) or '未提供'}\n"
             details += f"预期输出：{'；'.join(assessment.get('expected_outputs', [])) or '未提供'}\n"
             details += f"限制：{'；'.join(assessment.get('limitations', [])) or '未提供'}"
-        self._set_text_widget(self.widgets["skill_details_text"], details)
+        return details
 
     def _show_selected_skill_binding(self) -> None:
+        self._show_skill_browser_selection("skill")
         selected = self.widgets["skill_selected_tree"].selection()
         self._selected_skill_binding_id = selected[0] if len(selected) == 1 else None
         self._fill_tree("skill_prerequisites_tree", [], "prerequisite_id", lambda _row: ("", "", ""))
@@ -4226,6 +4302,9 @@ class PromptSmithApp(GuidedFlowMixin):
             f"适配说明：{record.get('adaptation_summary', '无')}",
             "能力与输入输出：",
         ]
+        if not binding:
+            lines.append(f"推荐系数：{recommendation_score(row):.2f}（相对推荐强度，不是成功概率）")
+            lines.append(f"评分依据：{row.get('recommendation_basis', '历史匹配记录，当前未重新核验')}")
         if row.get("origin", record.get("origin")) == "remote":
             source_url = row.get("source_url") or record.get("source_url") or row.get("repository") or record.get("repository")
             if source_url:
@@ -4238,6 +4317,7 @@ class PromptSmithApp(GuidedFlowMixin):
             verification = record.get("verification") if isinstance(record.get("verification"), dict) else {}
             evidence_level = "full_skill" if verification.get("source_read") else "metadata"
         evidence_labels = {
+            "skill_excerpt": "SKILL.md 节选（完整文件哈希已核验）",
             "full_skill": "已读取 Skill 内容",
             "metadata": "公开元数据或 README 摘要",
             "search_result": "搜索结果线索",
@@ -4316,6 +4396,7 @@ class PromptSmithApp(GuidedFlowMixin):
         except DeliveryValidationError as exc:
             self.status_var.set(str(exc))
             return
+        logging.getLogger(__name__).info("Final prompt tone changed; task=%s tone=%s", self.session.task_id, tone)
         self.refresh()
 
     def confirm_final_result(self) -> None:
@@ -4325,7 +4406,7 @@ class PromptSmithApp(GuidedFlowMixin):
         try:
             revision = confirm_final(self.session)
         except (DeliveryValidationError, SessionStateError) as exc:
-            messagebox.showerror("暂不能确认最终结果", str(exc), parent=self.root)
+            self._show_error("暂不能确认最终结果", str(exc), parent=self.root)
             return
         self.status_var.set(f"已确认最终结果版本 {revision}。")
         self.refresh()
@@ -4339,7 +4420,7 @@ class PromptSmithApp(GuidedFlowMixin):
         try:
             validate_current_final(self.session, require_confirmed=True)
         except DeliveryValidationError as exc:
-            messagebox.showinfo("不能复制正式提示", f"当前结果尚未确认或已经过期。\n{exc}", parent=self.root)
+            self._show_info("不能复制正式提示", f"当前结果尚未确认或已经过期。\n{exc}", parent=self.root)
             return
         prompt = render_task_prompt(body, result.get("tone", "neutral"))
         self.root.clipboard_clear()
@@ -4351,13 +4432,13 @@ class PromptSmithApp(GuidedFlowMixin):
         status = result.get("status")
         body = result.get("canonical_body")
         if not body or status not in {"draft", "stale"}:
-            messagebox.showinfo("暂无可复制草稿", "只有草稿或来源已变化的结果可通过“复制草稿提示”复制。", parent=self.root)
+            self._show_info("暂无可复制草稿", "只有草稿或来源已变化的结果可通过“复制草稿提示”复制。", parent=self.root)
             return
         if status == "draft":
             try:
                 validate_current_final(self.session)
             except DeliveryValidationError as exc:
-                messagebox.showerror("草稿来源无效", str(exc), parent=self.root)
+                self._show_error("草稿来源无效", str(exc), parent=self.root)
                 return
         prompt = render_task_prompt(body, result.get("tone", "neutral"))
         self.root.clipboard_clear()
@@ -4371,14 +4452,16 @@ class PromptSmithApp(GuidedFlowMixin):
         try:
             self._sync_input()
         except SessionStateError as exc:
-            messagebox.showerror("导出失败", str(exc), parent=self.root)
+            self._show_error("导出失败", str(exc), parent=self.root)
             return
         session_at_start = self.session
         session_token = self._session_instance_token
         session_snapshot = session_at_start.to_dict()
 
         default = f"{self.session.task_id}_{'final' if mode == 'final' else 'draft'}.md"
-        target = filedialog.asksaveasfilename(parent=self.root, title="导出 Markdown", initialfile=default, defaultextension=".md", filetypes=[("Markdown", "*.md")])
+        target = filedialog.asksaveasfilename(parent=self.root, title="导出 Markdown", initialfile=default,
+                                            initialdir=self.preferences["export_directory"] or None,
+                                            defaultextension=".md", filetypes=[("Markdown", "*.md")])
         if not target:
             return
 
@@ -4402,7 +4485,7 @@ class PromptSmithApp(GuidedFlowMixin):
                 raise DeliveryValidationError("确认导出期间会话内容已变化，请复核后重新导出。")
             path = export_markdown(self.session, target, mode=mode, overwrite=overwrite)
         except (OSError, ValueError, DeliveryValidationError, SessionStateError) as exc:
-            messagebox.showerror("导出失败", str(exc), parent=self.root)
+            self._show_error("导出失败", str(exc), parent=self.root)
             return
         self.status_var.set(f"已导出：{path}")
 
@@ -4422,9 +4505,11 @@ class PromptSmithApp(GuidedFlowMixin):
         try:
             edit_final_note(self.session, f"note-{uuid4().hex}", text)
         except DeliveryValidationError as exc:
-            messagebox.showerror("无法添加附注", str(exc), parent=self.root)
+            self._show_error("无法添加附注", str(exc), parent=self.root)
             return
         self.status_var.set("用户附注已加入草稿，最终确认已撤销。")
+        logging.getLogger(__name__).info("Final prompt note added; task=%s revision=%s characters=%s", self.session.task_id,
+                                        self.session.final_result.get("revision"), len(text))
         self.refresh()
 
     def _selected_m2_suggestion(self) -> dict[str, Any] | None:
@@ -4488,12 +4573,12 @@ class PromptSmithApp(GuidedFlowMixin):
     def accept_selected_m2_suggestion(self) -> None:
         row = self._selected_m2_suggestion()
         if row is None:
-            messagebox.showinfo("请选择建议", "请选择一项 M2 建议。", parent=self.root)
+            self._show_info("请选择建议", "请选择一项 M2 建议。", parent=self.root)
             return
         try:
             decide_m2_suggestion(self.session, row["suggestion_id"], "accepted")
         except DeliveryValidationError as exc:
-            messagebox.showerror("无法接受建议", str(exc), parent=self.root)
+            self._show_error("无法接受建议", str(exc), parent=self.root)
             return
         self.status_var.set("已接受选中的 M2 建议；最终结果仍需重新确认。")
         self.refresh()
@@ -4501,12 +4586,12 @@ class PromptSmithApp(GuidedFlowMixin):
     def reject_selected_m2_suggestion(self) -> None:
         row = self._selected_m2_suggestion()
         if row is None:
-            messagebox.showinfo("请选择建议", "请选择一项 M2 建议。", parent=self.root)
+            self._show_info("请选择建议", "请选择一项 M2 建议。", parent=self.root)
             return
         try:
             decide_m2_suggestion(self.session, row["suggestion_id"], "rejected")
         except DeliveryValidationError as exc:
-            messagebox.showerror("无法拒绝建议", str(exc), parent=self.root)
+            self._show_error("无法拒绝建议", str(exc), parent=self.root)
             return
         self.status_var.set("已拒绝选中的 M2 建议；该建议不会进入执行要求。")
         self.refresh()
@@ -4514,10 +4599,10 @@ class PromptSmithApp(GuidedFlowMixin):
     def process_selected_m2_suggestion(self) -> None:
         row = self._selected_m2_suggestion()
         if row is None:
-            messagebox.showinfo("请选择建议", "请选择一项需要上游处理的 M2 建议。", parent=self.root)
+            self._show_info("请选择建议", "请选择一项需要上游处理的 M2 建议。", parent=self.root)
             return
         if not row.get("requires_user_confirmation"):
-            messagebox.showinfo("无需上游处理", "该建议可在此接受或拒绝。", parent=self.root)
+            self._show_info("无需上游处理", "该建议可在此接受或拒绝。", parent=self.root)
             return
         target = next(
             (
@@ -4528,7 +4613,7 @@ class PromptSmithApp(GuidedFlowMixin):
             None,
         )
         if target is None:
-            messagebox.showerror("无法定位建议", "当前方案中找不到这项建议，请重新生成方案。", parent=self.root)
+            self._show_error("无法定位建议", "当前方案中找不到这项建议，请重新生成方案。", parent=self.root)
             return
         self.notebook.select(1)
         self.plan_section_var.set(target)
@@ -4690,7 +4775,7 @@ class PromptSmithApp(GuidedFlowMixin):
     def process_selected_final_review_item(self) -> None:
         selected = self.widgets["final_review_items_tree"].selection()
         if len(selected) != 1 or selected[0] not in self._final_review_lookup:
-            messagebox.showinfo("请选择复核项", "请选择一项阻断或待复核内容。", parent=self.root)
+            self._show_info("请选择复核项", "请选择一项阻断或待复核内容。", parent=self.root)
             return
         row = self._final_review_lookup[selected[0]]
         action = row["action"]
@@ -4702,20 +4787,25 @@ class PromptSmithApp(GuidedFlowMixin):
             self._show_selected_key_work()
         elif action == "requirement":
             self.notebook.select(0)
-            self.widgets["requirements_tree"].selection_set(target_id)
-            self.widgets["requirements_tree"].see(target_id)
-            self._show_selected_details("requirement")
+            if self._workspace_popover is None or self._workspace_popover.kind!="requirements":
+                self.toggle_requirements_review()
+            tree=self.widgets["conversation_requirements_tree"]
+            key="r:"+target_id
+            if tree.exists(key):
+                tree.selection_set(key)
+                tree.see(key)
+                self._conversation_show_requirement_selection()
         elif action == "requirements":
             self.show_workspace(0)
             question = next(
-                (item for item in self.session.pending_questions if item.get("gap_id") == target_id),
+                (item for item in self.session.questions_for_review() if item.get("gap_id") == target_id),
                 None,
             )
             self.question_context_var.set(
-                self._format_guided_question(question)
+                self._format_guided_question_card(question)
                 if question else f"还没确定：{row['text']}。请在这里补充。"
             )
-            self._reveal_guided(self.widgets["answer_entry"])
+            self.widgets["conversation_input"].focus_set()
         elif action == "binding":
             self.notebook.select(2)
             self.widgets["skill_selected_tree"].selection_set(target_id)
@@ -4751,21 +4841,22 @@ class PromptSmithApp(GuidedFlowMixin):
         self.notebook.tab(3, state="normal" if export_available else "disabled")
         candidates = self._candidate_rows()
         if "skill_candidates_tree" in self.widgets:
-            self._fill_tree("skill_candidates_tree", candidates, "candidate_id", lambda row: (
-                row.get("name") or (row.get("record_snapshot") or {}).get("name") or row.get("skill_id", ""),
-                self._candidate_display_source(row),
-                self._candidate_display_reason(row),
-                row.get("key_work_id", ""),
-            ))
+            self._refresh_skill_browser("skill")
             bindings = self.session.skill_state.get("bindings", [])
+            selected_tree = self.widgets["skill_selected_tree"]
+            selected_before = selected_tree.selection()
             self._fill_tree("skill_selected_tree", bindings, "binding_id", lambda row: (
-                row.get("skill_id", ""), row.get("key_work_id", ""), row.get("usage_mode", ""), "已选"
+                (row.get("record_snapshot") or {}).get("name") or row.get("skill_id", ""),
+                row.get("key_work_id", ""), self._skill_usage_mode_label(row.get("usage_mode")), "已选"
             ))
+            retained_bindings = [key for key in selected_before if selected_tree.exists(key)]
+            if retained_bindings:
+                selected_tree.selection_set(*retained_bindings)
             basis_current = self._skill_basis_is_current()
             search_state = self.session.skill_state.get("search_state") or {}
             local_state = search_state.get("local") if isinstance(search_state, dict) else None
             local_ready = isinstance(local_state, dict) and local_state.get("status") in {
-                "ok", "no_match", "error"
+                "ok", "no_match", "error", "cancelled"
             }
             search_running = self._skill_search_busy
             self.widgets["skill_find_button"].configure(
@@ -4782,12 +4873,7 @@ class PromptSmithApp(GuidedFlowMixin):
                     else "disabled"
                 )
             )
-            self.widgets["skill_select_button"].configure(
-                state="normal" if basis_current and candidates and not search_running else "disabled"
-            )
-            self.widgets["skill_cancel_button"].configure(
-                state="normal" if bindings else "disabled"
-            )
+            self._show_skill_browser_selection("skill")
             self.widgets["skill_integrate_button"].configure(
                 state=(
                     "normal"
@@ -4807,7 +4893,9 @@ class PromptSmithApp(GuidedFlowMixin):
                 state="normal" if plan_confirmed and not self.delivery_busy and not search_running else "disabled"
             )
             status = self.session.skill_state.get("status", "not_started")
-            if self._skill_search_status_text:
+            if self._delivery_status_text and self._delivery_status_basis == self._delivery_feedback_basis():
+                status_text = self._delivery_status_text
+            elif self._skill_search_status_text:
                 status_text = self._skill_search_status_text
             elif search_state.get("status") == "error" and search_state.get("last_error"):
                 status_text = search_state["last_error"]
@@ -4827,7 +4915,10 @@ class PromptSmithApp(GuidedFlowMixin):
                 if source_summary:
                     status_text += f" 来源状态：{source_summary}。"
             else:
-                status_text = self.session.skill_state.get("last_error") or f"目录状态：{status}"
+                status_label={"not_started":"尚未开始","collecting":"正在收集","analyzing":"正在筛选",
+                              "searching":"正在搜索","ready":"已完成","failed":"未完成",
+                              "stale":"需要重新搜索"}.get(status,"等待更新")
+                status_text = self.session.skill_state.get("last_error") or f"目录状态：{status_label}"
             if bindings and not basis_current:
                 status_text += "；绑定来源已过期，请重新筛选"
             batch = self.session.skill_state.get("candidate_batch") or {}
@@ -4928,53 +5019,10 @@ class PromptSmithApp(GuidedFlowMixin):
                 "当前没有阻断或待复核项。" if not review_rows else "选择一项查看对应处理入口。",
             )
             self._show_selected_final_review_item()
-            trial_rows = self.session.trial_runs
-            latest_trial = trial_rows[-1] if trial_rows else None
-            trial_status_labels = {"completed": "已完成", "failed": "失败", "rejected_stale": "已拒收过期结果"}
-            history_lines = [
-                f"{row.get('created_at', '')} · {trial_status_labels.get(row.get('status'), row.get('status', ''))}"
-                f" · {row.get('model', '')} · 用量：{row.get('usage') or '未提供'}"
-                for row in reversed(trial_rows[-5:])
-            ]
-            self._set_text_widget(
-                self.widgets["trial_history_text"],
-                "\n".join(history_lines) if history_lines else "尚无试运行历史。",
-            )
-            if latest_trial and latest_trial.get("status") == "completed":
-                self._set_text_widget(self.widgets["trial_output_text"], latest_trial.get("output") or "")
-            elif latest_trial and latest_trial.get("status") in {"failed", "rejected_stale"}:
-                self._set_text_widget(
-                    self.widgets["trial_output_text"],
-                    latest_trial.get("error_message") or "试运行未产生可显示结果。",
-                )
-            elif not self._active_trial_request:
-                self._set_text_widget(self.widgets["trial_output_text"], "尚未运行试运行。")
-            if self._active_trial_request is None:
-                if latest_trial:
-                    usage = latest_trial.get("usage")
-                    usage_text = str(usage) if usage is not None else "服务未提供"
-                    revision = latest_trial.get("final_revision")
-                    current = revision == result.get("revision") and latest_trial.get("body_sha256") == result.get("body_sha256")
-                    version_text = "当前版本" if current else "旧版提示"
-                    self.trial_status_var.set(
-                        f"最近试运行：{latest_trial.get('status')} · 最终版本 {revision}（{version_text}） · 用量：{usage_text}"
-                    )
-                elif not formal_copy:
-                    self.trial_status_var.set("请先确认当前有效的最终提示，再进行短文本试运行。")
-                elif self._missing_generation_config():
-                    self.trial_status_var.set("请先补全模型连接，再进行短文本试运行。")
-                else:
-                    self.trial_status_var.set("试运行只调用当前已确认的最终提示，不会修改需求或最终结果。")
-            trial_ready = formal_copy and not self._missing_generation_config() and not self.busy and self._active_trial_request is None
-            self.widgets["trial_run_button"].configure(state="normal" if trial_ready else "disabled")
-            self.widgets["trial_cancel_button"].configure(
-                state="normal" if self._active_trial_request is not None else "disabled"
-            )
-
     def _legacy_next_step_text(self) -> str:
         if self.session.open_conflicts:
             return "下一步：处理仍未解决的冲突，再继续确认。"
-        if self.session.pending_questions:
+        if self.session.questions_for_review():
             return "下一步：回答、跳过或标记不确定；候选草稿会保留。"
         if self.session.pending_proposals:
             return "下一步：核对模型候选，选择接受或忽略。"
@@ -5052,7 +5100,7 @@ class PromptSmithApp(GuidedFlowMixin):
                 f"来源原话：\n{self._source_text(row.get('source_refs', []))}",
             ]
         else:
-            row = next((item for item in self.session.pending_questions if item["question_id"] == row_id), None)
+            row = next((item for item in self.session.questions_for_review() if item["question_id"] == row_id), None)
             if row is None:
                 return
             options = "、".join(row.get("options", [])) or "自由回答"
@@ -5072,7 +5120,9 @@ class PromptSmithApp(GuidedFlowMixin):
     def _fill_tree(
         self, name: str, rows: list[dict[str, Any]], id_key: str, values: Callable[[dict[str, Any]], tuple[Any, ...]]
     ) -> None:
-        tree: ttk.Treeview = self.widgets[name]
+        tree: ttk.Treeview = self.widgets.get(name)
+        if tree is None:
+            return
         tree.delete(*tree.get_children())
         for row in rows:
             tree.insert("", "end", iid=row[id_key], values=values(row))
@@ -5090,27 +5140,43 @@ class PromptSmithApp(GuidedFlowMixin):
     def new_session(self) -> None:
         if not messagebox.askyesno("新建会话", "新建会话？请先保存当前内容。", parent=self.root):
             return
-        self.session = SessionState.new()
-        self.workflow = Phase12Workflow(
-            self.session, self.assets, self.evidence_root, self.m2_assets
-        )
+        self._install_session(self._new_preferred_session(), reason="new_session")
+        self.status_var.set("已新建会话。")
+
+    def _install_session(self, session: SessionState, *, path=None, reason="open_session") -> None:
+        """Install an already loaded checkpoint on the owner thread."""
+        self._cancel_session_tasks(reason)
+        self.session = session
+        self.workflow = Phase12Workflow(self.session, self.assets, self.evidence_root, self.m2_assets)
         self._reset_delivery_workflow()
-        self.session_path = None
+        self._set_busy(False)
+        self.session_path = Path(path) if path else None
         self._rendered_plan_token = None
         self.widgets["task_text"].delete("1.0", "end")
+        self.widgets["task_text"].insert("1.0", session.task_text)
         self._reset_guided_view()
-        self.category_var.set("自动判断")
-        self.skill_search_url_var.set(
-            os.environ.get("PROMPTSMITH_SKILL_SEARCH_URL", "")
-        )
-        self.thinking_level_var.set(self.session.control.get("thinking_level", "standard"))
+        self.category_var.set(CATEGORY_LABELS.get(session.selected_category, "自动判断"))
+        self.skill_search_url_var.set(session.control.get("skill_search_url")
+            or os.environ.get("PROMPTSMITH_SKILL_SEARCH_URL", self.preferences["skill_search_url"]))
+        self.thinking_level_var.set(session.control.get("thinking_level", "standard"))
         self.thinking_level_display_var.set({
-            "quick": "快速：先把基本任务说清",
-            "standard": "标准：补齐常见关键信息",
+            "quick": "快速：先把基本任务说清", "standard": "标准：补齐常见关键信息",
             "deep": "深入：系统梳理复杂任务",
         }.get(self.thinking_level_var.get(), "标准：补齐常见关键信息"))
-        self.status_var.set("已新建会话。")
+        drafts = session.control.get("workspace_drafts", {})
+        if isinstance(drafts, dict):
+            self._question_drafts = dict(drafts.get("answers", {}))
+            self.widgets["conversation_input"].insert("1.0", drafts.get("message", ""))
+            target = drafts.get("reanswer")
+            if target and any(q.get("question_id") == target for q in session.question_history):
+                self._answer_target_id = target
+                self.question_context_var.set(next(q.get("text", "") for q in session.question_history if q.get("question_id") == target))
+        # Navigation may have rendered empty question inputs before drafts were
+        # installed. Do not harvest those empty controls over the restored text.
+        self._question_inputs = {}
+        self._conversation_signature = None
         self.refresh()
+        logging.getLogger(__name__).info("Conversation checkpoint installed: task=%s reason=%s", session.task_id, reason)
 
     def open_session(self) -> None:
         path = filedialog.askopenfilename(
@@ -5123,63 +5189,59 @@ class PromptSmithApp(GuidedFlowMixin):
         try:
             session = load_session(path)
         except Exception as exc:
-            messagebox.showerror("打开失败", str(exc), parent=self.root)
+            self._show_error("打开失败", str(exc), parent=self.root)
             return
-        self.session = session
-        self.workflow = Phase12Workflow(
-            self.session, self.assets, self.evidence_root, self.m2_assets
-        )
-        self._reset_delivery_workflow()
-        self.session_path = Path(path)
-        self._rendered_plan_token = None
-        self.widgets["task_text"].delete("1.0", "end")
-        self.widgets["task_text"].insert("1.0", session.task_text)
-        self._reset_guided_view()
-        label = CATEGORY_LABELS.get(session.selected_category, "自动判断")
-        self.category_var.set(label)
-        self.skill_search_url_var.set(
-            session.control.get("skill_search_url")
-            or os.environ.get("PROMPTSMITH_SKILL_SEARCH_URL", "")
-        )
-        self.thinking_level_var.set(session.control.get("thinking_level", "standard"))
-        self.thinking_level_display_var.set({
-            "quick": "快速：先把基本任务说清",
-            "standard": "标准：补齐常见关键信息",
-            "deep": "深入：系统梳理复杂任务",
-        }.get(self.thinking_level_var.get(), "标准：补齐常见关键信息"))
+        self._install_session(session, path=path)
         self.status_var.set(f"已打开：{path}")
-        self.refresh()
 
     def save(self, *, save_as: bool = False) -> None:
         target = self.session_path
-        if save_as or target is None:
-            default_dir = application_data_dir() / "sessions"
-            default_dir.mkdir(parents=True, exist_ok=True)
-            chosen = filedialog.asksaveasfilename(
-                parent=self.root,
-                title="保存PromptSmith会话",
-                initialdir=default_dir,
-                initialfile=f"{self.session.task_id}.json",
-                defaultextension=".json",
-                filetypes=[("PromptSmith JSON", "*.json")],
-            )
-            if not chosen:
-                return
-            target = Path(chosen)
         try:
+            logging.getLogger("promptsmith.ui").debug("Session save started; save_as=%s", save_as)
+            if save_as or target is None:
+                default_dir = Path(self.preferences["session_directory"]).expanduser() if self.preferences["session_directory"] else application_data_dir() / "sessions"
+                default_dir.mkdir(parents=True, exist_ok=True)
+                chosen = filedialog.asksaveasfilename(
+                    parent=self.root,
+                    title="保存PromptSmith会话",
+                    initialdir=default_dir,
+                    initialfile=f"{self.session.task_id}.json",
+                    defaultextension=".json",
+                    filetypes=[("PromptSmith JSON", "*.json")],
+                )
+                if not chosen:
+                    logging.getLogger("promptsmith.ui").debug("Session save cancelled by user")
+                    return
+                target = Path(chosen)
             self._sync_input()
             self.session.control["skill_search_url"] = self._normalized_skill_search_url()
             self.session_path = save_session(self.session, target)
         except Exception as exc:
-            messagebox.showerror("保存失败", str(exc), parent=self.root)
+            message = f"{exc}\n\n请在设置 → 会话与导出中更换可写的会话目录，再从文件菜单选择另存为重试。原文件和当前会话已保留。"
+            self.status_var.set("会话保存失败，请更换目录后重试。")
+            self._show_error("保存失败", message, parent=self.root)
             return
         self.status_var.set(f"已保存：{self.session_path}")
+        logging.getLogger("promptsmith.ui").info("Session saved: %s", self.session_path)
 
     def close(self) -> None:
         self.shutdown(wait=False)
         self.root.destroy()
 
     def shutdown(self, *, wait: bool) -> None:
+        if self._shutdown:
+            return
+        self._shutdown = True
+        self._close_response_view()
+        self.typography.close()
+        self._session_tasks.cancel()
+        self._application_tasks.cancel()
+        logging.getLogger(__name__).info("Desktop shutting down; wait_for_workers=%s", wait)
+        if self.debug_console is not None:
+            self.debug_console.close()
+            self.debug_console = None
+        if self._tk_root.report_callback_exception == self._report_callback_exception:
+            self._tk_root.report_callback_exception = self._previous_callback_exception
         if self._active_delivery_request is not None:
             request = self._active_delivery_request
             request["workflow"].cancel(request["request_id"])
@@ -5202,3 +5264,8 @@ class PromptSmithApp(GuidedFlowMixin):
             self._wheel_binding_registered = False
             self._reset_wheel_accumulator()
         self.executor.shutdown(wait=wait, cancel_futures=True)
+        for executor in self._retired_executors:
+            executor.shutdown(wait=wait, cancel_futures=True)
+        self._retired_executors.clear()
+        if self._owns_runtime_log:
+            self.runtime_log.close()

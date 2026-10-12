@@ -246,6 +246,7 @@ def test_semantic_input_error_returns_to_interview_without_failure_dialog(tmp_pa
 def test_selection_details_show_origin_strength_scope_source_and_change(tmp_path, tk_window) -> None:
     session = SessionState.new()
     session.set_task("做一个活动报名网站，不做付款")
+    session.last_next_action = "review_requirements"
     session.requirements = [
         {
             "item_id": "r1",
@@ -276,22 +277,37 @@ def test_selection_details_show_origin_strength_scope_source_and_change(tmp_path
     ]
     app = PromptSmithApp(tk_window, session=session, evidence_root=tmp_path)
     try:
-        app.widgets["requirements_tree"].selection_set("r1")
-        app.widgets["requirements_tree"].event_generate("<<TreeviewSelect>>")
+        app.widgets["task_text"].insert("1.0", session.task_text)
+        app.toggle_requirements_review()
+        tree = app.widgets["conversation_requirements_tree"]
+        tree.selection_set("r:r1")
+        tree.event_generate("<<TreeviewSelect>>")
         tk_window.update()
-        requirement_detail = app.widgets["details_text"].get("1.0", "end-1c")
-        assert "用户决定" in requirement_detail
-        assert "硬约束" in requirement_detail
-        assert "报名流程" in requirement_detail
-        assert "不做付款" in requirement_detail
+        tree = app.widgets["conversation_requirements_tree"]
+        requirement_detail = app.widgets["conversation_requirement_details"].get("1.0", "end-1c")
+        assert requirement_detail == session.requirements[0]["text"]
+        assert "用户决定" in tree.item("r:r1", "values")
+        # The compact table replaced the old metadata page. Source and hard
+        # constraints must still survive selection and later persistence.
+        assert session.requirements[0]["strength"] == "hard"
+        assert session.requirements[0]["scope"] == "报名流程"
+        assert session.requirements[0]["source_refs"][0]["quote"] == "不做付款"
 
-        app.widgets["proposals_tree"].selection_set("p1")
-        app.widgets["proposals_tree"].event_generate("<<TreeviewSelect>>")
+        tree.selection_set("p:p1")
+        tree.event_generate("<<TreeviewSelect>>")
         tk_window.update()
-        proposal_detail = app.widgets["details_text"].get("1.0", "end-1c")
-        assert "修改前" in proposal_detail
-        assert "修改后" in proposal_detail
-        assert "系统建议" in proposal_detail
+        tree = app.widgets["conversation_requirements_tree"]
+        proposal_detail = app.widgets["conversation_requirement_details"].get("1.0", "end-1c")
+        assert proposal_detail == session.pending_proposals[0]["text"]
+        assert "系统建议" in tree.item("p:p1", "values")
+        assert requirement_detail != proposal_detail
+        assert session.requirements[0]["text"] == requirement_detail
+        saved = tmp_path / "selected-details.json"
+        app.session_path = saved
+        app.save()
+        restored = load_session(saved)
+        assert restored.requirements == session.requirements
+        assert restored.pending_proposals == session.pending_proposals
     finally:
         app.shutdown(wait=True)
 
@@ -441,9 +457,12 @@ def test_complete_ui_path_allows_answer_before_draft_review_and_round_trips(
         app.start_analysis()
         pump(tk_window, app)
 
-        app.widgets["questions_tree"].selection_set("q1")
-        app.answer_var.set("先做课堂演示")
-        app.record_question("answered")
+        answer = app._question_inputs["q1"]
+        answer.insert("1.0", "先做课堂演示")
+        answer.edit_modified(True)
+        tk_window.update()
+        app._conversation_buttons["submit:q1"].invoke()
+        pump(tk_window, app)
         assert session_question_dispositions(app) == ["answered"]
         assert len(app.session.pending_proposals) == 2
 
@@ -452,26 +471,25 @@ def test_complete_ui_path_allows_answer_before_draft_review_and_round_trips(
         pump(tk_window, app)
 
         target_id = next(row["item_id"] for row in app.session.requirements if row["field"] == "constraints")
-        app.widgets["requirements_tree"].selection_set(target_id)
+        app.toggle_requirements_review()
+        app.widgets["conversation_requirements_tree"].selection_set("r:" + target_id)
+        app._conversation_show_requirement_selection()
         monkeypatch.setattr(
             app,
             "_multi_text_dialog",
             lambda _title, _fields: {"text": "演示版仍不做付款"},
         )
-        app.edit_selected_requirement()
+        app._conversation_buttons["edit_requirement"].invoke()
         edited_id = next(row["item_id"] for row in app.session.requirements if row["field"] == "constraints")
 
         app.start_analysis()
         pump(tk_window, app)
-        review_id = app.session.pending_review_item_ids[0]
-        app.widgets["requirements_tree"].selection_set(review_id)
-        app.review_selected_requirements()
-        app.confirm_requirements()
-
-        app.start_plan_generation()
+        app.confirm_preview_and_plan()
         pump(tk_window, app)
         assert app.session.plan["status"] == "draft"
-        assert app.notebook.index(app.notebook.select()) == 1
+        assert app.notebook.index(app.notebook.select()) == 0
+        app.toggle_plan_review()
+        assert "confirm_plan" in app._conversation_buttons
         goal = app.widgets["plan_goal_text"]
         goal.delete("1.0", "end")
         goal.insert("1.0", "完成一个更清楚的课堂演示报名网站")
@@ -500,21 +518,19 @@ def test_complete_ui_path_allows_answer_before_draft_review_and_round_trips(
         # Return to M1, actually change one requirement, and recover by regenerating M2.
         old_plan_id = app.session.plan["plan_id"]
         app.go_to_requirements()
-        app.widgets["requirements_tree"].selection_set(edited_id)
+        app.toggle_requirements_review()
+        app.widgets["conversation_requirements_tree"].selection_set("r:" + edited_id)
+        app._conversation_show_requirement_selection()
         monkeypatch.setattr(
             app,
             "_multi_text_dialog",
             lambda _title, _fields: {"text": "课堂演示版不做付款，也不收集身份证"},
         )
-        app.edit_selected_requirement()
+        app._conversation_buttons["edit_requirement"].invoke()
         assert app.session.plan["status"] == "stale"
         app.start_analysis()
         pump(tk_window, app)
-        review_id = app.session.pending_review_item_ids[0]
-        app.widgets["requirements_tree"].selection_set(review_id)
-        app.review_selected_requirements()
-        app.confirm_requirements()
-        app.start_plan_generation()
+        app.confirm_preview_and_plan()
         pump(tk_window, app)
         assert app.session.plan["plan_id"] != old_plan_id
         assert app.session.plan_archive[-1]["plan_id"] == old_plan_id

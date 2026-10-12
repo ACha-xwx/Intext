@@ -12,13 +12,18 @@ from __future__ import annotations
 import hashlib
 import html
 import json
+import logging
 import re
+from concurrent.futures import CancelledError
 from copy import deepcopy
 from dataclasses import dataclass
 from html.parser import HTMLParser
 from typing import Any, Callable, Iterable, Mapping
 from urllib.parse import parse_qsl, quote, unquote, urlencode, urljoin, urlsplit, urlunsplit
 from xml.etree import ElementTree
+
+from .task_scope import check_cancelled
+from .skill_http import SkillHttpSession
 
 from .skill_search import (
     NETWORK_CATALOG_ID,
@@ -138,6 +143,7 @@ def generate_skill_search_queries(
     client: Any | None = None,
     fallback_queries: Iterable[str] | None = None,
     progress: Callable[[str], Any] | None = None,
+    diagnostics: dict[str, Any] | None = None,
 ) -> list[str]:
     """Generate several independent web queries, optionally with an AI client.
 
@@ -147,6 +153,9 @@ def generate_skill_search_queries(
     local signals.  The fallback makes the feature usable without an API key.
     """
 
+    check_cancelled()
+    if diagnostics is not None:
+        diagnostics["status"] = "fallback"
     works = [dict(row) for row in key_works if isinstance(row, Mapping)]
     fallback = _agent_skill_queries(
         fallback_queries if fallback_queries is not None else _online_queries(
@@ -154,6 +163,8 @@ def generate_skill_search_queries(
         )
     )
     if client is None:
+        if diagnostics is not None:
+            diagnostics["status"] = "local"
         if progress:
             progress(f"已生成 {len(fallback)} 个联网检索方向")
         return fallback
@@ -171,20 +182,34 @@ def generate_skill_search_queries(
         "additionalProperties": False,
         "properties": {"queries": {"type": "array", "minItems": 1, "maxItems": 8, "items": {"type": "string"}}},
     }
-    payload = {"context_text": context_text or "", "category": category or "", "key_works": works}
+    # Query planning needs capability signals, not plan bookkeeping/source
+    # quotes. The original works remain intact for discovery and binding.
+    query_fields = {"key_work_id", "title", "goal", "inputs", "outputs", "checkpoints"}
+    payload = {"context_text": context_text or "", "category": category or "", "key_works": [
+        {key: value for key, value in work.items() if key in query_fields} for work in works
+    ]}
+    logging.getLogger(__name__).debug(
+        "Skill query planning input: works=%s payload_bytes=%s",
+        len(works), len(json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")),
+    )
     try:
         if progress:
             progress("正在让 AI 规划多角度联网检索词…")
         raw = client.complete_json(prompt, payload, schema)
+        check_cancelled()
         decoded = _decode_model_content(raw)
         values = decoded.get("queries") if isinstance(decoded, Mapping) else None
         queries = _agent_skill_queries(values if isinstance(values, list) else [])
         if queries:
+            if diagnostics is not None:
+                diagnostics["status"] = "completed"
             return queries
+    except CancelledError:
+        raise
     except Exception:
         # Query planning is an enhancement.  A provider outage must not hide
         # deterministic search terms or turn a valid search into a failure.
-        pass
+        logging.getLogger(__name__).warning("AI search query planning failed; using fallback", exc_info=True)
     return fallback
 
 
@@ -557,6 +582,8 @@ def search_open_web_skills(
     if not search_terms:
         raise OpenWebSkillSearchError("query", "没有生成有效的开放网络检索词。")
     base_url = _online_validate_search_url(search_url)
+    if not isinstance(opener, SkillHttpSession):
+        opener = SkillHttpSession(opener)
     built_in_search = base_url == OPEN_WEB_SEARCH_URL
     host = (urlsplit(base_url).hostname or "").casefold()
     custom_label = "DuckDuckGo" if host in {"duckduckgo.com", "html.duckduckgo.com"} else host or "自定义搜索"
@@ -579,11 +606,14 @@ def search_open_web_skills(
     result_links: list[tuple[str, str]] = []
     seen_results: set[str] = set()
     attempted_engines: list[str] = []
+    unavailable_engines: set[str] = set()
     for term in search_terms:
         if time_remaining(deadline) <= 0:
             errors.append("开放网络搜索超过时间限制。")
             break
         for engine_name, engine_url in engines:
+            if engine_url in unavailable_engines:
+                continue
             if time_remaining(deadline) <= 0:
                 errors.append("开放网络搜索超过时间限制。")
                 break
@@ -619,7 +649,15 @@ def search_open_web_skills(
                 if links:
                     break
             except (SkillSearchError, OSError, ValueError) as exc:
+                logging.getLogger(__name__).warning("Open-web search failed: %s", engine_name, exc_info=True)
                 errors.append(f"{engine_name}（{term}）：{exc}")
+                if isinstance(exc, SkillSearchError) and (exc.kind == "blocked" or
+                    exc.status_code in {401, 403, 429} or (exc.status_code or 0) >= 500):
+                    unavailable_engines.add(engine_url)
+                    if progress:
+                        progress(f"{engine_name}暂不可用，本轮停止重复访问并改用其他搜索来源")
+        if len(unavailable_engines) == len(set(url for _, url in engines)):
+            break
     skill_urls = _source_urls_from_result(
         opener,
         result_links[:MAX_SEARCH_RESULTS],
@@ -640,6 +678,10 @@ def search_open_web_skills(
             if progress:
                     progress(f"已读取 Skill 信息：{candidate['name']}")
         except (SkillSearchError, OSError, ValueError) as exc:
+            if getattr(exc, "request_skipped", False):
+                logging.getLogger(__name__).debug("Open-web Skill source access skipped: %s", str(exc))
+            else:
+                logging.getLogger(__name__).warning("Open-web Skill source unavailable", exc_info=True)
             errors.append(f"{source_url}：{exc}")
             unverified_sources.append({"url": source_url, "label": label, "error": str(exc)[:500]})
             if progress:
@@ -650,6 +692,7 @@ def search_open_web_skills(
         try:
             candidates = select_skill_candidates_with_ai(ai_client, candidates, task_text=context_text or "", key_works=works, progress=progress)
         except SkillAiSelectionError as exc:
+            logging.getLogger(__name__).warning("Open-web Skill AI review unavailable", exc_info=True)
             errors.append(str(exc))
             for row in candidates:
                 row["ai_review_status"] = "unavailable"
@@ -670,6 +713,7 @@ def search_open_web_skills(
         "errors": errors[:12],
         "unverified_sources": unverified_sources[:MAX_SKILL_SOURCES],
         "searched_at": searched_at,
+        "http": opener.diagnostics(),
     }
     return SkillSearchResult(query="; ".join(search_terms), status=status, candidates=candidates, batch_id=f"batch-open-web-{_sha256((searched_at + '|' + '|'.join(search_terms)).encode())[:16]}", catalog_hash=catalog_hash, error={"kind": "network", "message": errors[0]} if errors and not candidates else None, diagnostics=diagnostics, unmatched_key_work_ids=[work_id for work_id in work_ids if not any(row.get("key_work_id") == work_id for row in candidates)])
 

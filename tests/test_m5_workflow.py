@@ -66,7 +66,7 @@ def session_with_task() -> SessionState:
     return session
 
 
-def test_m5_rejects_unprovided_equipment_action_in_example() -> None:
+def test_m5_labels_unprovided_equipment_action_as_unconfirmed() -> None:
     session = SessionState.new()
     session.set_task(
         "为摄影社写一则发在新生微信群的招新通知。"
@@ -107,8 +107,8 @@ def test_m5_rejects_unprovided_equipment_action_in_example() -> None:
         ensure_ascii=False,
     )
 
-    with pytest.raises(M5ValidationError, match="事实|器材|未经用户提供"):
-        parse_m5_response(raw, payload)
+    parsed = parse_m5_response(raw, payload)
+    assert any("带上手机" in text for text in parsed["example"]["unsupported_assumptions"])
 
 
 def test_m5_workflow_registers_request_and_applies_example(tmp_path: Path) -> None:

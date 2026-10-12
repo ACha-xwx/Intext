@@ -1,0 +1,23 @@
+{
+  "checks": [
+    {
+      "check": "startup catalogue visible without opening record",
+      "passed": true
+    },
+    {
+      "check": "second startup sees saved rename and pin",
+      "passed": true
+    },
+    {
+      "check": "restart resumes unsent answer and composer",
+      "passed": true
+    },
+    {
+      "check": "active deletion creates clean usable workspace",
+      "passed": true
+    }
+  ],
+  "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36 Edg/154.0.0.0",
+  "errors": [],
+  "logs_auto_written": false
+}

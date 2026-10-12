@@ -7,7 +7,7 @@ name = "promptsmith"
 version = "0.1.0"
 description = "需求引导式提示构建助手"
 requires-python = ">=3.11"
-dependencies = ["jsonschema>=4.23,<5"]
+dependencies = ["jsonschema>=4.23,<5", "pillow>=10,<13", "pywebview>=6.2,<7; sys_platform == 'win32'"]
 
 [project.scripts]
 promptsmith = "promptsmith.main:main"

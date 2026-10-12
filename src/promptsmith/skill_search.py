@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import re
 import time
 from datetime import datetime, timezone
@@ -20,6 +21,9 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qsl, quote, urlencode, urljoin, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 from uuid import uuid4
+
+from .skill_http import SkillHttpSession, diagnostic_target, http_access_error, request_headers
+from .task_scope import check_cancelled
 
 
 GITHUB_API_BASE = "https://api.github.com"
@@ -462,13 +466,13 @@ class GitHubSkillSearcher:
         except SkillSearchError:
             raise
         except HTTPError as exc:
-            raise SkillSearchError("http", f"GitHub 搜索请求失败（HTTP {exc.code}）。", exc.code) from None
+            raise SkillSearchError("http", f"GitHub 搜索请求失败（HTTP {exc.code}）。", exc.code) from exc
         except (URLError, TimeoutError, OSError) as exc:
-            raise SkillSearchError("network", f"无法连接 GitHub 搜索服务：{exc}") from None
+            raise SkillSearchError("network", f"无法连接 GitHub 搜索服务：{exc}") from exc
         try:
             payload = json.loads(raw.decode("utf-8-sig"))
         except (UnicodeDecodeError, json.JSONDecodeError, TypeError) as exc:
-            raise SkillSearchError("invalid_response", f"GitHub 搜索响应不是有效 JSON：{exc}") from None
+            raise SkillSearchError("invalid_response", f"GitHub 搜索响应不是有效 JSON：{exc}") from exc
         if not isinstance(payload, Mapping) or not isinstance(payload.get("items"), list):
             raise SkillSearchError("invalid_response", "GitHub 搜索响应缺少有效 items 数组。")
         candidates = normalize_github_results(payload, query=query, key_work_ids=key_work_ids)
@@ -661,7 +665,7 @@ def _online_skill_metadata(raw: bytes) -> tuple[str, str]:
     try:
         body = raw.decode("utf-8-sig").replace("\r\n", "\n")
     except UnicodeDecodeError as exc:
-        raise SkillSearchError("invalid_skill", f"SKILL.md 不是有效 UTF-8：{exc}") from None
+        raise SkillSearchError("invalid_skill", f"SKILL.md 不是有效 UTF-8：{exc}") from exc
     if not body.startswith("---\n"):
         raise SkillSearchError("invalid_skill", "SKILL.md 缺少 YAML 元数据。")
     end = body.find("\n---", 4)
@@ -780,11 +784,13 @@ def _online_search_endpoint(base_url: str, query: str) -> str:
 
 
 def _online_reader(opener: Callable[..., Any] | None, url: str, timeout: float) -> bytes:
-    request = Request(url, headers={
-        "Accept": "application/json, text/plain, text/markdown, */*",
-        "User-Agent": "PromptSmith-SkillSearch/2.0",
-    }, method="GET")
+    check_cancelled()
+    if isinstance(opener, SkillHttpSession):
+        return opener.read(url, timeout, _online_reader)
+    target = diagnostic_target(url)
+    request = Request(url, headers=request_headers(url), method="GET")
     open_fn = opener or urlopen
+    logging.getLogger(__name__).debug("Skill HTTP GET: target=%s timeout=%.2f", target, timeout)
     try:
         try:
             response = open_fn(request, timeout=timeout)
@@ -795,7 +801,7 @@ def _online_reader(opener: Callable[..., Any] | None, url: str, timeout: float) 
             with response as active:
                 status = active.getcode() if hasattr(active, "getcode") else 200
                 if isinstance(status, int) and status >= 400:
-                    raise SkillSearchError("http", f"网络请求失败（HTTP {status}）。", status)
+                    raise http_access_error(url, status, getattr(active, "headers", {}))
                 try:
                     raw = active.read(_ONLINE_TREE_MAX_BYTES + 1)
                 except TypeError:
@@ -812,13 +818,28 @@ def _online_reader(opener: Callable[..., Any] | None, url: str, timeout: float) 
             raw = bytes(raw)
         if len(raw) > _ONLINE_TREE_MAX_BYTES:
             raise SkillSearchError("response_too_large", "网络响应过大，已跳过。")
+        check_cancelled()
+        logging.getLogger(__name__).debug("Skill HTTP read complete: target=%s bytes=%d", target, len(raw))
         return raw
-    except SkillSearchError:
+    except SkillSearchError as exc:
+        logging.getLogger(__name__).warning("Skill HTTP request failed: target=%s status=%s reason=%s",
+            target, exc.status_code, getattr(exc, "access_reason", exc.kind), exc_info=True)
         raise
     except HTTPError as exc:
-        raise SkillSearchError("http", f"网络请求失败（HTTP {exc.code}）。", exc.code) from None
+        try:
+            body = exc.read(4096)
+        except (OSError, ValueError, AttributeError, TypeError):
+            body = b""
+        finally:
+            exc.close()
+        error = http_access_error(url, exc.code, exc.headers, body)
+        logging.getLogger(__name__).warning("Skill HTTP request failed: target=%s status=%s reason=%s retry_after=%s remaining=%s reset=%s",
+            target, exc.code, error.access_reason, error.retry_after, error.rate_limit_remaining,
+            error.rate_limit_reset, exc_info=True)
+        raise error from exc
     except (URLError, TimeoutError, OSError) as exc:
-        raise SkillSearchError("network", f"无法连接网络搜索服务：{exc}") from None
+        logging.getLogger(__name__).warning("Skill HTTP connection failed: target=%s", target, exc_info=True)
+        raise SkillSearchError("network", f"无法连接来源 {target}：{exc}") from exc
 
 
 def _online_json(raw: bytes) -> Any:
@@ -833,7 +854,7 @@ def _online_json(raw: bytes) -> Any:
     try:
         value = json.loads(raw.decode("utf-8-sig"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise SkillSearchError("invalid_response", f"网络搜索响应不是有效 JSON：{exc}") from None
+        raise SkillSearchError("invalid_response", f"网络搜索响应不是有效 JSON：{exc}") from exc
     if not isinstance(value, (Mapping, list)):
         raise SkillSearchError("invalid_response", "网络搜索响应必须是 JSON 对象或数组。")
     return value
@@ -1238,8 +1259,8 @@ def search_online_skills(
     A complete, pinned ``SKILL.md`` is preferred.  If transport, rate-limit or
     timeout failures prevent that read, the public metadata already collected is
     retained for the model instead of being silently converted into no results.
-    ``token`` is accepted for API compatibility but is intentionally not sent to
-    arbitrary search indexes.
+    ``token`` is sent only to the official HTTPS GitHub API. Other indexes,
+    public pages and raw Skill files never receive that credential.
     """
 
     if timeout_seconds <= 0:
@@ -1248,6 +1269,8 @@ def search_online_skills(
         raise ValueError("联网 Skill 搜索候选上限必须是正整数。")
     if not include_index and not include_github_supplement:
         raise ValueError("联网 Skill 搜索至少需要启用一个来源。")
+    if not isinstance(opener, SkillHttpSession):
+        opener = SkillHttpSession(opener, token=token)
     works = [dict(work) for work in key_works if isinstance(work, Mapping)]
     inferred_ids = [row.get("key_work_id") for row in works if isinstance(row.get("key_work_id"), str) and row["key_work_id"].strip()]
     work_ids = [value.strip() for value in (key_work_ids or inferred_ids) if isinstance(value, str) and value.strip()]
@@ -1284,7 +1307,13 @@ def search_online_skills(
                     identity = f"{row.get('repository')}:{row.get('skill_id')}:{row.get('url')}"
                     discovered.setdefault(identity, row)
             except (SkillSearchError, OSError, ValueError) as exc:
-                errors.append(f"{custom_index}（{term}）：{exc}")
+                logging.getLogger(__name__).warning("Skill index query failed", exc_info=True)
+                errors.append(f"{diagnostic_target(custom_index)}（{term}）：{exc}")
+                if isinstance(exc, SkillSearchError) and (exc.status_code in {401, 403, 429} or
+                                                         (exc.status_code or 0) >= 500):
+                    if progress:
+                        progress("Skill 索引暂不可用，本轮停止重复查询；继续使用其他来源")
+                    break
     if include_github_supplement:
         for query in _online_github_queries(search_terms):
             if time.monotonic() >= deadline:
@@ -1308,6 +1337,7 @@ def search_online_skills(
                         })
                         discovered.setdefault(f"{repository}::github", item)
             except (SkillSearchError, OSError, ValueError) as exc:
+                logging.getLogger(__name__).warning("GitHub Skill query failed", exc_info=True)
                 errors.append(f"GitHub（{query}）：{exc}")
                 if isinstance(exc, SkillSearchError) and exc.status_code in {403, 429}:
                     break
@@ -1326,6 +1356,10 @@ def search_online_skills(
         try:
             record = _online_record_from_source(opener, item, deadline=deadline, searched_at=searched_at)
         except (SkillSearchError, OSError, ValueError) as exc:
+            if getattr(exc, "request_skipped", False):
+                logging.getLogger(__name__).debug("Skill source access skipped: %s", str(exc))
+            else:
+                logging.getLogger(__name__).warning("Skill source verification failed", exc_info=True)
             errors.append(f"{item.get('repository') or item.get('url')}: {exc}")
             record = _online_fallback_record(
                 item,
@@ -1407,7 +1441,7 @@ def search_online_skills(
                    "evidence_counts": evidence_counts, "progress": messages, "searched_at": searched_at,
                    "search_url": custom_index, "source_policy": "Skill index + GitHub" if include_github_supplement else "Skill index",
                    "index": bool(include_index), "github_supplement": bool(include_github_supplement),
-                   "verification_cap": max_verified_candidates}
+                   "verification_cap": max_verified_candidates, "http": opener.diagnostics()}
     return SkillSearchResult(
         query="; ".join(search_terms), status=result_status, candidates=candidates,
         batch_id=f"batch-network-{uuid4().hex}", catalog_hash=catalog_hash,
@@ -1451,10 +1485,12 @@ def merge_candidates(
     *,
     catalog_hash: str,
 ) -> dict[str, Any]:
-    """Merge local and remote rows while keeping local rows authoritative."""
+    """Accumulate sources and refresh duplicate references from the new search."""
+
+    from .skill_browser import candidate_identity
 
     rows: list[dict[str, Any]] = []
-    seen: set[tuple[str, str]] = set()
+    positions: dict[tuple[str, ...], int] = {}
     sources: list[str] = []
     for source_name, candidates in (("local", local_candidates), ("remote", remote_candidates)):
         if source_name not in sources:
@@ -1463,13 +1499,14 @@ def merge_candidates(
             if not isinstance(row, Mapping):
                 continue
             candidate = deepcopy(dict(row))
-            key = (str(candidate.get("skill_id", "")), str(candidate.get("key_work_id", "")))
-            if key in seen:
-                continue
-            seen.add(key)
             candidate.setdefault("origin", source_name)
             candidate.setdefault("source_kind", source_name)
-            rows.append(candidate)
+            key = candidate_identity(candidate)
+            if key in positions:
+                rows[positions[key]] = candidate
+            else:
+                positions[key] = len(rows)
+                rows.append(candidate)
     merged_hash = _sha256(
         _canonical(
             {
@@ -1479,6 +1516,8 @@ def merge_candidates(
             }
         )
     )
+    from .skill_recommendation import sorted_recommendations
+    rows = sorted_recommendations(rows)
     return {
         "batch_id": f"batch-merged-{uuid4().hex}",
         "catalog_id": NETWORK_CATALOG_ID,

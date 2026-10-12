@@ -11,6 +11,7 @@ from typing import Any, Mapping
 from jsonschema import Draft202012Validator
 
 from .paths import m1_asset_dir
+from .model_output import json_text, string_list, object_list, normalize_shape, log_repairs, extra_notes, reference_contribution
 
 
 class M4ValidationError(ValueError):
@@ -94,8 +95,6 @@ def _validate_input(payload: dict[str, Any]) -> None:
     steps = _id_map(payload["steps"], "step_id", "M4步骤")
     bindings = _id_map(payload["bindings"], "binding_id", "M4绑定")
     for binding in bindings.values():
-        if not binding["method_adaptation_allowed"]:
-            raise M4ValidationError(f"绑定 {binding['binding_id']} 不允许方法适配。")
         work = key_work.get(binding["key_work_id"])
         if work is None:
             raise M4ValidationError("绑定引用了不存在的关键工作。")
@@ -103,15 +102,11 @@ def _validate_input(payload: dict[str, Any]) -> None:
             raise M4ValidationError("绑定允许步骤不属于对应关键工作。")
         if not set(binding["step_ids"]).issubset(steps):
             raise M4ValidationError("绑定允许步骤引用了不存在的方案步骤。")
-        if not binding["capability_ids"] or len(binding["capability_ids"]) != len(set(binding["capability_ids"])):
-            raise M4ValidationError("绑定能力编号为空或重复。")
         prereqs = _id_map(binding["prerequisite_assessments"], "prerequisite_id", "绑定前提")
         if binding.get("provenance", {}).get("origin") == "remote" and any(
             row["source"] == "catalog_evidence" for row in prereqs.values()
         ):
             raise M4ValidationError("远程 Skill 前提不能标记为本地目录证据。")
-        if any(row["status"] == "incompatible" for row in prereqs.values()):
-            raise M4ValidationError("不兼容的前提不能送入 M4 整合。")
     _id_map(payload["suggestion_decisions"], "suggestion_id", "建议决策")
 
 
@@ -119,67 +114,90 @@ def parse_m4_response(
     raw: str,
     payload: dict[str, Any],
     output_schema: dict[str, Any],
+    *,
+    normalization_report: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     _schema_error(payload, M4Assets.load().input_schema, "M4输入")
     _validate_input(payload)
-    parsed = _strict_json_loads(raw)
-    if parsed.get("status") == "error" and (
-        parsed.get("contributions") or parsed.get("proposed_changes")
-    ):
-        raise M4ValidationError("M4错误分支不能包含正常增量内容。")
-    _schema_error(parsed, output_schema, "M4输出")
+    repairs = normalization_report if normalization_report is not None else []
+    try:
+        parsed = _strict_json_loads(json_text(raw))
+    except M4ValidationError as exc:
+        if not raw.strip() or "重复键" in str(exc) or "非法数值" in str(exc):
+            raise
+        parsed = {"contributions": [], "proposed_changes": []}
+        repairs.append({"action": "unstructured_guidance", "path": "$", "value": raw})
     for key in ("request_id", "task_id"):
-        if parsed[key] != payload[key]:
+        if key in parsed and parsed[key] != payload[key]:
             raise M4ValidationError(f"模型返回的{key}与请求不一致。")
-    if parsed["status"] == "error":
-        return parsed
-
+    if parsed.get("status") == "error":
+        repairs.append({"action": "model_advisory_error", "path": "$.error", "value": parsed.get("error")})
+    parsed = normalize_shape(parsed, output_schema, repairs)
     bindings = {row["binding_id"]: row for row in payload["bindings"]}
-    step_ids = {row["step_id"] for row in payload["steps"]}
-    changes = _id_map(parsed["proposed_changes"], "change_id", "M4新增变化")
-    seen_pairs: set[tuple[str, str]] = set()
-    contributions_by_binding: dict[str, list[dict[str, Any]]] = {binding_id: [] for binding_id in bindings}
-    for contribution in parsed["contributions"]:
-        binding_id = contribution["binding_id"]
-        binding = bindings.get(binding_id)
-        if binding is None:
-            raise M4ValidationError(f"贡献引用了未选绑定：{binding_id}")
-        step_id = contribution["step_id"]
-        if step_id not in step_ids or step_id not in binding["step_ids"]:
-            raise M4ValidationError(f"贡献步骤不属于该绑定：{step_id}")
-        pair = (binding_id, step_id)
-        if pair in seen_pairs:
-            raise M4ValidationError("同一绑定和步骤的贡献重复。")
-        seen_pairs.add(pair)
-        if not set(contribution["capability_ids"]).issubset(set(binding["capability_ids"])):
-            raise M4ValidationError("贡献引用了绑定未选择的能力。")
-        allowed_prerequisites = {
-            row["prerequisite_id"] for row in binding["prerequisite_assessments"]
+    works = {row["key_work_id"]: row for row in payload["key_work"]}
+    changes: dict[str, dict[str, Any]] = {}
+    change_rows = object_list(parsed.get("proposed_changes"), "$.proposed_changes", repairs)
+    for index, row in enumerate(change_rows):
+        if not isinstance(row.get("description"), str) or not row["description"].strip():
+            repairs.append({"action": "extra_field", "path": "$.proposed_changes", "value": row})
+            continue
+        change_id = row.get("change_id")
+        if not isinstance(change_id, str) or not change_id.strip():
+            change_id = f"change-{index + 1}"
+        while change_id in changes:
+            change_id += "-recovered"
+        origins = [item for item in string_list(row.get("binding_ids")) if item in bindings]
+        if not origins:
+            repairs.append({"action": "extra_field", "path": "$.proposed_changes", "value": row})
+            continue
+        changes[change_id] = {
+            "change_id": change_id, "binding_ids": origins,
+            "kind": row.get("kind") if row.get("kind") in ("scope", "cost", "permission", "assumption") else "assumption",
+            "description": row["description"], "reason": row.get("reason") if isinstance(row.get("reason"), str) and row["reason"].strip() else "模型提出的待核对建议。",
+            "affects_hard_constraints": row.get("affects_hard_constraints") is True,
         }
-        if not set(contribution["prerequisite_ids"]).issubset(allowed_prerequisites):
-            raise M4ValidationError("贡献引用了绑定未声明的前提。")
-        for prerequisite in binding["prerequisite_assessments"]:
-            if prerequisite["status"] == "unknown" and prerequisite["blocking"]:
-                if prerequisite["prerequisite_id"] not in contribution["prerequisite_ids"]:
-                    raise M4ValidationError("贡献遗漏了阻断性未知前提。")
-                if not contribution["fallback_actions"]:
-                    raise M4ValidationError("阻断性未知前提需要明确 fallback。")
-        for change_id in contribution["proposed_change_ids"]:
-            change = changes.get(change_id)
-            if change is None:
-                raise M4ValidationError(f"贡献引用了不存在的新增变化：{change_id}")
-            if binding_id not in change["binding_ids"]:
-                raise M4ValidationError("新增变化没有关联到引用它的绑定。")
-        contributions_by_binding[binding_id].append(contribution)
-
-    missing_bindings = sorted(binding_id for binding_id, rows in contributions_by_binding.items() if not rows)
-    if missing_bindings:
-        raise M4ValidationError(f"已选绑定缺少具体贡献：{', '.join(missing_bindings)}")
-
-    for change in changes.values():
-        for binding_id in change["binding_ids"]:
-            if binding_id not in bindings:
-                raise M4ValidationError(f"新增变化引用了未选绑定：{binding_id}")
-            if not any(change["change_id"] in row["proposed_change_ids"] for row in contributions_by_binding[binding_id]):
-                raise M4ValidationError("新增变化关联的绑定贡献未引用该变化。")
-    return parsed
+    contributions: list[dict[str, Any]] = []
+    contribution_rows = object_list(parsed.get("contributions"), "$.contributions", repairs)
+    for row in contribution_rows:
+        binding_id = row.get("binding_id")
+        binding = bindings.get(binding_id) if isinstance(binding_id, str) else None
+        if binding is None:
+            repairs.append({"action": "extra_field", "path": "$.unmatched_contribution", "value": row})
+            continue
+        item = reference_contribution(binding, works[binding["key_work_id"]])
+        if (set(string_list(row.get("capability_ids"))) - set(binding["capability_ids"])
+                or set(string_list(row.get("prerequisite_ids"))) - {p["prerequisite_id"] for p in binding["prerequisite_assessments"]}
+                or set(string_list(row.get("proposed_change_ids"))) - set(changes)):
+            repairs.append({"action": "extra_field", "path": "$.unverified_references", "value": row})
+        for key in ("method_actions", "planned_inputs", "expected_outputs", "checkpoints"):
+            values = string_list(row.get(key))
+            if values:
+                item[key] = values
+            else:
+                repairs.append({"action": "reference_default", "binding_id": binding_id, "field": key})
+        if row.get("step_id") in binding["step_ids"]:
+            item["step_id"] = row["step_id"]
+        else:
+            repairs.append({"action": "align_step", "binding_id": binding_id})
+        item["fallback_actions"] = list(dict.fromkeys([*string_list(row.get("fallback_actions")), *item["fallback_actions"]]))
+        item["proposed_change_ids"] = [key for key, change in changes.items() if binding_id in change["binding_ids"]]
+        contributions.append(item)
+    represented = {row["binding_id"] for row in contributions}
+    for key, binding in bindings.items():
+        if key not in represented:
+            contributions.append(reference_contribution(binding, works[binding["key_work_id"]]))
+            repairs.append({"action": "reference_default", "binding_id": key})
+    notes = extra_notes(repairs)
+    notes.extend(f"模型整合尚待核对：{event['value']}" for event in repairs if event["action"] in {"unstructured_guidance", "model_advisory_error"})
+    if notes and contributions:
+        contributions[0]["fallback_actions"].extend(notes)
+    for item in contributions:
+        item["fallback_actions"] = list(dict.fromkeys(item["fallback_actions"]))
+        item["proposed_change_ids"] = [key for key, change in changes.items() if item["binding_id"] in change["binding_ids"]]
+    effective = {
+        "schema_version": "m4.v0.1", "request_id": payload["request_id"], "task_id": payload["task_id"],
+        "status": "ok", "contributions": contributions, "proposed_changes": list(changes.values()), "error": None,
+    }
+    _schema_error(effective, output_schema, "M4兼容结果")
+    log_repairs("M4", payload["request_id"], repairs)
+    return effective

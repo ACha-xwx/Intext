@@ -1,0 +1,381 @@
+{
+  "environment": "Real Tk widgets; isolated settings save/load; no key/API call",
+  "observations": [
+    {
+      "field": "generation_timeout",
+      "kind": "TSpinbox",
+      "status": "save_reload",
+      "passed": true,
+      "actual": 121.0,
+      "expected": 121.0
+    },
+    {
+      "field": "generation_timeout",
+      "kind": "TSpinbox",
+      "status": "invalid_numeric",
+      "passed": true,
+      "actual": 121.0,
+      "expected": 121.0
+    },
+    {
+      "field": "connection_timeout",
+      "kind": "TSpinbox",
+      "status": "save_reload",
+      "passed": true,
+      "actual": 16.0,
+      "expected": 16.0
+    },
+    {
+      "field": "connection_timeout",
+      "kind": "TSpinbox",
+      "status": "invalid_numeric",
+      "passed": true,
+      "actual": 16.0,
+      "expected": 16.0
+    },
+    {
+      "field": "max_tokens",
+      "kind": "TSpinbox",
+      "status": "save_reload",
+      "passed": true,
+      "actual": 1,
+      "expected": 1
+    },
+    {
+      "field": "max_tokens",
+      "kind": "TSpinbox",
+      "status": "invalid_numeric",
+      "passed": true,
+      "actual": 1,
+      "expected": 1
+    },
+    {
+      "field": "temperature",
+      "kind": "TEntry",
+      "status": "save_reload",
+      "passed": true,
+      "actual": "0.6",
+      "expected": "0.6"
+    },
+    {
+      "field": "top_p",
+      "kind": "TEntry",
+      "status": "save_reload",
+      "passed": true,
+      "actual": "0.8",
+      "expected": "0.8"
+    },
+    {
+      "field": "reasoning_effort",
+      "kind": "TCombobox",
+      "status": "save_reload",
+      "passed": true,
+      "actual": "omit",
+      "expected": "omit"
+    },
+    {
+      "field": "search_model_timeout",
+      "kind": "TSpinbox",
+      "status": "save_reload",
+      "passed": true,
+      "actual": 46.0,
+      "expected": 46.0
+    },
+    {
+      "field": "search_model_timeout",
+      "kind": "TSpinbox",
+      "status": "invalid_numeric",
+      "passed": true,
+      "actual": 46.0,
+      "expected": 46.0
+    },
+    {
+      "field": "search_timeout",
+      "kind": "TSpinbox",
+      "status": "save_reload",
+      "passed": true,
+      "actual": 46.0,
+      "expected": 46.0
+    },
+    {
+      "field": "search_timeout",
+      "kind": "TSpinbox",
+      "status": "invalid_numeric",
+      "passed": true,
+      "actual": 46.0,
+      "expected": 46.0
+    },
+    {
+      "field": "local_candidates",
+      "kind": "TSpinbox",
+      "status": "save_reload",
+      "passed": true,
+      "actual": 25,
+      "expected": 25
+    },
+    {
+      "field": "local_candidates",
+      "kind": "TSpinbox",
+      "status": "invalid_numeric",
+      "passed": true,
+      "actual": 25,
+      "expected": 25
+    },
+    {
+      "field": "shortlist_limit",
+      "kind": "TSpinbox",
+      "status": "save_reload",
+      "passed": true,
+      "actual": 13,
+      "expected": 13
+    },
+    {
+      "field": "shortlist_limit",
+      "kind": "TSpinbox",
+      "status": "invalid_numeric",
+      "passed": true,
+      "actual": 13,
+      "expected": 13
+    },
+    {
+      "field": "review_limit",
+      "kind": "TSpinbox",
+      "status": "save_reload",
+      "passed": true,
+      "actual": 9,
+      "expected": 9
+    },
+    {
+      "field": "review_limit",
+      "kind": "TSpinbox",
+      "status": "invalid_numeric",
+      "passed": true,
+      "actual": 9,
+      "expected": 9
+    },
+    {
+      "field": "display_limit",
+      "kind": "TSpinbox",
+      "status": "save_reload",
+      "passed": true,
+      "actual": 7,
+      "expected": 7
+    },
+    {
+      "field": "display_limit",
+      "kind": "TSpinbox",
+      "status": "invalid_numeric",
+      "passed": true,
+      "actual": 7,
+      "expected": 7
+    },
+    {
+      "field": "network_candidates",
+      "kind": "TSpinbox",
+      "status": "save_reload",
+      "passed": true,
+      "actual": 9,
+      "expected": 9
+    },
+    {
+      "field": "network_candidates",
+      "kind": "TSpinbox",
+      "status": "invalid_numeric",
+      "passed": true,
+      "actual": 9,
+      "expected": 9
+    },
+    {
+      "field": "network_cache_seconds",
+      "kind": "TSpinbox",
+      "status": "save_reload",
+      "passed": true,
+      "actual": 901,
+      "expected": 901
+    },
+    {
+      "field": "network_cache_seconds",
+      "kind": "TSpinbox",
+      "status": "invalid_numeric",
+      "passed": true,
+      "actual": 901,
+      "expected": 901
+    },
+    {
+      "field": "input_budget",
+      "kind": "TSpinbox",
+      "status": "save_reload",
+      "passed": true,
+      "actual": 60001,
+      "expected": 60001
+    },
+    {
+      "field": "input_budget",
+      "kind": "TSpinbox",
+      "status": "invalid_numeric",
+      "passed": true,
+      "actual": 60001,
+      "expected": 60001
+    },
+    {
+      "field": "excerpt_chars",
+      "kind": "TSpinbox",
+      "status": "save_reload",
+      "passed": true,
+      "actual": 4001,
+      "expected": 4001
+    },
+    {
+      "field": "excerpt_chars",
+      "kind": "TSpinbox",
+      "status": "invalid_numeric",
+      "passed": true,
+      "actual": 4001,
+      "expected": 4001
+    },
+    {
+      "field": "extra_skill_roots",
+      "kind": "Text",
+      "status": "save_reload",
+      "passed": true,
+      "actual": "C:\\Users\\ACha_\\AppData\\Local\\Temp\\promptsmith-review-fields-6p1nrrbe\\extra_skill_roots",
+      "expected": "C:\\Users\\ACha_\\AppData\\Local\\Temp\\promptsmith-review-fields-6p1nrrbe\\extra_skill_roots"
+    },
+    {
+      "field": "skill_search_url",
+      "kind": "TEntry",
+      "status": "save_reload",
+      "passed": true,
+      "actual": "https://example.test/skills",
+      "expected": "https://example.test/skills"
+    },
+    {
+      "field": "web_search_url",
+      "kind": "TEntry",
+      "status": "save_reload",
+      "passed": true,
+      "actual": "https://example.test/search?q={query}",
+      "expected": "https://example.test/search?q={query}"
+    },
+    {
+      "field": "window_width",
+      "kind": "TSpinbox",
+      "status": "save_reload",
+      "passed": true,
+      "actual": 1441,
+      "expected": 1441
+    },
+    {
+      "field": "window_width",
+      "kind": "TSpinbox",
+      "status": "invalid_numeric",
+      "passed": true,
+      "actual": 1441,
+      "expected": 1441
+    },
+    {
+      "field": "font_size",
+      "kind": "TSpinbox",
+      "status": "save_reload",
+      "passed": true,
+      "actual": 13,
+      "expected": 13
+    },
+    {
+      "field": "font_size",
+      "kind": "TSpinbox",
+      "status": "invalid_numeric",
+      "passed": true,
+      "actual": 13,
+      "expected": 13
+    },
+    {
+      "field": "composer_theme",
+      "kind": "TCombobox",
+      "status": "save_reload",
+      "passed": true,
+      "actual": "dark",
+      "expected": "dark"
+    },
+    {
+      "field": "default_thinking",
+      "kind": "TCombobox",
+      "status": "save_reload",
+      "passed": true,
+      "actual": "standard",
+      "expected": "standard"
+    },
+    {
+      "field": "default_tone",
+      "kind": "TCombobox",
+      "status": "save_reload",
+      "passed": true,
+      "actual": "polite",
+      "expected": "polite"
+    },
+    {
+      "field": "session_directory",
+      "kind": "TEntry",
+      "status": "save_reload",
+      "passed": true,
+      "actual": "C:\\Users\\ACha_\\AppData\\Local\\Temp\\promptsmith-review-fields-6p1nrrbe\\session_directory",
+      "expected": "C:\\Users\\ACha_\\AppData\\Local\\Temp\\promptsmith-review-fields-6p1nrrbe\\session_directory"
+    },
+    {
+      "field": "export_directory",
+      "kind": "TEntry",
+      "status": "save_reload",
+      "passed": true,
+      "actual": "C:\\Users\\ACha_\\AppData\\Local\\Temp\\promptsmith-review-fields-6p1nrrbe\\export_directory",
+      "expected": "C:\\Users\\ACha_\\AppData\\Local\\Temp\\promptsmith-review-fields-6p1nrrbe\\export_directory"
+    },
+    {
+      "field": "debug_level",
+      "kind": "TCombobox",
+      "status": "save_reload",
+      "passed": true,
+      "actual": "INFO 及以上",
+      "expected": "INFO 及以上"
+    },
+    {
+      "field": "debug_autoscroll",
+      "kind": "TCheckbutton",
+      "status": "save_reload",
+      "passed": true,
+      "actual": false,
+      "expected": false
+    },
+    {
+      "field": "debug_history",
+      "kind": "TSpinbox",
+      "status": "save_reload",
+      "passed": true,
+      "actual": 1501,
+      "expected": 1501
+    },
+    {
+      "field": "debug_history",
+      "kind": "TSpinbox",
+      "status": "invalid_numeric",
+      "passed": true,
+      "actual": 1501,
+      "expected": 1501
+    },
+    {
+      "field": "debug_lines",
+      "kind": "TSpinbox",
+      "status": "save_reload",
+      "passed": true,
+      "actual": 6001,
+      "expected": 6001
+    },
+    {
+      "field": "debug_lines",
+      "kind": "TSpinbox",
+      "status": "invalid_numeric",
+      "passed": true,
+      "actual": 6001,
+      "expected": 6001
+    }
+  ]
+}

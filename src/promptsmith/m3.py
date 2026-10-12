@@ -191,59 +191,84 @@ def parse_m3_response(
     raw: str,
     payload: dict[str, Any],
     output_schema: dict[str, Any],
+    *,
+    normalization_report: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     _schema_error(payload, M3Assets.load().input_schema, "M3输入")
     _validate_input_references(payload)
-    parsed = _strict_json_loads(raw)
-    if parsed.get("status") == "error" and (
-        parsed.get("assessments") or parsed.get("unmatched_key_work_ids")
-    ):
-        raise M3ValidationError("M3错误分支不能包含正常评估内容。")
-    _schema_error(parsed, output_schema, "M3输出")
+    from .model_output import json_text, normalize_shape, string_list, object_list, extra_notes, log_repairs
+    repairs = normalization_report if normalization_report is not None else []
+    parsed = normalize_shape(_strict_json_loads(json_text(raw)), output_schema, repairs)
     for key in ("request_id", "task_id"):
-        if parsed[key] != payload[key]:
+        if key in parsed and parsed[key] != payload[key]:
             raise M3ValidationError(f"模型返回的{key}与请求不一致。")
 
     if parsed["status"] == "error":
+        if parsed.get("assessments") or parsed.get("unmatched_key_work_ids"):
+            raise M3ValidationError("M3错误分支不能包含正常评估内容。")
+        _schema_error(parsed, output_schema, "M3输出")
         return parsed
 
     candidates = {row["candidate_id"]: row for row in payload["candidates"]}
     works = {row["key_work_id"] for row in payload["key_work"]}
-    assessments = parsed["assessments"]
+    assessments: list[dict[str, Any]] = []
     seen: set[str] = set()
     has_recommendation: set[str] = set()
-    for assessment in assessments:
-        candidate_id = assessment["candidate_id"]
-        if candidate_id not in candidates:
-            raise M3ValidationError(f"评估引用了候选批次外编号：{candidate_id}")
-        if candidate_id in seen:
-            raise M3ValidationError(f"候选评估包含重复编号：{candidate_id}")
+    rows = object_list(parsed.get("assessments"), "$.assessments", repairs)
+    for original in rows:
+        if not isinstance(original, dict):
+            repairs.append({"action": "extra_field", "path": "$.assessments", "value": original})
+            continue
+        candidate_id = original.get("candidate_id")
+        if not isinstance(candidate_id, str) or candidate_id not in candidates or candidate_id in seen:
+            repairs.append({"action": "extra_field", "path": "$.assessments", "value": original})
+            continue
         seen.add(candidate_id)
         candidate = candidates[candidate_id]
         allowed_capabilities = {row["capability_id"] for row in candidate["capabilities"]}
         allowed_prerequisites = {
             row["prerequisite_id"] for row in candidate["adaptation_prerequisites"]
         }
-        if not set(assessment["capability_ids"]).issubset(allowed_capabilities):
-            raise M3ValidationError("评估引用了候选未声明的能力。")
-        if not set(assessment["prerequisite_ids"]).issubset(allowed_prerequisites):
-            raise M3ValidationError("评估引用了候选未声明的适配前提。")
+        assessment = {"candidate_id": candidate_id,
+            "decision": original.get("decision") if original.get("decision") in ("recommend", "conditional", "no_match") else "conditional",
+            "capability_ids": [value for value in string_list(original.get("capability_ids")) if value in allowed_capabilities],
+            "prerequisite_ids": [value for value in string_list(original.get("prerequisite_ids")) if value in allowed_prerequisites],
+            "reason": original.get("reason") if isinstance(original.get("reason"), str) and original["reason"].strip() else "适用性尚待用户或下游 AI 核对。",
+            "planned_inputs": string_list(original.get("planned_inputs")),
+            "expected_outputs": string_list(original.get("expected_outputs")),
+            "limitations": string_list(original.get("limitations")),
+        }
         if assessment["decision"] == "no_match":
-            if any(assessment[key] for key in ("capability_ids", "planned_inputs", "expected_outputs", "prerequisite_ids")):
-                raise M3ValidationError("no_match 评估不得携带能力、输入、输出或前提引用。")
+            for key in ("capability_ids", "planned_inputs", "expected_outputs", "prerequisite_ids"):
+                assessment[key] = []
         else:
             if not assessment["capability_ids"]:
-                raise M3ValidationError("recommend／conditional 必须引用至少一项候选能力。")
-            if not assessment["planned_inputs"] or not assessment["expected_outputs"]:
-                raise M3ValidationError("recommend／conditional 必须说明对应输入和预期输出。")
+                assessment["capability_ids"] = list(sorted(allowed_capabilities))[:1]
+                assessment["decision"] = "conditional"
+            assessment["planned_inputs"] = assessment["planned_inputs"] or ["当前需求与关键工作，具体材料由下游 AI 核对。"]
+            assessment["expected_outputs"] = assessment["expected_outputs"] or ["与当前关键工作相符的任务产物，具体形式待核对。"]
             has_recommendation.add(candidate["key_work_id"])
-
-    if seen != set(candidates):
-        missing = sorted(set(candidates) - seen)
-        raise M3ValidationError(f"候选评估有遗漏：{', '.join(missing)}")
-    if not set(parsed["unmatched_key_work_ids"]).issubset(works):
-        raise M3ValidationError("无匹配关键工作列表包含请求外编号。")
+        if assessment != original:
+            assessment["limitations"].append("模型评估格式或引用不完整，已整理为参考内容；实际适用性请继续核对。")
+            repairs.append({"action": "conditional_assessment", "candidate_id": candidate_id})
+            repairs.append({"action": "extra_field", "path": "$.original_assessment", "value": original})
+        assessments.append(assessment)
+    for candidate_id, candidate in candidates.items():
+        if candidate_id not in seen:
+            assessments.append({"candidate_id": candidate_id, "decision": "conditional",
+                "capability_ids": [row["capability_id"] for row in candidate["capabilities"]][:1],
+                "reason": "模型未返回此项评估，可保留为待核对参考。", "planned_inputs": ["当前需求和方案"],
+                "expected_outputs": ["当前关键工作的任务产物"], "prerequisite_ids": [],
+                "limitations": ["尚未完成模型适配分析，使用前请读取 Skill 并核对。"]})
+            has_recommendation.add(candidate["key_work_id"])
+            repairs.append({"action": "unassessed_candidate", "candidate_id": candidate_id})
     expected_unmatched = works - has_recommendation
-    if set(parsed["unmatched_key_work_ids"]) != expected_unmatched:
-        raise M3ValidationError("无匹配关键工作列表与 recommend／conditional 评估不一致。")
+    if set(string_list(parsed.get("unmatched_key_work_ids"))) != expected_unmatched:
+        repairs.append({"action": "align_unmatched_work"})
+    parsed["assessments"] = assessments
+    parsed["unmatched_key_work_ids"] = sorted(expected_unmatched)
+    if assessments:
+        assessments[0]["limitations"].extend(extra_notes(repairs))
+    _schema_error(parsed, output_schema, "M3兼容结果")
+    log_repairs("M3", payload["request_id"], repairs)
     return parsed

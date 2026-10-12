@@ -20,8 +20,12 @@ def test_new_unknown_generates_plan_without_error_and_explains_defer(delivery_ap
     assert not app.test_dialogs
     assert app.session.plan["status"] == "draft"
     assert len(app.session.plan["content"]["unresolved_items"]) == 1
-    assert "使用时再补充" in app.status_var.get()
-    assert "未决事项可在使用时补充" in app._primary_action().reason
+    assert "下游 AI" in app.status_var.get()
+    assert app._primary_action().kind == "confirm_plan_generate"
+    assert not app.session.questions_for_review(respect_interview_limit=False)
+    app.toggle_plan_review()
+    assert str(app._conversation_buttons["confirm_plan"]["state"]) == "normal"
+    assert "设计稿格式尚未决定" in app.widgets["conversation_plan_reading"].get("1.0", "end-1c")
     # The separately confirmed settings remain intact after generating a plan.
     assert app._model_settings_confirmed()
     app.show_workspace(1)
@@ -31,7 +35,7 @@ def test_new_unknown_generates_plan_without_error_and_explains_defer(delivery_ap
     assert app.notebook.index(app.notebook.select()) == 1
 
 
-def test_invalid_model_response_explains_retry_preserves_inputs(delivery_app, monkeypatch):
+def test_recoverable_model_reference_returns_plan_with_visible_unknown(delivery_app, monkeypatch):
     app, window = delivery_app
     app.session.plan["status"] = "stale"
     previous = deepcopy(app.session.plan)
@@ -45,8 +49,9 @@ def test_invalid_model_response_explains_retry_preserves_inputs(delivery_app, mo
     _configure_delivery_client(app, monkeypatch, Client(response))
     app.widgets["generate_plan_button"].invoke()
     _pump_until(window, lambda: not app.busy)
-    assert app.session.plan == previous and app.session.requirements == requirements
-    assert len(app.test_dialogs) == 1 and app.test_dialogs[0][0] == "warning"
-    message = app.test_dialogs[0][1][1]
-    assert "不用重新回答" in message and "重新生成方案" in message and "诊断记录" in message
-    assert app._primary_action().label == "重新生成方案"
+    assert app.session.requirements == requirements
+    assert app.session.plan["status"] == "draft"
+    assert not app.test_dialogs
+    assert any("bad" in row["description"] for row in app.session.plan["content"]["unresolved_items"])
+    assert "下游 AI" in app.status_var.get()
+    assert not app.session.questions_for_review(respect_interview_limit=False)

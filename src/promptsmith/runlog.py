@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
+import sys
 from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
@@ -43,6 +45,7 @@ class RunEvidenceWriter:
         response_envelope: dict[str, Any] | None = None,
         metadata: dict[str, Any],
         check: dict[str, Any],
+        effective_response: dict[str, Any] | None = None,
     ) -> Path:
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
         safe_request = re.sub(r"[^A-Za-z0-9_.-]", "_", request_id)
@@ -79,4 +82,19 @@ class RunEvidenceWriter:
         }
         _write_json(location / "meta.json", meta)
         _write_json(location / "check.json", _sanitized(check))
+        if effective_response is not None:
+            _write_json(location / "response.effective.json", _sanitized(effective_response))
+        correction = check.get("auto_correction") or {}
+        recovering = correction.get("action") == "retry_with_contextual_correction"
+        level = logging.INFO if check.get("valid", True) else logging.WARNING if recovering else logging.ERROR
+        logging.getLogger(__name__).log(
+            level,
+            "Model evidence saved: task=%s request=%s prompt=%s protocol=%s model=%s check=%s path=%s",
+            task_id, request_id, prompt_version, protocol, model,
+            {**_sanitized(check), "normalization": [
+                {key: value for key, value in event.items() if key != "value"}
+                for event in check.get("normalization", [])
+            ]}, location,
+            exc_info=sys.exc_info() if sys.exc_info()[0] is not None else None,
+        )
         return location

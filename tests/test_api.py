@@ -601,7 +601,13 @@ def test_openai_responses_uses_its_endpoint_body_and_output_shape(server) -> Non
     }
 
 
-def test_openai_responses_retries_json_completion_without_schema_after_http_400() -> None:
+@pytest.mark.parametrize("detail", [
+    "json_schema is not supported",
+    "This model does not support structured outputs",
+    "Unknown parameter: 'text.format'",
+    "Unsupported parameter: 'response_format'",
+])
+def test_openai_responses_retries_json_completion_without_schema_after_http_400(detail) -> None:
     requests: list[dict] = []
 
     class FallbackHandler(BaseHTTPRequestHandler):
@@ -610,7 +616,7 @@ def test_openai_responses_retries_json_completion_without_schema_after_http_400(
             body = json.loads(self.rfile.read(length).decode("utf-8"))
             requests.append(body)
             if len(requests) == 1:
-                response = {"error": {"message": "json_schema is not supported"}}
+                response = {"error": {"message": detail}}
                 encoded = json.dumps(response).encode("utf-8")
                 self.send_response(400)
             else:
@@ -677,6 +683,53 @@ def test_openai_responses_does_not_retry_non_400_json_completion_error(server) -
 
     assert captured.value.status_code == 500
     assert "temporary provider failure" in str(captured.value)
+
+
+@pytest.mark.parametrize("detail", [
+    "invalid max_output_tokens",
+    "Invalid schema for response_format 'promptsmith_result': property 'pattern' is not supported",
+    "text.format.schema contains an unsupported property: pattern",
+    "Unsupported schema keyword for json_schema: pattern",
+    "Unknown parameter: 'text.format.schema.additionalProperties'",
+    "Unknown parameter: 'response_format.json_schema.schema.pattern'",
+])
+def test_openai_responses_does_not_retry_unrelated_http_400(detail) -> None:
+    requests: list[dict] = []
+
+    class BadRequestHandler(BaseHTTPRequestHandler):
+        def do_POST(self) -> None:  # noqa: N802
+            length = int(self.headers.get("Content-Length", "0"))
+            requests.append(json.loads(self.rfile.read(length).decode("utf-8")))
+            encoded = json.dumps({"error": {"message": detail}}).encode("utf-8")
+            self.send_response(400)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(encoded)))
+            self.end_headers()
+            self.wfile.write(encoded)
+
+        def log_message(self, format: str, *args) -> None:
+            return
+
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), BadRequestHandler)
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    try:
+        client = OpenAIResponsesClient(
+            ApiConfig(
+                base_url=f"http://127.0.0.1:{httpd.server_port}/v1",
+                model="response-model",
+                api_key="synthetic-classification-secret",
+                protocol=OPENAI_RESPONSES_PROTOCOL,
+                timeout_seconds=3,
+            )
+        )
+        with pytest.raises(ApiError) as captured:
+            client.complete_json("system", {"task": "demo"}, {"type": "object"})
+        assert captured.value.error_detail == detail
+        assert len(requests) == 1
+    finally:
+        httpd.shutdown()
+        thread.join(timeout=2)
 
 
 @pytest.mark.parametrize(

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import logging
 from copy import deepcopy
+from .clarification import plan_unknown_description
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
@@ -25,16 +27,16 @@ class M2Assets:
     system_prompt: str
     input_schema: dict[str, Any]
     output_schema: dict[str, Any]
-    prompt_version: str = "M2_system_v0.3"
+    prompt_version: str = "M2_system_v0.6"
     contract_version: str = "m2.v0.1"
 
     @classmethod
     def load(cls, directory: str | Path | None = None) -> "M2Assets":
         root = Path(directory) if directory else m2_asset_dir()
         return cls(
-            system_prompt=(root / "M2_system_v0.3.txt").read_text(encoding="utf-8-sig"),
+            system_prompt=(root / "M2_system_v0.6.txt").read_text(encoding="utf-8-sig"),
             input_schema=json.loads(
-                (root / "M2_input_v0.1.schema.json").read_text(encoding="utf-8-sig")
+                (root / "M2_input_v0.2.schema.json").read_text(encoding="utf-8-sig")
             ),
             output_schema=json.loads(
                 (root / "M2_output_v0.2.schema.json").read_text(encoding="utf-8-sig")
@@ -119,9 +121,11 @@ def build_m2_input(
     primary, secondary = _category_for_input(session)
     referenced_sources = {
         ref.get("source_id")
-        for row in [*session.requirements, *session.gaps]
+        for row in [*session.requirements, *session.active_gaps()]
         for ref in row.get("source_refs", [])
     }
+    history = [row for row in session.question_history if not row.get("superseded_by_answer_id")]
+    referenced_sources.update(row.get("answer_source_id") for row in history if row.get("answer_source_id"))
     payload = {
         "schema_version": "m2.v0.1",
         "request_id": request_id,
@@ -173,11 +177,7 @@ def build_m2_input(
                 "unresolved_id": row["gap_id"],
                 "field": row["field"],
                 "scope": row["scope"],
-                "description": (
-                    "用户已选择先做草稿，这项含义仍未确定：" + row["description"]
-                    + "。只整理不依赖该信息的结构与步骤；相关具体内容等用户补充后完善，不得猜测填满。"
-                    if row.get("importance") == "blocking_direction" else row["description"]
-                ),
+                "description": plan_unknown_description(row),
                 # v0.1 already means permission to defer in this plan request.
                 # Keep original directional importance in the session/source snapshot.
                 "importance": "can_defer",
@@ -189,6 +189,12 @@ def build_m2_input(
         ],
         "relevant_materials": [
             deepcopy(row) for row in session.sources if row.get("source_id") in referenced_sources
+        ],
+        "interview_context": [
+            {"question_id": row["question_id"], "field": row["field"], "scope": row["scope"],
+             "question": row["text"], "disposition": row["disposition"],
+             "answer_source_id": row.get("answer_source_id"), "assessment_status": row.get("assessment_status", "legacy_unverified")}
+            for row in history
         ],
         "plan_context": {
             "current_plan_id": session.plan.get("plan_id"),
@@ -410,6 +416,118 @@ def validate_plan_confirmable(plan: dict[str, Any]) -> None:
             )
 
 
+def _normalize_model_plan(plan: dict[str, Any], payload: dict[str, Any], events: list[dict[str, Any]]) -> None:
+    from .model_output import extra_notes
+    before = deepcopy(plan)
+    collections = (("steps", "step_id"), ("deliverables", "deliverable_id"),
+                   ("completion_criteria", "criterion_id"), ("key_work", "key_work_id"),
+                   ("suggestions", "suggestion_id"))
+    for key, id_key in collections:
+        seen: set[str] = set()
+        reserved = {row[id_key] for row in plan[key]}
+        for index, row in enumerate(plan[key]):
+            if row[id_key] in seen:
+                replacement = f"{id_key}-recovered-{index + 1}"
+                while replacement in reserved:
+                    replacement += "-new"
+                row[id_key] = replacement
+                reserved.add(replacement)
+            seen.add(row[id_key])
+    requirements = {row["item_id"]: row for row in payload["requirements"]}
+    steps = {row["step_id"] for row in plan["steps"]}
+    outputs = {row["deliverable_id"] for row in plan["deliverables"]}
+    criteria = {row["criterion_id"] for row in plan["completion_criteria"]}
+    orders = [row["order"] for row in plan["steps"]]
+    for index, row in enumerate(plan["steps"]):
+        if len(orders) != len(set(orders)):
+            row["order"] = index + 1
+        row["depends_on_step_ids"] = [value for value in row["depends_on_step_ids"] if value in steps and value != row["step_id"]]
+        for key in ("actions", "outputs", "completion_criteria"):
+            if not row[key]:
+                row[key] = [f"{row['title']}的{key}尚待细化，请结合当前需求向用户确认。"]
+    work_ids = {row["key_work_id"] for row in plan["key_work"]}
+    for row in plan["key_work"]:
+        row["depends_on_key_work_ids"] = [value for value in row["depends_on_key_work_ids"] if value in work_ids and value != row["key_work_id"]]
+        row["step_ids"] = [value for value in row["step_ids"] if value in steps] or [plan["steps"][0]["step_id"]]
+        for key in ("inputs", "outputs", "checkpoints"):
+            if not row[key]:
+                row[key] = [f"{row['title']}的{key}尚待核对，先按已确认目标展开。"]
+    for key, id_key, dep_key in (("steps", "step_id", "depends_on_step_ids"), ("key_work", "key_work_id", "depends_on_key_work_ids")):
+        try:
+            _check_acyclic(plan[key], id_key, dep_key, key)
+        except M2ValidationError:
+            prior: set[str] = set()
+            for row in plan[key]:
+                row[dep_key] = [value for value in row[dep_key] if value in prior]
+                prior.add(row[id_key])
+    for key in ("steps", "deliverables", "completion_criteria", "key_work"):
+        for row in plan[key]:
+            row["requirement_ids"] = [value for value in row["requirement_ids"] if value in requirements]
+            if key == "deliverables":
+                row["step_ids"] = [value for value in row["step_ids"] if value in steps]
+    coverage = {}
+    for row in plan["requirement_coverage"]:
+        if row["requirement_id"] not in requirements or row["requirement_id"] in coverage:
+            continue
+        for key, allowed in (("step_ids", steps), ("deliverable_ids", outputs), ("criterion_ids", criteria)):
+            row[key] = [value for value in row[key] if value in allowed]
+        coverage[row["requirement_id"]] = row
+    for key, requirement in requirements.items():
+        if key not in coverage:
+            coverage[key] = {"requirement_id": key, "summary": requirement["text"] + "（具体安排请下游 AI 核对补充）",
+                             "step_ids": [], "deliverable_ids": [], "criterion_ids": []}
+    plan["requirement_coverage"] = list(coverage.values())
+    for row in plan["suggestions"]:
+        if row["kind"] in {"scope_change", "cost_or_permission"}:
+            row["requires_user_confirmation"] = True
+    if plan != before:
+        events.append({"action": "repair_plan_links", "value": before})
+    notes = extra_notes(events)
+    if plan != before:
+        notes.append("模型方案的编号、覆盖或步骤细节存在不一致，已按当前需求整理；原安排与细节仍需下游 AI 核对，不代表已经完成验证。原始关联记录：" + json.dumps(
+            {key: before[key] for key in ("requirement_coverage", "steps", "key_work") if before[key] != plan[key]}, ensure_ascii=False))
+    for index, note in enumerate(notes):
+        identifier = f"u-format-{index + 1}"
+        while any(row["unresolved_id"] == identifier for row in plan["unresolved_items"]):
+            identifier += "-new"
+        plan["unresolved_items"].append({"unresolved_id": identifier, "source_gap_id": None,
+            "description": note, "impact": "可能影响具体执行方式。", "continuable_work": "先按已确认目标开展可确定的部分。",
+            "confirm_by": "执行相关工作前与用户核对"})
+
+
+def _prepare_plan_shape(plan: dict[str, Any], events: list[dict[str, Any]]) -> None:
+    """Fill descriptive omissions with explicit unknowns, never factual guesses."""
+    if isinstance(plan.get("goal"), dict):
+        for key, label in (("summary", "目标"), ("audience", "受众"), ("scope", "范围")):
+            if not plan["goal"].get(key):
+                plan["goal"][key] = f"{label}尚未明确，请结合用户原始任务核对。"
+                events.append({"action": "unknown_description", "field": key})
+    for collection, id_key, arrays, texts in (
+        ("steps", "step_id", ("inputs", "actions", "outputs", "completion_criteria", "depends_on_step_ids", "requirement_ids"), ("title", "purpose")),
+        ("deliverables", "deliverable_id", ("step_ids", "requirement_ids"), ("name", "description")),
+        ("completion_criteria", "criterion_id", ("requirement_ids",), ("text",)),
+        ("key_work", "key_work_id", ("step_ids", "inputs", "outputs", "requirement_ids", "depends_on_key_work_ids", "checkpoints"), ("title", "goal")),
+        ("requirement_coverage", "requirement_id", ("step_ids", "deliverable_ids", "criterion_ids"), ("summary",)),
+    ):
+        for index, row in enumerate(plan.get(collection, []) or []):
+            if not isinstance(row, dict):
+                continue
+            if not row.get(id_key) and id_key != "requirement_id":
+                row[id_key] = f"{id_key}-generated-{index + 1}"
+                events.append({"action": "assign_missing_id", "collection": collection})
+            for key in arrays:
+                if key not in row:
+                    row[key] = []
+                    events.append({"action": "empty_collection", "field": f"{collection}.{key}"})
+            for key in texts:
+                if not row.get(key):
+                    row[key] = f"{key}尚待细化，请结合当前目标与用户核对。"
+                    events.append({"action": "unknown_description", "field": f"{collection}.{key}"})
+            if collection == "steps" and not isinstance(row.get("order"), int):
+                row["order"] = index + 1
+                events.append({"action": "assign_step_order"})
+
+
 def parse_m2_response(
     raw: str,
     payload: dict[str, Any],
@@ -417,7 +535,11 @@ def parse_m2_response(
     *,
     normalization_report: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    parsed = _strict_json_loads(raw)
+    from .model_output import json_text, normalize_shape, log_repairs
+    events = normalization_report if normalization_report is not None else []
+    parsed = normalize_shape(_strict_json_loads(json_text(raw)), output_schema, events)
+    if parsed.get("status") == "ok" and isinstance(parsed.get("plan"), dict):
+        _prepare_plan_shape(parsed["plan"], events)
     _schema_error(parsed, output_schema, "M2输出")
     for key in ("request_id", "task_id", "source_requirements_version"):
         if parsed[key] != payload[key]:
@@ -425,8 +547,9 @@ def parse_m2_response(
     if parsed["status"] == "ok":
         if parsed["plan"] is None or parsed["error"] is not None:
             raise M2ValidationError("正常分支必须只包含方案。")
+        _normalize_model_plan(parsed["plan"], payload, events)
         parsed["plan"]["unresolved_items"] = merge_plan_unknowns(
-            parsed["plan"]["unresolved_items"], payload, report=normalization_report
+            parsed["plan"]["unresolved_items"], payload, report=events
         )
         validate_plan_content(parsed["plan"], payload)
     else:
@@ -437,6 +560,7 @@ def parse_m2_response(
             *[row["unresolved_id"] for row in payload["unresolved_items"]],
         }
         _check_subset(parsed["error"]["related_input_ids"], allowed, "结构化错误")
+    log_repairs("M2", payload["request_id"], events)
     return parsed
 
 
@@ -453,10 +577,16 @@ def apply_m2_response(
         raise SessionStateError(f"模型无法形成方案：{parsed['error']['message']}")
     # Revalidate before the one state mutation, so malformed callers cannot partially write a plan.
     validate_plan_content(parsed["plan"], payload)
+    from .clarification import without_skipped_unknowns
+    content = deepcopy(parsed["plan"])
+    content["unresolved_items"] = without_skipped_unknowns(session, content.get("unresolved_items", []))
+    removed = len(parsed["plan"].get("unresolved_items", [])) - len(content["unresolved_items"])
+    if removed:
+        logging.getLogger(__name__).info("Excluded skipped items from model plan; task=%s count=%s", session.task_id, removed)
     session.stage_m2_result(
         payload["request_id"],
         payload["source_requirements_version"],
-        parsed["plan"],
+        content,
         prompt_version=prompt_version,
         contract_version=contract_version,
     )

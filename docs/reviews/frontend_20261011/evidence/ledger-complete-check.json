@@ -1,0 +1,46 @@
+{
+  "schema_valid": true,
+  "errors": [],
+  "warnings": [],
+  "counts": {
+    "pages_in_scope": 34,
+    "pages_excluded": 0,
+    "definitions": 68,
+    "instances_in_scope": 492,
+    "checks": {
+      "blocked": 369,
+      "failed": 148,
+      "not_applicable": 544,
+      "passed": 3077
+    },
+    "scenarios": {
+      "blocked": 2,
+      "failed": 13,
+      "passed": 34
+    },
+    "findings": {
+      "P1": 2,
+      "P2": 11
+    },
+    "component_plans": 492,
+    "tasks": 15
+  },
+  "gaps": {
+    "missing_dimensions": [],
+    "pages_without_instances": [],
+    "pages_without_scenarios": [],
+    "instances_without_scenarios": [],
+    "high_risk_instances_without_high_risk_scenarios": [],
+    "definitions_without_blueprints": [],
+    "instances_without_plans": [],
+    "findings_without_tasks": []
+  },
+  "critical_unresolved": [
+    "FND-001",
+    "FND-007"
+  ],
+  "audit_coverage_closed": false,
+  "plan_complete": true,
+  "production_gates_satisfied": false,
+  "disclaimer": "Mechanical validation of declared scope and records only; no application execution or security certification."
+}

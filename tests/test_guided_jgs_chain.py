@@ -112,7 +112,21 @@ class Scenario:
             response["assistant_text"] = "先补充所属领域和学习对象，就能缩小讲解范围。"
         elif self.m1_count == 2:
             response["gap_updates"] = resolve_pending(payload)
-            response["proposals"] = [proposal("p-domain", "context", "属于数值分析领域", source_id, "数值分析领域"), proposal("p-audience", "audience", "学生学习讲义", source_id, "学生学习讲义")]
+            answer_sources = {
+                row.get("answer_text"): row.get("answer_source_id")
+                for row in payload["state"]["question_history"]
+                if row.get("assessment_status") == "pending"
+            }
+            response["proposals"] = [
+                proposal(
+                    "p-domain", "context", "属于数值分析领域",
+                    answer_sources.get("数值分析领域"), "数值分析领域",
+                ),
+                proposal(
+                    "p-audience", "audience", "学生学习讲义",
+                    answer_sources.get("学生学习讲义"), "学生学习讲义",
+                ),
+            ]
             term = gap("g-term", "goal", "术语所指", "JGS 的具体含义还没有确定")
             response["gaps"] = [term]
             response["questions"] = [question("q-term", term, "你这里说的 JGS 具体指什么？")]
@@ -120,7 +134,11 @@ class Scenario:
             response["next_action"] = "ask"
             response["assistant_text"] = "已记录数值分析和学生学习讲义，还需说明术语所指。"
             if self.name == "guess":
-                inferred = proposal("p-guess", "goal", "比较 Jacobi 与 Gauss–Seidel 这两种迭代方法", source_id, "数值分析领域", scope="术语所指", kind="pending_interpretation", strength="unspecified")
+                inferred = proposal(
+                    "p-guess", "goal", "比较 Jacobi 与 Gauss–Seidel 这两种迭代方法",
+                    answer_sources.get("数值分析领域"), "数值分析领域",
+                    scope="术语所指", kind="pending_interpretation", strength="unspecified",
+                )
                 inferred["interpretation_for"] = {"gap_id": "g-term", "question_id": "q-term", "reason": "你提到数值分析，这是一种可能解释，需要你核对。"}
                 response["proposals"].extend([inferred, proposal("p-budget", "constraints", "可以考虑购买100元参考资料", None, None, kind="system_suggestion", strength="unspecified")])
         else:
@@ -216,11 +234,20 @@ def go_to_term_question(app, scenario):
     click_primary(app)
     assert len(app.session.pending_questions) == 2
     initial_candidates = {row["proposal_id"] for row in app.session.pending_proposals}
-    app.widgets["answer_entry"].insert(0, BACKGROUND)
+    app.widgets["answer_entry"].insert(0, "数值分析领域")
+    click_primary(app)
+    assert len(scenario.received) == 1
+    assert [row["question_id"] for row in app.session.question_history] == ["q-domain"]
+    assert [row["question_id"] for row in app.session.pending_questions] == ["q-audience"]
+    assert "数值分析领域" not in app.question_context_var.get()
+
+    app.widgets["answer_entry"].insert(0, "学生学习讲义")
     click_primary(app)
     assert len(scenario.received) == 2
-    assert len(scenario.received[1]["state"]["question_history"]) == 2
-    assert all(row["assessment_status"] == "pending" for row in scenario.received[1]["state"]["question_history"])
+    submitted = scenario.received[1]["state"]["question_history"]
+    assert len(submitted) == 2
+    assert [row["answer_text"] for row in submitted] == ["数值分析领域", "学生学习讲义"]
+    assert all(row["assessment_status"] == "pending" for row in submitted)
     assert initial_candidates <= {row["proposal_id"] for row in app.session.pending_proposals}
     assert [q["question_id"] for q in app.session.pending_questions] == ["q-term"]
 
@@ -270,7 +297,7 @@ def test_jgs_skip_then_one_draft_click_produces_copyable_exportable_reopenable_r
     assert app.session.plan["confirmed_plan_version"] is None
     assert app.session.final_result["status"] == "draft"
     assert app.session.final_result["content"]["plan_review_pending"] is True
-    assert app.notebook.index(app.notebook.select()) == 3
+    assert app.notebook.index(app.notebook.select()) == 0
     assert "方案尚未核对" in app.session.final_result["canonical_body"]
     get_button(app.widgets["result_simple_controls"], "复制提示").invoke()
     assert "JGS 的具体含义还没有确定" in app.root.clipboard_get()
@@ -299,6 +326,7 @@ def test_deciding_interpretation_reclaims_space_for_requirements(scenario_app, d
     app, scenario = scenario_app("guess")
     app.root.deiconify()
     app.root.geometry("1100x650")
+    app.toggle_conversation_details(True)
     go_to_term_question(app, scenario)
     app.root.update()
     question_panel = app.widgets["question_panel"]
@@ -307,13 +335,22 @@ def test_deciding_interpretation_reclaims_space_for_requirements(scenario_app, d
     answer_y_before = app.widgets["answer_entry"].winfo_y()
     context = app.question_context_var.get()
     assert explanation_height > 0
-    assert "AI 可能的理解" in context
-    assert "Jacobi" in context
-    assert "数值分析" in context
+    assert "AI 可能的理解" not in context
+    interpretation_text = " ".join(
+        str(child.cget("text")) for child in app.widgets["interpretation_panel"].winfo_children()
+        if isinstance(child, ttk.Label)
+    )
+    assert "AI 可能的理解" in interpretation_text
+    assert "Jacobi" in interpretation_text
     button = get_button(question_panel, "是这个意思" if decision == "accept" else "我来说明")
     button.invoke()
     app.root.update()
     assert "AI 可能的理解" not in app.question_context_var.get()
+    assert not any(
+        "AI 可能的理解" in str(child.cget("text"))
+        for child in app.widgets["interpretation_panel"].winfo_children()
+        if isinstance(child, ttk.Label)
+    )
     assert app.widgets["answer_entry"].winfo_y() <= answer_y_before
     assert question_panel.winfo_reqheight() < before
     assert app.widgets["answer_entry"].winfo_ismapped()
@@ -359,11 +396,11 @@ def test_complete_writing_task_follows_default_no_skill_path_to_export(scenario_
     assert not app.session.pending_questions
     assert app.primary_action_var.get() == "确认需求并生成方案"
     click_primary(app)
-    assert app.notebook.index(app.notebook.select()) == 1
+    assert app.notebook.index(app.notebook.select()) == 0
     assert app.primary_action_var.get() == "确认方案并生成提示"
     click_primary(app)
     assert len(scenario.received) == 2
-    assert app.notebook.index(app.notebook.select()) == 3
+    assert app.notebook.index(app.notebook.select()) == 0
     assert app.session.skill_state["status"] == "skipped"
     assert not app.session.skill_state.get("bindings")
     assert app.session.final_result["canonical_body"]

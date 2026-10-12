@@ -193,9 +193,9 @@ def test_m2_truncation_preserves_partial_response_usage_and_existing_state(tmp_p
 def test_m2_v03_prompt_is_loaded_and_packaged() -> None:
     assets = M2Assets.load(DESIGN)
     spec = (ROOT / "PromptSmith.spec").read_text(encoding="utf-8")
-    assert assets.prompt_version == "M2_system_v0.3"
-    assert "不是" not in assets.system_prompt or "而不是直接完成下游" in assets.system_prompt
+    assert assets.prompt_version == "M2_system_v0.6"
+    assert "不直接完成任务正文或最终提示词" in assets.system_prompt
     assert "JGS" in assets.system_prompt
-    assert "M2_system_v0.3.txt" in spec
+    assert "M2_system_v0.6.txt" in spec
     assert "M2_output_v0.2.schema.json" in spec
-    assert "source_gap_id 填 null" in assets.system_prompt
+    assert "source_gap_id=null" in assets.system_prompt

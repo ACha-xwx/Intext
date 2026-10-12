@@ -63,7 +63,8 @@ def test_local_then_optional_network_candidates_are_visible_and_selectable(tk_ro
         assert app.widgets["skill_search_url_entry"].winfo_ismapped()
         assert "可选" in app.widgets["skill_search_url_label"].cget("text")
         assert tree.get_children() == (local["candidate_id"],)
-        assert "适合为初学者" in tree.item(local["candidate_id"], "values")[2]
+        assert "适合为初学者" in tree.item(local["candidate_id"], "values")[4]
+        assert 0 <= float(tree.item(local["candidate_id"], "values")[3]) <= 1
         assert str(app.widgets["skill_online_button"].cget("state")) == "normal"
 
         remote = dict(local)
@@ -83,7 +84,7 @@ def test_local_then_optional_network_candidates_are_visible_and_selectable(tk_ro
 
         assert {row["origin"] for row in app._candidate_rows()} == {"local_file", "remote"}
         assert "部分来源不可用" in app.skill_status_var.get()
-        assert "example.test" in tree.item("remote-1", "values")[1]
+        assert "example.test" in tree.item("remote-1", "values")[2]
         tree.selection_set(local["candidate_id"], "remote-1")
         app.select_skill_candidates()
         assert len(app.session.skill_state["bindings"]) == 2

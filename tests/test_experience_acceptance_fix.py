@@ -386,6 +386,7 @@ def test_main_page_scroll_keeps_details_reachable_at_150_percent_scaling(tk_wind
 
         canvas = app.widgets["requirements_page_canvas"]
         details = app.widgets["details_text"]
+        app.toggle_conversation_details(True)
         app.widgets["advanced_requirements_panel"]._show(True)
         canvas.update_idletasks()
         canvas.yview_moveto(1.0)

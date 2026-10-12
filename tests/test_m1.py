@@ -150,17 +150,17 @@ def test_invalid_input_fallback_must_be_empty_and_unready() -> None:
         parse_m1_response(json.dumps(result, ensure_ascii=False), payload, assets.output_schema)
 
 
-def test_readiness_rejects_undeclared_note_field() -> None:
-    assets = M1Assets.load(DESIGN)
+def test_readiness_accepts_extra_note_without_changing_readiness() -> None:
+    assets = M1Assets.load(DESIGN, legacy=True)
     payload = fixture("01_报名网站.input.json")
     result = fixture("01_报名网站.expected.json")
-    result["schema_version"] = "m1.v0.2"
     result["request_id"] = payload["request_id"]
     result["task_id"] = payload["task_id"]
     result["base_version"] = payload["base_version"]
     result["gap_updates"] = []
     result["question_reopens"] = []
-    result["readiness"]["blocking_gap_ids_note"] = None
+    result["readiness"]["blocking_gap_ids_note"] = "需在下游任务中继续核对"
 
-    with pytest.raises(M1ValidationError, match="blocking_gap_ids_note"):
-        parse_m1_response(json.dumps(result, ensure_ascii=False), payload, assets.output_schema)
+    parsed = parse_m1_response(json.dumps(result, ensure_ascii=False), payload, assets.output_schema)
+    assert "blocking_gap_ids_note" not in parsed["readiness"]
+    assert "需在下游任务中继续核对" in parsed["assistant_text"]

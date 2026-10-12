@@ -10,13 +10,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import re
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Mapping, Sequence
 from uuid import uuid4
 
 
@@ -35,7 +36,15 @@ _PRUNED_DIRS = {
 # Common bilingual task signals.  They let a Chinese task find an English
 # Skill while leaving the final ranking deterministic and explainable.
 _BILINGUAL_TERMS: dict[str, tuple[str, ...]] = {
+    "界面": ("ui", "ux", "interface", "frontend", "layout", "visual"),
+    "配色": ("color", "colour", "theme", "theming"),
+    "字体": ("typography", "font", "type"),
+    "留白": ("spacing", "layout", "composition"),
+    "重构": ("refactor", "refactoring", "redesign"),
     "学习": ("learn", "learning", "study", "curriculum", "lesson", "course", "education"),
+    "讲解": ("teaching", "lesson", "tutor", "explain", "education"),
+    "教学": ("teaching", "lesson", "tutor", "education"),
+    "初学者": ("beginner", "lesson", "tutor", "learn", "teaching"),
     "课程": ("course", "curriculum", "lesson", "teaching"),
     "计划": ("plan", "planning", "roadmap", "schedule"),
     "教程": ("tutorial", "guide", "lesson"),
@@ -79,6 +88,10 @@ _GENERIC_MATCH_TERMS = {
 # The rule is name-based and therefore does not suppress an otherwise useful
 # general workflow Skill whose body happens to contain a domain example.
 _NAMED_DOMAIN_SIGNALS: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
+    (("music", "audio", "fl-studio", "gsap"), ("music", "audio", "fl-studio", "gsap", "音乐", "音频", "作曲", "动画")),
+    (("pdf",), ("pdf", "便携文档")),
+    (("game",), ("game", "游戏")),
+    (("shadcn", "tailwind", "react", "angular", "vue"), ("shadcn", "tailwind", "react", "angular", "vue", "web", "网页", "网站")),
     (("openai", "codex", "chatgpt"), ("openai", "codex", "chatgpt", "api", "模型", "接口")),
     (("humanizer", "humanize"), ("humanizer", "humanize", "写作", "文本", "文章", "文案", "润色")),
     (("browser", "chrome", "firefox", "agent-browser"), ("browser", "chrome", "firefox", "网页", "浏览器")),
@@ -97,6 +110,7 @@ class LocalSkillSearchResult:
     batch_id: str = ""
     scanned_files: int = 0
     matched_files: int = 0
+    diagnostics: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         # Keep aliases useful to callers that use either naming convention.
@@ -115,6 +129,7 @@ class LocalSkillSearchResult:
             "scanned_files": self.scanned_files,
             "matched_files": self.matched_files,
             "errors": list(self.errors),
+            "diagnostics": deepcopy(self.diagnostics),
             "result": {
                 "status": self.status,
                 "candidates": deepcopy(self.candidates),
@@ -229,6 +244,7 @@ def _normalize_roots(roots: Iterable[str | Path] | None) -> list[Path]:
         try:
             path = Path(value).expanduser().resolve(strict=False)
         except (OSError, RuntimeError, TypeError):
+            logging.getLogger(__name__).warning("Cannot resolve local Skill root: %s", value, exc_info=True)
             continue
         key = os.path.normcase(str(path))
         if key in seen or not path.is_dir():
@@ -242,9 +258,13 @@ def _iter_skill_files(roots: Iterable[Path]) -> tuple[list[Path], list[str]]:
     paths: list[Path] = []
     errors: list[str] = []
     seen_real: set[str] = set()
+    def scan_error(exc: OSError) -> None:
+        errors.append(f"无法扫描本地 Skill 目录 {exc.filename}：{exc}")
+        logging.getLogger(__name__).warning("Cannot walk Skill directory: %s", exc.filename,
+                                          exc_info=(type(exc), exc, exc.__traceback__))
     for root in roots:
         try:
-            for current, dirs, files in os.walk(root, topdown=True, followlinks=False):
+            for current, dirs, files in os.walk(root, topdown=True, followlinks=False, onerror=scan_error):
                 dirs[:] = [name for name in dirs if name not in _PRUNED_DIRS]
                 # Do not recurse through symlinked directories, even when a
                 # platform reports them as directories.
@@ -262,12 +282,14 @@ def _iter_skill_files(roots: Iterable[Path]) -> tuple[list[Path], list[str]]:
                         # user-facing results on case-insensitive filesystems.
                         identity = os.path.normcase(str(resolved_path))
                     except (OSError, RuntimeError):
+                        logging.getLogger(__name__).warning("Cannot resolve Skill file: %s", path, exc_info=True)
                         continue
                     if identity in seen_real:
                         continue
                     seen_real.add(identity)
                     paths.append(resolved_path)
         except (OSError, RuntimeError) as exc:
+            logging.getLogger(__name__).warning("Cannot scan Skill directory: %s", root, exc_info=True)
             errors.append(f"无法扫描本地 Skill 目录 {root}：{exc}")
     paths.sort(key=lambda path: os.path.normcase(str(path)))
     return paths, errors
@@ -287,7 +309,7 @@ def _task_text(works: Sequence[Mapping[str, Any]], context_text: str) -> str:
 
 def _search_terms(text: str) -> tuple[set[str], set[str]]:
     lowered = text.casefold()
-    english = {match.casefold() for match in _ENGLISH_WORD.findall(lowered)}
+    english = {match.casefold() for match in _ENGLISH_WORD.findall(lowered.replace("-", " ").replace("_", " "))}
     cjk = {run for run in _CJK_RUN.findall(lowered) if len(run) >= 2}
     expanded: set[str] = set(english)
     for term, translations in _BILINGUAL_TERMS.items():
@@ -303,7 +325,7 @@ def _search_terms(text: str) -> tuple[set[str], set[str]]:
 def _score(task: str, candidate_text: str, name: str, description: str) -> tuple[int, list[str]]:
     task_english, task_cjk = _search_terms(task)
     candidate_lower = candidate_text.casefold()
-    candidate_english = {match.casefold() for match in _ENGLISH_WORD.findall(candidate_lower)}
+    candidate_english = {match.casefold() for match in _ENGLISH_WORD.findall(candidate_lower.replace("-", " ").replace("_", " "))}
     candidate_cjk = {run for run in _CJK_RUN.findall(candidate_lower) if len(run) >= 2}
     candidate_cjk.update(term for term in _BILINGUAL_TERMS if term in candidate_lower)
     matched = sorted(task_english & candidate_english)
@@ -314,6 +336,26 @@ def _score(task: str, candidate_text: str, name: str, description: str) -> tuple
     score += sum(2 for term in matched if term in name_lower or term in description_lower)
     evidence = [*matched, *matched_cjk]
     return score, evidence[:20]
+
+
+def _named_task_facets(task: str, name: str) -> set[str]:
+    """Explicit task facets supported by a Skill name, without reading its body."""
+    lowered = name.casefold().replace("-", " ").replace("_", " ")
+    facets = (
+        ("color", ("配色", "色彩", "主题", "color", "theme"), ("color", "colour", "theming", "theme")),
+        ("typography", ("字体", "排版", "字号", "typography", "font"), ("typography", "font", "readable")),
+        ("spacing", ("留白", "间距", "spacing"), ("spacing", "layout", "composition")),
+        ("hierarchy", ("层级", "hierarchy"), ("hierarchy",)),
+        ("refactoring", ("重构", "refactor", "redesign"), ("refactor", "refactoring", "redesign")),
+    )
+    return {facet for facet, triggers, names in facets
+            if any(term in task.casefold() for term in triggers) and any(term in lowered for term in names)}
+
+
+def _metadata_score(task: str, name: str, description: str) -> tuple[int, list[str]]:
+    """Names identify requested sub-skills more precisely than broad prose."""
+    score, evidence = _score(task, name + " " + description[:500], name, description[:500])
+    return score + 24 * len(_named_task_facets(task, name)), evidence
 
 
 def _has_defensible_match(task: str, info: Mapping[str, Any]) -> bool:
@@ -334,7 +376,7 @@ def _has_defensible_match(task: str, info: Mapping[str, Any]) -> bool:
     body = str(info.get("body", ""))
 
     def _english(text: str) -> set[str]:
-        return {match.casefold() for match in _ENGLISH_WORD.findall(text.casefold())}
+        return {match.casefold() for match in _ENGLISH_WORD.findall(text.casefold().replace("-", " ").replace("_", " "))}
 
     def _cjk(text: str) -> set[str]:
         lowered = text.casefold()
@@ -391,6 +433,7 @@ def _read_skill(path: Path) -> tuple[dict[str, Any] | None, str | None]:
     try:
         raw_bytes = path.read_bytes()
     except OSError as exc:
+        logging.getLogger(__name__).warning("Cannot read Skill file: %s", path, exc_info=True)
         return None, f"无法读取 {path}：{exc}"
     digest = _sha256(raw_bytes)
     # CRLF/LF is a transport detail when the same Skill is installed in more
@@ -401,6 +444,7 @@ def _read_skill(path: Path) -> tuple[dict[str, Any] | None, str | None]:
     try:
         raw = raw_bytes[:MAX_SOURCE_BYTES].decode("utf-8-sig")
     except UnicodeDecodeError as exc:
+        logging.getLogger(__name__).warning("Skill file is not UTF-8: %s", path, exc_info=True)
         return None, f"Skill 文件不是有效 UTF-8（{path}）：{exc}"
     metadata, body = _parse_frontmatter(raw)
     name, description = _fallback_name_description(path, body, metadata)
@@ -492,6 +536,7 @@ def search_local_skill_files(
     max_candidates: int | None = DEFAULT_MAX_CANDIDATES,
     task_text: str | None = None,
     include_unmatched: bool = False,
+    progress: Callable[[str], Any] | None = None,
 ) -> LocalSkillSearchResult:
     """Scan local Skill files and return deterministic, provenance-rich candidates."""
 
@@ -502,24 +547,20 @@ def search_local_skill_files(
     works = [dict(row) for row in key_works if isinstance(row, Mapping) and str(row.get("key_work_id", "")).strip()]
     if task_text and not context_text:
         context_text = task_text
-    normalized_roots = _normalize_roots(roots)
-    paths, errors = _iter_skill_files(normalized_roots)
+    from .local_skill_index import file_stamp, indexed_skill_metadata
+    indexed, errors, diagnostics = indexed_skill_metadata(roots, progress=progress)
     # Each discovered file is bound to the key work that best explains its
     # match.  This prevents every candidate from being incorrectly attached to
     # the first work when a confirmed plan contains several independent works.
     entries: list[tuple[dict[str, Any], dict[str, Any], int, list[str], dict[str, Any] | None]] = []
     work_tasks = [(_task_text([work], context_text), work) for work in works]
-    for path in paths:
-        info, error = _read_skill(path)
-        if error:
-            errors.append(error)
-            continue
-        assert info is not None
-        record = _build_record(info)
+    for info in indexed:
+        # Rank cheap names/descriptions first; opening text is fallback evidence.
+        record = {"skill_id": str(info["name"])}
         if work_tasks:
             scored = [
                 (
-                    *_score(task, str(info["content_text"]), str(info["name"]), str(info["description"])),
+                    *(_metadata_score(task, str(info["name"]), str(info["description"])) if include_unmatched else _score(task, str(info["content_text"]), str(info["name"]), str(info["description"]))),
                     task,
                     work,
                 )
@@ -539,6 +580,8 @@ def search_local_skill_files(
                 str(info["description"]),
             )
             best_work = None
+        if include_unmatched and _has_unrequested_named_domain(best_task, str(info["name"])):
+            score //= 4
         if include_unmatched or (
             score > 0
             and _has_defensible_match(best_task, info)
@@ -567,10 +610,24 @@ def search_local_skill_files(
             seen_content.add(digest)
         deduplicated.append(item)
     entries = deduplicated
-    # Show every relevant local Skill by default; callers may request a limit.
+    # The compatibility search can return all matches; UI discovery caps at 24.
     selected_files = entries[:max_candidates]
     candidates: list[dict[str, Any]] = []
     for record, info, score, evidence, best_work in selected_files:
+        full, error = _read_skill(Path(info["path"]))
+        if error or full is None:
+            errors.append(error or "候选 Skill 无法读取。")
+            continue
+        try:
+            current_stamp = file_stamp(Path(info["path"]))
+        except OSError as exc:
+            logging.getLogger(__name__).warning("Cannot inspect candidate Skill: %s", info["path"], exc_info=True)
+            errors.append(f"无法检查候选 Skill 文件 {info['path']}：{exc}")
+            continue
+        if current_stamp != info["stamp"] or full["digest"] != info["digest"]:
+            errors.append(f"Skill 文件在查找期间已变化：{info['path']}")
+            continue
+        record = _build_record(full)
         work_rows = works or [{"key_work_id": "local-search", "step_ids": []}]
         # A source Skill may support more than one key work.
         work = best_work or work_rows[0]
@@ -622,22 +679,24 @@ def search_local_skill_files(
             "source_kind": "local_file",
             "name": record["name"],
             "description": record["description"],
+            "source_stamp": current_stamp,
         })
     catalog_hash = _sha256(_canonical({
         "catalog_id": "promptsmith-local-files",
         "catalog_version": "skill-md.v1",
-        "records": [row[0]["record_hash"] for row in entries],
+        "records": [row[1]["digest"] for row in entries],
     }))
     status = "ok" if candidates else "empty"
     return LocalSkillSearchResult(
         status=status,
         candidates=candidates,
         catalog_hash=catalog_hash,
-        scanned_count=len(paths),
+        scanned_count=diagnostics["indexed_files"],
         errors=errors[:20],
         batch_id=f"batch-local-file-{uuid4().hex}",
-        scanned_files=len(paths),
+        scanned_files=diagnostics["indexed_files"],
         matched_files=len(entries),
+        diagnostics={**diagnostics, "content_reads": len(selected_files), "shortlisted_files": len(candidates)},
     )
 
 
@@ -663,14 +722,18 @@ def discover_local_skill_candidates(
     *,
     context_text: str = "",
     roots: Iterable[str | Path] | None = None,
+    progress: Callable[[str], Any] | None = None,
+    max_candidates: int = 24,
 ) -> LocalSkillSearchResult:
-    """Read all valid local Skill files for subsequent model review."""
+    """Use indexed names/descriptions to offer at most 24 files for AI review."""
 
     return search_local_skill_files(
         key_works,
         context_text=context_text,
         roots=roots,
         include_unmatched=True,
+        max_candidates=max_candidates,
+        progress=progress,
     )
 
 

@@ -306,7 +306,7 @@ def test_context_menu_capabilities_cover_editable_and_read_only_text(tk_window) 
     app = PromptSmithApp(tk_window)
     try:
         editable = app._context_menu_capabilities(app.widgets["task_text"])
-        readonly = app._context_menu_capabilities(app.widgets["details_text"])
+        readonly = app._context_menu_capabilities(app.widgets["final_preview_text"])
 
         assert editable["copy"] is True
         assert editable["cut"] is True
@@ -326,6 +326,7 @@ def test_read_only_requirement_list_context_menu_copies_complete_selected_text(t
     monkeypatch.setattr(tk.Menu, "tk_popup", lambda *_args, **_kwargs: None)
     long_text = "面向新生提供报名入口，支持无账号报名并保留管理员导出名单。" * 8
     session = SessionState.new()
+    session.set_task("整理完整的软件需求")
     session.requirements.append(
         {
             "item_id": "req-long",
@@ -345,17 +346,19 @@ def test_read_only_requirement_list_context_menu_copies_complete_selected_text(t
             original_clipboard = tk_window.clipboard_get()
         except tk.TclError:
             original_clipboard = None
-        tree = app.widgets["requirements_tree"]
-        tree.selection_set("req-long")
+        app.toggle_requirements_review()
+        tree = app.widgets["conversation_requirements_tree"]
+        tree.selection_set("r:req-long")
+        app._conversation_show_requirement_selection()
         tree.focus_set()
-        menu = app._show_tree_context_menu(
-            type("Event", (), {"x_root": 0, "y_root": 0, "y": 0})(), tree
+        reading = app.widgets["conversation_requirement_details"]
+        reading.tag_add("sel", "1.0", "end-1c")
+        menu = app._show_context_menu(
+            type("Event", (), {"x_root": 0, "y_root": 0})(), reading
         )
-
-        labels = [menu.entrycget(index, "label") for index in range(menu.index("end") + 1)]
-        assert labels[0] == "复制选中内容"
-        assert "剪切" not in labels
-        menu.invoke(0)
+        commands = {menu.entrycget(i, "label"): i for i in range(menu.index("end") + 1) if menu.type(i) == "command"}
+        assert menu.entrycget(commands["剪切"], "state") == "disabled"
+        menu.invoke(commands["复制"])
         assert long_text in tk_window.clipboard_get()
     finally:
         if "original_clipboard" in locals():
@@ -370,6 +373,7 @@ def test_read_only_requirement_list_context_menu_copies_complete_selected_text(t
 
 def test_requirement_table_scrollbars_scroll_both_axes_with_long_content(tk_window) -> None:
     session = SessionState.new()
+    session.set_task("整理完整的软件需求")
     session.requirements = [
         {
             "item_id": f"r{index}",
@@ -389,12 +393,13 @@ def test_requirement_table_scrollbars_scroll_both_axes_with_long_content(tk_wind
         tk_window.deiconify()
         tk_window.geometry("1120x780")
         app.notebook.select(0)
-        app.widgets["advanced_requirements_panel"]._show(True)
+        tk_window.update()
+        app.toggle_requirements_review()
         tk_window.update_idletasks()
         tk_window.update()
 
-        tree = app.widgets["requirements_tree"]
-        scrollbars = [child for child in tree._promptsmith_container.winfo_children() if isinstance(child, ttk.Scrollbar)]
+        tree = app.widgets["conversation_requirements_tree"]
+        scrollbars = [child for child in tree.master.winfo_children() if isinstance(child, ttk.Scrollbar)]
         assert {str(bar.cget("orient")) for bar in scrollbars} == {"horizontal", "vertical"}
         assert tree.yview()[1] < 1.0
         # Treeview does not size a column from cell text. Enlarge one column
@@ -416,6 +421,7 @@ def test_requirement_table_scrollbars_scroll_both_axes_with_long_content(tk_wind
 def test_requirement_editor_is_multiline_and_context_menu_paste_works(tk_window, monkeypatch) -> None:
     monkeypatch.setattr(tk.Menu, "tk_popup", lambda *_args, **_kwargs: None)
     session = SessionState.new()
+    session.set_task("整理完整的软件需求")
     session.requirements.append(
         {
             "item_id": "req-edit",
@@ -429,8 +435,10 @@ def test_requirement_editor_is_multiline_and_context_menu_paste_works(tk_window,
         }
     )
     app = PromptSmithApp(tk_window, session=session)
-    tree = app.widgets["requirements_tree"]
-    tree.selection_set("req-edit")
+    app.toggle_requirements_review()
+    tree = app.widgets["conversation_requirements_tree"]
+    tree.selection_set("r:req-edit")
+    app._conversation_show_requirement_selection()
     failure: list[BaseException] = []
     original_clipboard: str | None
     try:
@@ -494,7 +502,7 @@ def test_requirement_editor_is_multiline_and_context_menu_paste_works(tk_window,
                 dialog.destroy()
 
         tk_window.after(50, drive_dialog)
-        app.edit_selected_requirement()
+        app._conversation_buttons["edit_requirement"].invoke()
         assert not failure, str(failure[0]) if failure else ""
         assert "用户选中的内容" in app.session.requirements[0]["text"]
     finally:
@@ -516,7 +524,7 @@ def test_requirement_editor_is_multiline_and_context_menu_paste_works(tk_window,
             lambda session: session.pending_questions.append(
                 {"question_id": "q1", "field": "goal", "scope": "整体", "text": "目标是什么？"}
             ),
-            "回答问题",
+            "逐项核对待补充内容",
         ),
         (
             lambda session: session.pending_proposals.append(
@@ -556,9 +564,9 @@ def test_primary_action_label_reflects_program_state(tk_window, mutate, expected
 @pytest.mark.parametrize(
     ("case", "expected_action", "tab_index", "focus_widget"),
     [
-        ("no_skill", "生成提示", 3, None),
-        ("selected_skill", "整合所选 Agent Skill", 2, "skill_integrate_button"),
-        ("final_review", "查看方案和提示", 3, None),
+        ("no_skill", "生成提示", 0, None),
+        ("selected_skill", "生成方案", 0, None),
+        ("final_review", "查看方案和提示", 0, None),
         ("upstream_stale", "补全模型连接", 4, "api_key_entry"),
     ],
 )
@@ -611,6 +619,9 @@ def test_primary_action_navigates_to_current_delivery_work_without_model_call(
         calls: list[tuple[object, ...]] = []
         app.widgets["task_text"].insert("1.0", session.task_text)
         monkeypatch.setattr(app, "_submit", lambda *args: calls.append(args))
+        if case == "selected_skill":
+            # Assert dispatch from the conversation without invoking a model.
+            monkeypatch.setattr(app, "integrate_selected_skills", lambda: calls.append(("integrate",)))
         tk_window.deiconify()
         tk_window.focus_force()
         tk_window.update_idletasks()
@@ -618,7 +629,7 @@ def test_primary_action_navigates_to_current_delivery_work_without_model_call(
 
         action = app._primary_action()
         assert expected_action in action.label
-        assert action.kind in {"generate_final", "focus_skills", "focus_final", "focus_connection"}
+        assert action.kind in {"generate_final", "integrate_skills", "focus_final", "focus_connection"}
 
         app.run_primary_action()
         tk_window.update_idletasks()
@@ -641,7 +652,7 @@ def test_primary_action_navigates_to_current_delivery_work_without_model_call(
 
         expected_return_tab = 0 if case == "upstream_stale" else tab_index
         assert app.notebook.tabs().index(app.notebook.select()) == expected_return_tab
-        assert calls == []
+        assert calls == ([("integrate",), ("integrate",)] if case == "selected_skill" else [])
         assert app.busy is False
         assert session.pending_requests == {}
     finally:
@@ -666,7 +677,8 @@ def test_confirmed_plan_primary_action_leads_to_no_skill_final_draft(tk_window, 
 
         assert app.session.skill_state["status"] == "skipped"
         assert app.session.final_result["status"] == "draft"
-        assert app.notebook.tabs().index(app.notebook.select()) == 3
+        assert app.notebook.tabs().index(app.notebook.select()) == 0
+        assert "result" in app._conversation_frames
         assert app.session.final_result["canonical_body"]
         assert calls == []
     finally:

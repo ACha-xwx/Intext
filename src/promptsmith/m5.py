@@ -103,7 +103,7 @@ def _dimension_matches(actual: str, expected: str, criterion_id: str | None) -> 
 
 
 def _obvious_constraint_conflict(option: str, hard_constraints: list[str]) -> bool:
-    """Reject only explicit negative constraints with visible lexical overlap."""
+    """Identify explicit negative constraints with visible lexical overlap."""
     for constraint in hard_constraints:
         negative = re.search(r"(?:不要|不添加|不包含|不得|禁止|不能|不应)\s*([^，。；;,.]+)", constraint)
         if not negative:
@@ -192,9 +192,8 @@ def _m5_boundary_violations(
     """Find high-risk facts in options which have no user-backed wording.
 
     ``unsupported_assumptions`` can document a deliberately hypothetical
-    phrase, but an explicit user boundary (for example, no equipment or fee
-    requirements) still rejects that phrase.  This preserves transparency
-    without allowing a model to turn a forbidden assumption into copy.
+    phrase; an explicit user boundary still flags that phrase.  The response
+    remains an example and never becomes a confirmed requirement directly.
     """
     context = _m5_trusted_context(payload)
     hard_constraints = [str(value or "") for value in payload.get("hard_constraints", []) or []]
@@ -300,11 +299,27 @@ def parse_m5_response(
     raw: str,
     payload: dict[str, Any],
     output_schema: dict[str, Any] | None = None,
+    *,
+    normalization_report: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     _require_request_fields(payload)
     _schema_error(payload, M5Assets.load().input_schema, "M5输入")
-    parsed = _strict_json_loads(raw)
-    schema = output_schema or M5Assets.load().output_schema
+    schema = deepcopy(output_schema or M5Assets.load().output_schema)
+    # Advisory examples need usable text, but their display budgets are not
+    # acceptance gates. Keep the complete response and report excess length.
+    for spec in schema["properties"]["example"]["properties"].values():
+        spec.pop("maxLength", None)
+        spec.pop("maxItems", None)
+    from .model_output import json_text, normalize_shape, extra_notes, log_repairs
+    repairs = normalization_report if normalization_report is not None else []
+    parsed = normalize_shape(_strict_json_loads(json_text(raw)), schema, repairs)
+    example = parsed.get("example")
+    if parsed.get("status") == "ok" and isinstance(example, dict):
+        for field, default in (("dimension", payload["criterion"]["description"]),
+                               ("difference_summary", "示例差异尚待核对，可以直接描述你的偏好。")):
+            if not example.get(field):
+                example[field] = default
+                repairs.append({"action": "example_default", "path": field})
     _schema_error(parsed, schema, "M5输出")
     for key in ("request_id", "task_id", "base_version"):
         if parsed.get(key) != payload.get(key):
@@ -317,27 +332,39 @@ def parse_m5_response(
     if not isinstance(example, dict):
         raise M5ValidationError("M5成功分支缺少example。")
     criterion = payload["criterion"]
-    dimension = _clean_text(example.get("dimension"), "示例维度", max_length=180)
+    def advisory_text(field: str, label: str, limit: int) -> str:
+        value = example.get(field)
+        result = _clean_text(value, label, max_length=max(limit, len(value) if isinstance(value, str) else 0))
+        if len(result) > limit:
+            repairs.append({"action": "example_display_budget", "path": field, "length": len(result)})
+        return result
+
+    dimension = advisory_text("dimension", "示例维度", 180)
+    shared = [text.strip() for text in example.get("shared_assumptions", [])]
+    unsupported = [text.strip() for text in example.get("unsupported_assumptions", [])]
     if not _dimension_matches(dimension, criterion["description"], criterion.get("criterion_id")):
-        raise M5ValidationError("示例维度与请求的评价标准不一致。")
-    shared = _clean_string_list(example.get("shared_assumptions", []), "共同前提")
-    unsupported = _clean_string_list(example.get("unsupported_assumptions", []), "未支持假设")
-    option_a = _clean_text(example.get("option_a"), "选项A", max_length=payload["max_chars"])
-    option_b = _clean_text(example.get("option_b"), "选项B", max_length=payload["max_chars"])
+        unsupported.append(f"模型示例使用“{dimension}”描述请求的“{criterion['description']}”；对应关系尚待核对。")
+        repairs.append({"action": "declare_dimension_mismatch"})
+    option_a = advisory_text("option_a", "选项A", payload["max_chars"])
+    option_b = advisory_text("option_b", "选项B", payload["max_chars"])
     if option_a == option_b:
-        raise M5ValidationError("选项A和选项B必须存在可比较差异。")
-    difference = _clean_text(example.get("difference_summary"), "差异说明", max_length=300)
+        unsupported.append("两个示例相同，不能用于比较；可直接描述偏好、跳过或重新生成。")
+        repairs.append({"action": "declare_identical_options"})
+    difference = advisory_text("difference_summary", "差异说明", 300)
     hard_constraints = payload.get("hard_constraints", [])
     if _obvious_constraint_conflict(option_a, hard_constraints) or _obvious_constraint_conflict(option_b, hard_constraints):
-        raise M5ValidationError("示例与用户明确的硬约束存在明显冲突。")
+        unsupported.append("示例可能与用户已表达的约束冲突，仅作表达参考；仍以用户约束为准，请勿采用冲突细节。")
+        repairs.append({"action": "declare_example_constraint_conflict"})
     boundary_violations = _m5_boundary_violations(
         [option_a, option_b], payload, unsupported
     )
     if boundary_violations:
         examples = "、".join(boundary_violations[:3])
-        raise M5ValidationError(
-            f"示例包含未经用户提供或违反边界的事实声明：{examples}。"
-        )
+        unsupported.append(f"以下示例细节尚未得到用户确认，请勿作为既定条件：{examples}。")
+        repairs.append({"action": "declare_example_assumptions", "value": boundary_violations})
+    unsupported.extend(extra_notes(repairs))
+    if any(row["action"] == "example_display_budget" for row in repairs):
+        unsupported.append("示例超出建议显示长度，保留完整内容供参考；可以直接回答或跳过。")
     normalized = deepcopy(parsed)
     normalized["example"] = {
         "dimension": dimension,
@@ -347,6 +374,7 @@ def parse_m5_response(
         "difference_summary": difference,
         "unsupported_assumptions": unsupported,
     }
+    log_repairs("M5", payload["request_id"], repairs)
     return normalized
 
 

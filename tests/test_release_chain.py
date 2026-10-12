@@ -27,8 +27,7 @@ def test_source_release_chain_uses_http_and_persists_final_artifacts(tmp_path) -
     assert result["final_status"] == "confirmed"
     assert result["m5_entry_reachable"]
     assert result["m5_validation_failure_recoverable"]
-    assert result["trial_entry_reachable"]
-    assert result["trial_validation_failure_recoverable"]
+    assert result["trial_feature_removed"]
     assert result["reopened_consistent"]
     assert result["markdown_contains_final_prompt"]
     assert (tmp_path / "session.json").exists()

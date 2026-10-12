@@ -4,6 +4,8 @@ import threading
 import time
 from types import SimpleNamespace
 
+import pytest
+
 import promptsmith.skill_network_discovery as discovery
 from promptsmith.skill_ai_selection import SkillAiSelectionError
 from promptsmith.skill_search import SkillSearchError, SkillSearchResult
@@ -82,7 +84,7 @@ def test_network_discovery_combines_sources_and_ai_reviews_originals(monkeypatch
     assert any("source" in payload["skills"][0] for _, payload in client.calls if "skills" in payload)
 
 
-def test_network_discovery_keeps_web_results_when_index_fails(monkeypatch):
+def test_network_discovery_keeps_web_results_when_index_fails(monkeypatch, caplog):
     monkeypatch.setattr(discovery, "search_online_skills", lambda *a, **kw: (_ for _ in ()).throw(SkillSearchError("network", "index offline")))
     monkeypatch.setattr(discovery, "search_open_web_skills", lambda *a, **kw: SkillSearchResult("teaching", "ok", [_candidate("web", "https://other.example.test/SKILL.md")], "web-batch", "b" * 64))
     result = discovery.search_network_skill_candidates(
@@ -90,9 +92,11 @@ def test_network_discovery_keeps_web_results_when_index_fails(monkeypatch):
     )
     assert [row["name"] for row in result.candidates] == ["web"]
     assert "index offline" in result.diagnostics["errors"][0]
+    assert "Skill discovery source failed" in caplog.text
+    assert "Traceback" in caplog.text and "SkillSearchError" in caplog.text
 
 
-def test_network_discovery_keeps_collected_candidates_when_ai_review_fails(monkeypatch):
+def test_network_discovery_keeps_collected_candidates_when_ai_review_fails(monkeypatch, caplog):
     candidate = _candidate("web", "https://other.example.test/SKILL.md")
     monkeypatch.setattr(
         discovery, "search_online_skills",
@@ -115,6 +119,8 @@ def test_network_discovery_keeps_collected_candidates_when_ai_review_fails(monke
     assert [row["name"] for row in result.candidates] == ["web"]
     assert result.candidates[0]["ai_review_status"] == "unavailable"
     assert result.diagnostics["ai_review_status"] == "failed"
+    assert "Network Skill AI review unavailable" in caplog.text
+    assert "SkillAiSelectionError" in caplog.text and "Traceback" in caplog.text
 
 
 def test_network_discovery_filters_non_skill_urls_before_ai_review(monkeypatch):
@@ -211,3 +217,134 @@ def test_network_discovery_reuses_successful_source_cache(monkeypatch):
     assert calls.count("index") == 1
     assert calls.count("github") == 1
     assert calls.count("web") == 1
+
+
+def test_custom_network_limits_and_review_options_reach_all_sources(monkeypatch):
+    discovery.clear_network_skill_cache()
+    observed = []
+    def search(*args, **kwargs):
+        observed.append(kwargs)
+        return SkillSearchResult("test", "no_match", [], "test", "a"*64)
+    monkeypatch.setattr(discovery, "generate_skill_search_queries", lambda *args, **kwargs: ["ui"])
+    monkeypatch.setattr(discovery, "search_online_skills", search)
+    monkeypatch.setattr(discovery, "search_open_web_skills", search)
+    reviews = []
+    monkeypatch.setattr(discovery, "select_skill_candidates_with_ai", lambda *args, **kwargs: (reviews.append(kwargs) or []))
+    options = {"shortlist_limit": 4, "review_limit": 2, "input_budget_chars": 9000, "excerpt_chars": 500}
+    discovery.search_network_skill_candidates([], task_text="UI", client=Client(), timeout_seconds=2,
+                                               max_verified_candidates=3, review_options=options, cache_ttl_seconds=0)
+    assert len(observed) == 3
+    assert all(row["max_verified_candidates"] == 3 and row["timeout_seconds"] == 2 for row in observed)
+    assert all(reviews[0][key] == value for key, value in options.items())
+
+
+def test_repeated_search_reuses_query_plan_for_same_model_and_task(monkeypatch):
+    from promptsmith.api import ApiConfig
+    discovery.clear_network_skill_cache()
+    empty = lambda *a, **kw: SkillSearchResult("teaching", "no_match", [], "empty", "a" * 64)
+    monkeypatch.setattr(discovery, "search_online_skills", empty)
+    monkeypatch.setattr(discovery, "search_open_web_skills", empty)
+    works = [{"key_work_id": "lesson", "title": "Teaching"}]
+
+    def client(model="model", key="synthetic-key"):
+        value = Client()
+        value.config = ApiConfig("https://example.invalid", model, key, reasoning_effort="high")
+        return value
+
+    first, again = client(), client()
+    discovery.search_network_skill_candidates(works, task_text="Teaching", client=first)
+    discovery.search_network_skill_candidates(works, task_text="Teaching", client=again)
+    assert len(first.calls) == 1
+    assert not again.calls, "Cached sources should not require a repeated identical query planning request."
+    different = client(model="another-model")
+    discovery.search_network_skill_candidates(works, task_text="Teaching", client=different)
+    assert len(different.calls) == 1
+    disabled = client()
+    discovery.search_network_skill_candidates(works, task_text="Teaching", client=disabled, cache_ttl_seconds=0)
+    assert len(disabled.calls) == 1
+    discovery.clear_network_skill_cache()
+
+
+@pytest.fixture
+def query_cache_search(monkeypatch):
+    from promptsmith.api import ApiConfig
+    discovery.clear_network_skill_cache()
+    empty = lambda *a, **kw: SkillSearchResult("test", "no_match", [], "empty", "a" * 64)
+    monkeypatch.setattr(discovery, "search_online_skills", empty)
+    monkeypatch.setattr(discovery, "search_open_web_skills", empty)
+
+    def search(*, task="Teaching", works=None, config=None, client=None, ttl=10):
+        value = client or Client()
+        value.config = config or ApiConfig("https://example.invalid", "model", "synthetic-cache-key")
+        result = discovery.search_network_skill_candidates(
+            works or [{"key_work_id": "lesson", "title": "Teaching"}],
+            task_text=task, client=value, cache_ttl_seconds=ttl,
+        )
+        return value, result
+
+    yield search
+    discovery.clear_network_skill_cache()
+
+
+@pytest.mark.parametrize("change", ["key", "task", "works", "effort", "budget"])
+def test_query_cache_separates_credentials_task_work_and_model_settings(query_cache_search, change):
+    from dataclasses import replace
+    from promptsmith.api import ApiConfig
+    config = ApiConfig("https://example.invalid", "model", "synthetic-cache-key")
+    first, _ = query_cache_search(config=config)
+    options = {"config": config}
+    if change == "key":
+        options["config"] = replace(config, api_key="synthetic-other-key")
+    elif change == "effort":
+        options["config"] = replace(config, reasoning_effort="max")
+    elif change == "budget":
+        options["config"] = replace(config, max_tokens=8192)
+    elif change == "task":
+        options["task"] = "Teaching physics"
+    else:
+        options["works"] = [{"key_work_id": "lesson", "title": "Teaching", "goal": "Explain physics"}]
+    changed, result = query_cache_search(**options)
+    assert len(first.calls) == len(changed.calls) == 1
+    assert not result.diagnostics["query_plan_cached"]
+    again, result = query_cache_search(config=config)
+    assert not again.calls and result.diagnostics["query_plan_cached"]
+
+
+def test_query_cache_expires_and_manual_clear_replans(query_cache_search, monkeypatch):
+    clock = [100.0]
+    monkeypatch.setattr(discovery.time, "monotonic", lambda: clock[0])
+    query_cache_search()
+    clock[0] = 109.9
+    cached, result = query_cache_search()
+    assert not cached.calls and result.diagnostics["query_plan_cached"]
+    clock[0] = 110.0
+    expired, result = query_cache_search()
+    assert len(expired.calls) == 1 and not result.diagnostics["query_plan_cached"]
+    discovery.clear_network_skill_cache()
+    cleared, _ = query_cache_search()
+    assert len(cleared.calls) == 1
+
+
+@pytest.mark.parametrize("failure", ["invalid_json", "api_error", "cancelled"])
+def test_unsuccessful_query_planning_is_not_cached(query_cache_search, failure):
+    from concurrent.futures import CancelledError
+
+    class FailingClient(Client):
+        def complete_json(self, *args):
+            self.calls.append(args)
+            if failure == "invalid_json":
+                return SimpleNamespace(content="not json")
+            if failure == "cancelled":
+                raise CancelledError()
+            raise RuntimeError("synthetic planning failure")
+
+    failed = FailingClient()
+    if failure == "cancelled":
+        with pytest.raises(CancelledError):
+            query_cache_search(client=failed)
+    else:
+        _, result = query_cache_search(client=failed)
+        assert not result.diagnostics["query_plan_cached"]
+    retried, result = query_cache_search()
+    assert len(failed.calls) == len(retried.calls) == 1
+    assert not result.diagnostics["query_plan_cached"]

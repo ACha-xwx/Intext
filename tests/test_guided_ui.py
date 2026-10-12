@@ -48,8 +48,15 @@ def test_one_submit_records_and_analyzes_without_accepting_candidates(app, monke
     before = deepcopy(app.session.pending_proposals)
     calls = []
     monkeypatch.setattr(app, '_submit', lambda *args: calls.append(args))
-    app.answer_var.set('数值分析领域，学生学习讲义')
+    app.answer_var.set('数值分析领域')
     assert app.primary_action_var.get() == '提交回答'
+    app.widgets['analyze_button'].invoke()
+    assert not app.errors
+    assert len(calls) == 0
+    assert [row['question_id'] for row in app.session.question_history] == ['q1']
+    assert [row['question_id'] for row in app.session.pending_questions] == ['q2']
+
+    app.answer_var.set('学生学习讲义')
     app.widgets['analyze_button'].invoke()
     assert not app.errors
     assert len(calls) == 1
@@ -62,20 +69,69 @@ def test_one_submit_records_and_analyzes_without_accepting_candidates(app, monke
     assert len(calls) == 1
 
 
+def test_each_followup_answer_targets_one_question_and_m1_receives_all_answers(app, monkeypatch):
+    app.widgets["task_text"].insert("1.0", "重构现有桌面软件")
+    app._sync_input()
+    app.session.pending_questions = [
+        {
+            "question_id": "q-context", "gap_id": None, "field": "use_context",
+            "scope": "软件使用场景", "text": "这个软件主要给谁使用？",
+            "options": ["个人", "团队", "教学演示"],
+            "reason": "软件的实际使用场景会影响设计复杂度。", "depends_on": [],
+        },
+        {
+            "question_id": "q-code", "gap_id": None, "field": "constraints",
+            "scope": "代码可用性", "text": "现有代码是否可以提供？",
+            "options": ["可以提供代码", "目前没有代码"],
+            "reason": "代码可用性影响实施方案。", "depends_on": [],
+        },
+    ]
+    app.refresh()
+    assert app.question_context_var.get() == "这个软件主要给谁使用？"
+    assert "现有代码是否可以提供" not in app.question_context_var.get()
+    assert "reason" not in app.question_context_var.get()
+    assert app.question_progress_var.get() == ""
+    assert set(app._question_inputs) == {"q-context", "q-code"}
+
+    submitted_payloads = []
+    monkeypatch.setattr(
+        app,
+        "start_analysis",
+        lambda: submitted_payloads.append(build_m1_input(app.session, "all-followup-answers")),
+    )
+    app.answer_var.set("主要给项目组成员使用")
+    app.submit_guided_answer()
+
+    assert submitted_payloads == []
+    assert [row["question_id"] for row in app.session.question_history] == ["q-context"]
+    assert [row["question_id"] for row in app.session.pending_questions] == ["q-code"]
+    assert app.question_context_var.get() == "现有代码是否可以提供？"
+
+    app.answer_var.set("可以提供代码")
+    app.submit_guided_answer()
+
+    assert len(submitted_payloads) == 1
+    payload = submitted_payloads[0]
+    assert [row["question_id"] for row in payload["state"]["question_history"]] == ["q-context", "q-code"]
+    assert [row["answer_text"] for row in payload["state"]["question_history"]] == [
+        "主要给项目组成员使用", "可以提供代码"
+    ]
+
+
 def test_skipped_direction_has_inline_reanswer_and_no_false_confirm(app):
     stage_jgs(app)
     app.session.accept_proposals([r['proposal_id'] for r in app.session.pending_proposals])
     for q in list(app.session.pending_questions):
         app.session.record_question(q['question_id'], 'skipped')
     app.refresh()
-    assert app._primary_action().kind == 'focus_question'
-    assert '确认需求' not in app.primary_action_var.get()
-    assert '还没确定' in app.guidance_var.get()
-    assert app.widgets['draft_continue_button'].winfo_manager()
+    assert app._primary_action().kind == 'confirm_requirements'
+    assert app.session.confirmed_requirements_version is None
+    assert not app.session.questions_for_review()
     before = deepcopy(app.session.question_history)
     app.reopen_guided_question('q1')
     assert app.session.question_history == before
-    assert app.widgets['answer_entry'] is not None
+    assert app._answer_target_id == 'q1'
+    assert app.widgets['conversation_input'] is not None
 
 
 def test_preview_confirmation_goes_directly_to_m2(app, monkeypatch):
@@ -106,7 +162,8 @@ def test_confirmed_plan_default_does_not_require_skill_visit(app):
     assert not app.errors
     assert app.session.skill_state['status'] == 'skipped'
     assert app.session.final_result['canonical_body']
-    assert app.notebook.index(app.notebook.select()) == 3
+    assert app.notebook.index(app.notebook.select()) == 0
+    assert "copy" in app._conversation_buttons
 
 
 def test_viewing_existing_sections_does_not_mutate_session(app):
@@ -138,27 +195,30 @@ def test_answer_action_reveals_question_and_view_does_not_mutate_state(app):
     root = app.root
     root.deiconify()
     root.geometry('1100x650')
-    app.widgets['advanced_requirements_panel']._show(True)
-    root.update()
-    canvas = app.widgets['requirements_page_canvas']
-    canvas.yview_moveto(1)
     root.update()
     before = deepcopy(app.session.to_dict())
     app.run_primary_action()
     root.update()
-    answer = app.widgets['answer_entry']
-    assert canvas.winfo_rooty() <= answer.winfo_rooty()
-    assert answer.winfo_rooty() + answer.winfo_height() <= canvas.winfo_rooty() + canvas.winfo_height()
+    answer = app._question_inputs['q1']
+    assert answer.winfo_ismapped()
+    assert root.winfo_rooty() <= answer.winfo_rooty()
+    assert answer.winfo_rooty() + answer.winfo_height() <= root.winfo_rooty() + root.winfo_height()
     assert app.session.to_dict() == before
 
 
 def test_understanding_accept_button_disabled_without_selected_interpretation(app):
     stage_jgs(app)
-    assert str(app.widgets['accept_understanding_button'].cget('state')) == 'disabled'
+    app.toggle_requirements_review()
+    tree = app.widgets['conversation_requirements_tree']
+    tree.selection_remove(*tree.selection())
+    app._conversation_show_requirement_selection()
+    assert str(app._conversation_buttons['accept_requirement'].cget('state')) == 'disabled'
+    assert app.session.confirmed_requirements_version is None
 
 
 def test_editing_candidate_keeps_correction_and_retires_old_text(app, monkeypatch):
     stage_jgs(app)
+    app.toggle_requirements_review()
     old=deepcopy(app.session.pending_proposals[0])
     app.widgets['requirements_preview_tree'].selection_set('p:'+old['proposal_id'])
     calls=[]
@@ -186,12 +246,16 @@ def test_conflict_preview_shows_both_sides_and_can_apply_explicit_replacement(ap
     app.session = app.workflow.session = session
     app.widgets['task_text'].insert('1.0', session.task_text)
     app.refresh()
-    text=app.widgets['conflict_reading_text'].get('1.0','end-1c')
-    assert old['text'] in text and changed['text'] in text
+    app.toggle_requirements_review()
+    tree = app.widgets['conversation_requirements_tree']
+    for key, expected in [('r:'+old['item_id'], old['text']), ('p:p-change', changed['text'])]:
+        tree.selection_set(key)
+        app._conversation_show_requirement_selection()
+        assert app.widgets['conversation_requirement_details'].get('1.0','end-1c') == expected
     assert app._primary_action().kind == 'focus_conflict'
     app.widgets['requirements_preview_tree'].selection_set('p:p-change')
     app.show_preview_details()
-    app.widgets['adopt_change_button'].invoke()
+    app._conversation_buttons['adopt_requirement'].invoke()
     assert not app.errors
     assert not session.open_conflicts
     assert not any(r['item_id']==old['item_id'] for r in session.requirements)

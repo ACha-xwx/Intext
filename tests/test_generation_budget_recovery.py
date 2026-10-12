@@ -138,7 +138,7 @@ def test_m2_ui_explicit_retry_keeps_requirements_and_main_action(app, monkeypatc
             return ApiResult(json.dumps(valid_result(payload), ensure_ascii=False), 12, {}, "ok", "fixture", finish_reason="stop")
 
     monkeypatch.setattr(app, "_client", lambda config: Client())
-    monkeypatch.setattr("promptsmith.ui.messagebox.showerror", lambda *args, **kwargs: messages.append(args))
+    monkeypatch.setattr("promptsmith.ui.messagebox.showwarning", lambda *args, **kwargs: messages.append(args))
     app.refresh()
     app.run_primary_action()
     pump(app.root, app)
@@ -146,7 +146,7 @@ def test_m2_ui_explicit_retry_keeps_requirements_and_main_action(app, monkeypatc
     assert session.requirements == old_requirements
     assert not session.pending_requests and not app.busy
     assert app.primary_action_var.get() == "重新生成方案"
-    assert "你的需求已保留" in app.guidance_var.get()
+    assert "需求已保留" in app.guidance_var.get()
     assert "重新生成方案" in messages[0][1]
     assert "请求与错误记录保存在" not in app.status_var.get()
     app.root.update()

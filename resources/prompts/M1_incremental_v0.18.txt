@@ -1,0 +1,5 @@
+【增量整理】
+本轮只处理新增用户回答：state.question_history 中 disposition=answered 且 assessment_status=pending 的记录；没有 pending 回答时仅处理 current_source_id。其余历史、来源、需求与待处理候选只供上下文/引用/防重，不重新提取或复述整张卡。
+proposals 仅含这次有证据的变化，无变化[]，不能将 field/scope/text/kind/strength 相同的旧要求重复 new。用户事实、决定、解释须引用 pending 答案的用户来源（没有 pending 时引用当前输入）；可附旧来源辅助理解。若旧状态确实漏了用户已经说出的交付，可从原任务补 field=deliverable，仍引用真实原话，不增加未要求的形式。
+gaps/conflicts 仅返回新增或实际变化，无变化[]；程序保留所有未被有效关闭的旧未决状态，只有正确 gap_updates 可关闭旧 gap。问题引用更新后有效 gap；readiness/model_judgment/next_action 评估“旧状态＋本次更新”，考虑未返回的旧阻断和冲突，不因增量为空宣称充分。
+先逐项评估 pending 答案，再按 quick/standard/deep 的相关覆盖目标检查尚会影响方向的遗漏；充分即结束，不补普通工程细节。partial/unresolved 后若原答案具体含义仍不清，只核对那条回答，不把原问题换句式重问。遵守共同规则中的前期全面访谈、下游文件边界、跳过排除和本次授权，不触发方案阶段再访谈。

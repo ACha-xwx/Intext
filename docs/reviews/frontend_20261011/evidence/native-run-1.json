@@ -1,0 +1,43 @@
+{
+  "checks": [
+    {
+      "check": "startup catalogue visible without opening record",
+      "passed": true
+    },
+    {
+      "check": "click loads full question state and draft",
+      "passed": true
+    },
+    {
+      "check": "new chat checkpoints clears old output and unlocks",
+      "passed": true
+    },
+    {
+      "check": "click resumes changed draft after switch",
+      "passed": true
+    },
+    {
+      "check": "rename and pin reflected by real store",
+      "passed": true
+    },
+    {
+      "check": "confirmed plan recovery permits next workflow step",
+      "passed": true
+    },
+    {
+      "check": "confirmed prompt restored and copy enabled",
+      "passed": true
+    },
+    {
+      "check": "real engine horizontal collapse and controls visible",
+      "passed": true
+    },
+    {
+      "check": "Ctrl K works in real engine",
+      "passed": true
+    }
+  ],
+  "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36 Edg/154.0.0.0",
+  "errors": [],
+  "logs_auto_written": false
+}

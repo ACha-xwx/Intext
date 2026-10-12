@@ -438,7 +438,7 @@ def test_selected_binding_is_integrated_by_m4_and_changes_are_decided_individual
     assert app.session.final_result["review_required_ids"] == []
 
 
-def test_m4_error_and_user_cancel_do_not_replace_existing_final_result(delivery_app, monkeypatch) -> None:
+def test_m4_partial_response_recovers_and_user_cancel_preserves_current_final(delivery_app, monkeypatch) -> None:
     app, window = delivery_app
     candidate, binding = _candidate()
     _set_binding(app, candidate, binding)
@@ -451,7 +451,11 @@ def test_m4_error_and_user_cancel_do_not_replace_existing_final_result(delivery_
     client.response_override = {}
     app.widgets["skill_integrate_button"].invoke()
     _pump_until(window, lambda: not app.delivery_busy)
-    assert app.session.final_result == previous_final
+    assert app.session.final_result["status"] == "draft"
+    assert "to-spec" in app.session.final_result["canonical_body"]
+    assert "尚未完整验证" in app.session.final_result["canonical_body"]
+    assert app.session.final_archive[-1]["final_id"] == previous_final["final_id"]
+    previous_final = deepcopy(app.session.final_result)
 
     entered, release = Event(), Event()
     client.response_override = None
@@ -823,7 +827,11 @@ def test_one_skill_can_be_selected_for_multiple_key_works(delivery_app) -> None:
     assert {row["key_work_id"] for row in selected} == {first["key_work_id"], "k2"}
 
 
-def test_complementary_skills_can_be_selected_for_one_key_work(delivery_app) -> None:
+def test_complementary_skills_can_be_selected_for_one_key_work(delivery_app, monkeypatch) -> None:
+    from promptsmith.local_skill_search import LocalSkillSearchResult
+
+    monkeypatch.setattr("promptsmith.ui.discover_local_skill_candidates", lambda *_args, **_kwargs:
+                        LocalSkillSearchResult("no_match", [], "fixture", 0, [], "fixture"))
     app, _window = delivery_app
     work = app.session.plan["content"]["key_work"][0]
     work.update({
@@ -956,26 +964,43 @@ def test_pending_hard_m4_change_is_not_a_final_review_blocker(delivery_app) -> N
     assert str(app.widgets["reject_m4_change_button"].cget("state")) == "normal"
 
 
-def test_direction_review_action_reveals_answer_field(delivery_app, monkeypatch) -> None:
-    app, _window = delivery_app
+def test_direction_review_action_reveals_answer_field(delivery_app) -> None:
+    app, window = delivery_app
+    window.deiconify()
+    window.geometry("1100x650")
+    window.update()
     app.skip_skills()
     app.session.gaps.append({
         "gap_id": "gap-direction",
+        "field": "deliverable",
+        "scope": "最终交付",
         "importance": "blocking_direction",
         "description": "请说明最后希望交付的文件形式",
     })
     app.refresh()
-    revealed = []
-    monkeypatch.setattr(app, "_reveal_guided", lambda widget: revealed.append(widget))
 
     tree = app.widgets["final_review_items_tree"]
     tree.selection_set("gap:gap-direction")
     app._show_selected_final_review_item()
-    app.widgets["process_final_review_item_button"].invoke()
+    source = app.widgets["process_final_review_item_button"]
+    window.focus_force()
+    source.focus_force()
+    window.update()
+    source.invoke()
 
     assert app.notebook.index(app.notebook.select()) == 0
     assert "最后希望交付的文件形式" in app.question_context_var.get()
-    assert revealed == [app.widgets["answer_entry"]]
+    # A user-initiated supplement focuses the composer without creating
+    # another interview question after the plan has already been generated.
+    assert not app.session.questions_for_review()
+    assert app.widgets["conversation_input"].get("1.0", "end-1c") == ""
+    assert not app.session.final_result.get("confirmed_at")
+    window.update()
+    answer = app.widgets["conversation_input"]
+    assert answer.winfo_ismapped()
+    assert window.winfo_rooty() <= answer.winfo_rooty()
+    assert answer.winfo_rooty() + answer.winfo_height() <= window.winfo_rooty() + window.winfo_height()
+    assert window.focus_get() is answer
 
 
 def test_noncritical_m4_change_is_absent_from_blocking_review_list(delivery_app) -> None:
@@ -1026,3 +1051,47 @@ def test_m4_fallback_review_navigates_to_affected_binding_cancel(delivery_app) -
     assert app.notebook.index(app.notebook.select()) == 2
     assert app.widgets["skill_selected_tree"].selection() == (binding["binding_id"],)
     assert str(app.widgets["skill_cancel_button"].cget("state")) == "normal"
+
+
+def test_delivery_recovery_guidance_survives_refresh_and_tracks_selection(delivery_app) -> None:
+    app, _window = delivery_app
+    candidate, binding = _candidate()
+    _set_binding(app, candidate, binding)
+    message = "整合失败。下一步：用已选 Skill 直接生成提示词。"
+    app._set_delivery_feedback(message)
+    app.refresh()
+    assert app.skill_status_var.get() == message
+    assert app.widgets["skill_direct_button"].instate(["!disabled"])
+    app.session.set_skill_state(status="skipped", basis=app._delivery_basis(), bindings=[])
+    app.refresh()
+    assert message not in app.skill_status_var.get()
+
+
+def test_m4_missing_config_keeps_direct_generation_guidance(delivery_app, monkeypatch) -> None:
+    app, _window = delivery_app
+    candidate, binding = _candidate()
+    _set_binding(app, candidate, binding)
+    monkeypatch.setattr(app, "_missing_generation_config", lambda: ["模型"])
+    app.integrate_selected_skills()
+    app.refresh()
+    assert "直接生成提示词" in app.skill_status_var.get()
+    assert app.widgets["skill_direct_button"].instate(["!disabled"])
+
+
+def test_m4_preparation_failure_keeps_guidance_and_full_traceback(delivery_app, monkeypatch, caplog) -> None:
+    from promptsmith.delivery_workflow import DeliveryWorkflowError
+    app, _window = delivery_app
+    candidate, binding = _candidate()
+    _set_binding(app, candidate, binding)
+    _configure_delivery_client(app, monkeypatch, _DeliveryUiClient())
+
+    def fail(*args, **kwargs):
+        raise DeliveryWorkflowError("offline preparation failure")
+
+    monkeypatch.setattr(app.delivery_workflow, "prepare_m4", fail)
+    app.integrate_selected_skills()
+    app.refresh()
+    assert not app.delivery_busy
+    assert "直接生成提示词" in app.skill_status_var.get()
+    assert len(app.session.skill_state["bindings"]) == 1
+    assert "Traceback" in caplog.text and "offline preparation failure" in caplog.text

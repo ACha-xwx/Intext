@@ -44,7 +44,6 @@ def test_model_reads_source_and_selects_indirectly_useful_skill(tmp_path):
     discovered = discover_local_skill_candidates(works, context_text="给初学者讲解分部积分法", roots=[tmp_path])
     selected_id = next(row["candidate_id"] for row in discovered.candidates if row["name"] == "teaching")
     client = ScriptedClient([
-        {"candidate_ids": [selected_id]},
         {"matches": [{"candidate_id": selected_id, "key_work_id": "math", "reason": "可用直观例子和复述检查帮助初学者理解分部积分。"}]},
     ])
 
@@ -53,7 +52,9 @@ def test_model_reads_source_and_selects_indirectly_useful_skill(tmp_path):
     assert [row["name"] for row in selected] == ["teaching"]
     assert selected[0]["match_reason"] == "可用直观例子和复述检查帮助初学者理解分部积分。"
     assert selected[0]["record_hash"] == next(row["record_hash"] for row in discovered.candidates if row["name"] == "teaching")
-    assert client.calls[1][1]["skills"][0]["source"] == teaching.read_bytes().decode("utf-8-sig")
+    assert len(client.calls) == 1
+    reviewed = next(row for row in client.calls[0][1]["skills"] if row["candidate_id"] == selected_id)
+    assert reviewed["source"] == teaching.read_bytes().decode("utf-8-sig")
     assert "间接" in client.calls[0][0]
 
 
@@ -63,7 +64,6 @@ def test_ai_selection_requires_agent_skills_not_general_methods(tmp_path):
     discovered = discover_local_skill_candidates(works, roots=[tmp_path])
     candidate_id = discovered.candidates[0]["candidate_id"]
     client = ScriptedClient([
-        {"candidate_ids": [candidate_id]},
         {"matches": [{"candidate_id": candidate_id, "key_work_id": "math", "reason": "可指导 Agent 组织讲解。"}]},
     ])
 
@@ -102,7 +102,7 @@ def test_model_can_reject_all_skills(tmp_path):
     _skill(tmp_path, "deploy", "Deploy websites", "Configure servers.")
     works = [{"key_work_id": "math", "title": "讲解分部积分法", "step_ids": []}]
     discovered = discover_local_skill_candidates(works, roots=[tmp_path])
-    client = ScriptedClient([{"candidate_ids": []}])
+    client = ScriptedClient([{"matches": []}])
 
     assert select_skill_candidates_with_ai(client, discovered.candidates, task_text="讲解分部积分法", key_works=works) == []
     assert len(client.calls) == 1
@@ -117,7 +117,6 @@ def test_model_can_bind_skill_to_best_key_work(tmp_path):
     discovered = discover_local_skill_candidates(works, roots=[tmp_path])
     source = discovered.candidates[0]
     client = ScriptedClient([
-        {"candidate_ids": [source["candidate_id"]]},
         {"matches": [{"candidate_id": source["candidate_id"], "key_work_id": "teach", "reason": "提供授课方法。"}]},
     ])
 
@@ -137,7 +136,7 @@ def test_remote_source_text_must_match_verified_hash():
         "origin": "remote", "content_sha256": hashlib.sha256(source).hexdigest(),
         "record_snapshot": {"source_text": source.decode()},
     }
-    client = ScriptedClient([{"candidate_ids": ["remote-1"]}, {"matches": [{"candidate_id": "remote-1", "key_work_id": "math", "reason": "Useful."}]}])
+    client = ScriptedClient([{"matches": [{"candidate_id": "remote-1", "key_work_id": "math", "reason": "Useful."}]}])
 
     rows = select_skill_candidates_with_ai(client, [remote], task_text="Teach math", key_works=[{"key_work_id": "math", "title": "Teach math"}])
 
@@ -154,7 +153,6 @@ def test_model_relevance_scores_order_selected_skills(tmp_path):
     discovered = discover_local_skill_candidates(works, roots=[tmp_path])
     ids = [row["candidate_id"] for row in discovered.candidates]
     client = ScriptedClient([
-        {"candidate_ids": ids},
         {"matches": [
             {"candidate_id": ids[0], "key_work_id": "math", "reason": "适合。", "relevance_score": 2},
             {"candidate_id": ids[1], "key_work_id": "math", "reason": "更适合。", "relevance_score": 5},
@@ -179,7 +177,6 @@ def test_model_can_review_builtin_catalog_candidate_from_summary_evidence():
     candidates = catalog.match(works).candidates
     candidate = next(row for row in candidates if row["skill_id"] == "to-spec")
     client = ScriptedClient([
-        {"candidate_ids": [candidate["candidate_id"]]},
         {"matches": [{
             "candidate_id": candidate["candidate_id"],
             "key_work_id": "software-spec",
@@ -192,7 +189,8 @@ def test_model_can_review_builtin_catalog_candidate_from_summary_evidence():
     )
 
     assert [row["skill_id"] for row in selected] == ["to-spec"]
-    evidence = client.calls[0][1]["skills"][0]["evidence"]
+    evidence = next(row["evidence"] for row in client.calls[0][1]["skills"]
+                    if row["candidate_id"] == candidate["candidate_id"])
     assert evidence["evidence_level"] == "metadata"
     assert "本地 Skill 目录摘要" in evidence["evidence_basis"]
     assert "完整 Skill 内容未包含在目录快照中" in evidence["limitations"][0]

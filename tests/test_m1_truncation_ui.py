@@ -10,6 +10,7 @@ import time
 import pytest
 
 from promptsmith.api import ApiError
+from promptsmith.m1 import M1Assets, M1_INCREMENTAL_PROMPT_VERSION, m1_system_prompt
 from tests.test_generation_timeout_ui import app, jgs_response
 from tests.test_ui_reliability import envelope, pump
 
@@ -23,7 +24,15 @@ PARTIAL_USAGE = {"prompt_tokens": 1500, "completion_tokens": 8192, "total_tokens
 
 def _assert_preserved(before: dict, after: dict) -> None:
     for key, value in before.items():
-        if key not in DIAGNOSTIC_FIELDS:
+        if key == "control":
+            # New request traces are diagnostics; old traces and every other
+            # persisted control field must remain intact on transport failure.
+            for field, previous in value.items():
+                if field == "response_traces":
+                    assert after[key][field][:len(previous)] == previous
+                else:
+                    assert after[key][field] == previous, field
+        elif key not in DIAGNOSTIC_FIELDS:
             assert after[key] == value, key
 
 
@@ -34,9 +43,10 @@ def _start_and_answer(app) -> None:
     assert len(app.session.pending_questions) == 2, app.status_var.get()
     app.accept_all_proposals()
     for question_id, answer in ANSWERS:
-        app.widgets["questions_tree"].selection_set(question_id)
-        app.answer_var.set(answer)
-        app.record_question("answered")
+        # Set up answered-but-not-yet-analyzed state through SessionState;
+        # the deleted tree UI is unrelated to the transport recovery seam.
+        app.session.record_question(question_id, "answered", answer)
+    app.refresh()
     assert app.primary_action_var.get() == "继续整理回答"
     assert app.session.pending_questions == []
     assert [row["answer_text"] for row in app.session.question_history] == [row[1] for row in ANSWERS]
@@ -147,7 +157,12 @@ def test_second_round_truncation_preserves_answers_and_requires_explicit_compact
         assert app.session.api_runs[-1]["usage"] == PARTIAL_USAGE
 
         second_payload = received[1]["payload"]
-        assert second_payload["state"]["question_history"] == before["question_history"]
+        # The wire contract excludes local clarification/submission metadata;
+        # full session preservation is checked independently above and below.
+        allowed = M1Assets.load().input_schema["properties"]["state"]["properties"]["question_history"]["items"]["properties"]
+        expected_history = [{key: value for key, value in row.items() if key in allowed}
+                            for row in before["question_history"]]
+        assert second_payload["state"]["question_history"] == expected_history
         assert second_payload["sources"] == before["sources"]
         failed, metadata, check = _evidence_by_request(tmp_path / "calls")[second_payload["request_id"]]
         assert check["failure_kind"] == "truncated"
@@ -157,8 +172,11 @@ def test_second_round_truncation_preserves_answers_and_requires_explicit_compact
         assert metadata["provider_response_id"] == "truncated-2"
         assert metadata["model"] == "local-truncation-model"
         assert metadata["request_mode"] == "incremental"
-        assert metadata["prompt_version"] == "M1_incremental_v0.4"
-        incremental_prompt = (ROOT / "resources/prompts/M1_incremental_v0.4.txt").read_text(encoding="utf-8-sig")
+        assert metadata["prompt_version"] == M1_INCREMENTAL_PROMPT_VERSION
+        incremental_prompt = m1_system_prompt(
+            M1Assets.load().system_prompt,
+            mode="incremental",
+        )
         assert (failed / "system.txt").read_text(encoding="utf-8") == incremental_prompt
         failed_files = {path.name: path.read_bytes() for path in failed.iterdir()}
 
@@ -194,7 +212,7 @@ def test_second_round_truncation_preserves_answers_and_requires_explicit_compact
         assert retry_payload["sources"] == before["sources"]
         retry_dir, retry_metadata, retry_check = _evidence_by_request(tmp_path / "calls")[retry_payload["request_id"]]
         assert retry_metadata["request_mode"] == "compact_retry"
-        assert retry_metadata["prompt_version"] == "M1_incremental_v0.4"
+        assert retry_metadata["prompt_version"] == M1_INCREMENTAL_PROMPT_VERSION
         assert (retry_dir / "system.txt").read_text(encoding="utf-8").startswith(incremental_prompt)
         assert (retry_dir / "system.txt").read_text(encoding="utf-8") != incremental_prompt
         assert all(row["body"]["max_tokens"] == 8192 for row in received)
@@ -235,8 +253,8 @@ def test_second_round_truncation_preserves_answers_and_requires_explicit_compact
 
 
 @pytest.mark.parametrize("failure_kind", ["json_error", "network", "timeout"])
-def test_nontruncation_failures_keep_distinct_kinds_and_do_not_offer_compact_retry(
-    app, tmp_path, monkeypatch, failure_kind
+def test_nontruncation_errors_recover_or_keep_distinct_failure_guidance(
+    app, tmp_path, monkeypatch, caplog, failure_kind
 ):
     received = []
     malformed = '{"schema_version":'
@@ -290,9 +308,37 @@ def test_nontruncation_failures_keep_distinct_kinds_and_do_not_offer_compact_ret
         app.widgets["analyze_button"].invoke()
         pump(app.root, app)
         _pump_idle(app)
-        _assert_preserved(before, app.session.to_dict())
         assert not app.busy and app.busy_kind is None
         assert app.session.pending_requests == {}
+        if failure_kind == "json_error":
+            # Program recovery may ask a new question, but cannot adopt the
+            # malformed model output, lose answers, or confirm requirements.
+            after = app.session.to_dict()
+            for field in ("task_id", "task_text", "selected_category", "category_suggestion",
+                          "requirements", "confirmed_requirements_version", "sources",
+                          "question_history", "gaps", "plan", "skill_state", "final_result"):
+                assert after[field] == before[field], field
+            assert app.session.pending_questions
+            assert app.session.last_model_judgment["answer_assessment"] == "unclear"
+            assert "下一步问题" in app.status_var.get()
+            assert app._primary_action().kind != "retry_compact"
+            assert not messages and len(received) == 2
+            last = app.session.api_runs[-1]
+            recovered = Path(last["evidence_dir"])
+            check = json.loads((recovered / "check.json").read_text(encoding="utf-8"))
+            assert last["status"] == "accepted_as_candidate"
+            assert check["valid"] and check["recovery_fallback"]["mode"] == "program_recovery"
+            failures = check["recovery_fallback"]["previous_evidence_dirs"]
+            assert len(failures) == 1
+            for failed in map(Path, failures):
+                failure_check = json.loads((failed / "check.json").read_text(encoding="utf-8"))
+                assert failure_check["failure_kind"] == "json_error"
+                assert (failed / "response.raw.txt").read_text(encoding="utf-8") == malformed
+            effective = json.loads((recovered / "response.effective.json").read_text(encoding="utf-8"))
+            assert effective["category"] == before["category_suggestion"]
+            assert any(row.name == "promptsmith.runlog" and row.exc_info for row in caplog.records)
+            return
+        _assert_preserved(before, app.session.to_dict())
         assert app.primary_action_var.get() == "重试分析"
         assert app._primary_action().kind == "analyze_answer"
         assert app.session.api_runs[-1]["status"] == failure_kind
@@ -303,15 +349,10 @@ def test_nontruncation_failures_keep_distinct_kinds_and_do_not_offer_compact_ret
         failed = Path(last["evidence_dir"])
         check = json.loads((failed / "check.json").read_text(encoding="utf-8"))
         assert check["failure_kind"] == failure_kind
-        if failure_kind == "json_error":
-            assert len(received) == 2
-            assert "JSON" in messages[0][1]
-            assert (failed / "response.raw.txt").read_text(encoding="utf-8") == malformed
-        else:
-            assert fake.calls == 1 and len(received) == 1
-            assert check["schema"] == check["semantic"] == "not_reached"
-            assert (failed / "response.raw.txt").read_bytes() == b""
-            assert "120" in messages[0][1] if failure_kind == "timeout" else "网络" in messages[0][1]
+        assert fake.calls == 1 and len(received) == 1
+        assert check["schema"] == check["semantic"] == "not_reached"
+        assert (failed / "response.raw.txt").read_bytes() == b""
+        assert "120" in messages[0][1] if failure_kind == "timeout" else "网络" in messages[0][1]
     finally:
         server.shutdown()
         server.server_close()

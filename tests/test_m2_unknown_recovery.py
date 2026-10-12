@@ -86,6 +86,8 @@ def test_unknowns_survive_edit_confirm_save_reopen_and_final_export(tmp_path):
     payload, parsed, _ = parse(session, [unknown(source="r2")])
     apply_m2_response(session, payload, parsed)
     session.edit_plan_step("s1", title="核对并实现主流程", purpose="先完成确定的部分。")
+    for question in session.questions_for_review():
+        session.record_question(question["question_id"], "skipped")
     session.confirm_plan_preview(session.plan_preview())
     session = load_session(save_session(session, tmp_path / "plan.json"))
     draft = build_final_draft(session)
@@ -120,7 +122,7 @@ def test_workflow_records_recovery_and_original_response(tmp_path):
     assert session.api_runs[-1]["normalization"]
 
 
-def test_actual_semantic_failure_has_correct_stage_and_retry_guidance(tmp_path):
+def test_recoverable_plan_reference_keeps_warning_and_returns_draft(tmp_path):
     session = confirmed_session()
     workflow = Phase12Workflow(session, M1Assets.load(), tmp_path)
     payload = workflow.prepare_m2("bad-step")
@@ -130,14 +132,12 @@ def test_actual_semantic_failure_has_correct_stage_and_retry_guidance(tmp_path):
         result["plan"]["steps"][0]["depends_on_step_ids"] = ["missing"]
         return result
 
-    with pytest.raises(M2CallFailure) as error:
-        workflow.invoke_m2(payload, Client(response), protocol="offline", configured_model="fixture")
-    check = json.loads((error.value.evidence_dir / "check.json").read_text(encoding="utf-8"))
-    assert check["schema"] == "passed" and check["semantic"] == "failed"
-    assert workflow.m2_retry_recommended()
-    text = generation_failure_message("m2", error.value, None)
-    assert "重新生成方案" in text and "已保留" in text and "不用重新回答" in text
-    assert "未通过M2校验" not in text
+    outcome = workflow.invoke_m2(payload, Client(response), protocol="offline", configured_model="fixture")
+    check = json.loads((outcome.evidence_dir / "check.json").read_text(encoding="utf-8"))
+    assert check["valid"] and check["normalization"]
+    workflow.apply_m2(payload, outcome)
+    assert session.plan["status"] == "draft"
+    assert any("missing" in row["description"] for row in session.plan["content"]["unresolved_items"])
 
 
 @pytest.mark.parametrize("field", ["request_id", "task_id", "source_requirements_version"])
@@ -158,6 +158,8 @@ def test_recovered_unknowns_survive_m3_and_m4(tmp_path):
     session = confirmed_session()
     payload, parsed, _ = parse(session, [unknown(source="r2")])
     apply_m2_response(session, payload, parsed)
+    for question in session.questions_for_review():
+        session.record_question(question["question_id"], "skipped")
     session.confirm_plan_preview(session.plan_preview())
     basis = {"task_id": session.task_id, "requirement_version": session.requirement_version,
              "plan_id": session.plan["plan_id"], "plan_version": session.plan["plan_version"]}
@@ -188,6 +190,8 @@ def test_delivery_union_preserves_source_wording_and_new_suggestions():
     session = confirmed_session()
     payload, parsed, _ = parse(session, [unknown(source="r2")])
     apply_m2_response(session, payload, parsed)
+    for question in session.questions_for_review():
+        session.record_question(question["question_id"], "skipped")
     session.confirm_plan_preview(session.plan_preview())
     # Legacy/incomplete delivery content must not hide the source snapshot.
     session.plan["content"]["unresolved_items"] = [row for row in session.plan["content"]["unresolved_items"]

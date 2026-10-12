@@ -1,6 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 from pathlib import Path
+from PyInstaller.utils.hooks import collect_data_files
 
 
 project = Path(SPECPATH)
@@ -31,10 +32,19 @@ datas = [
     (str(prompt_dir / "M1_incremental_v0.14.txt"), "resources/prompts"),
     (str(prompt_dir / "M1_system_v0.22.txt"), "resources/prompts"),
     (str(prompt_dir / "M1_incremental_v0.15.txt"), "resources/prompts"),
+    (str(prompt_dir / "M1_system_v0.23.txt"), "resources/prompts"),
+    (str(prompt_dir / "M1_incremental_v0.16.txt"), "resources/prompts"),
+    (str(prompt_dir / "M1_system_v0.24.txt"), "resources/prompts"),
+    (str(prompt_dir / "M1_incremental_v0.17.txt"), "resources/prompts"),
+    (str(prompt_dir / "M1_contract_v0.1.txt"), "resources/prompts"),
+    (str(prompt_dir / "M1_system_v0.25.txt"), "resources/prompts"),
+    (str(prompt_dir / "M1_incremental_v0.18.txt"), "resources/prompts"),
+    (str(prompt_dir / "M1_input_v0.5.schema.json"), "resources/prompts"),
+    (str(prompt_dir / "M1_output_v0.4.schema.json"), "resources/prompts"),
     (str(prompt_dir / "M1_input_v0.4.schema.json"), "resources/prompts"),
     # Keep the legacy loader usable in a single-file build for old sessions and
     # compatibility checks; the normal path loads the v0.18 base plus the
-    # current v0.22 judgment addendum above.
+    # current v0.24 interview addendum above.
     (str(prompt_dir / "M1_system_v0.3.txt"), "resources/prompts"),
     (str(prompt_dir / "M1_input.schema.json"), "resources/prompts"),
     (str(prompt_dir / "M1_output.schema.json"), "resources/prompts"),
@@ -43,6 +53,10 @@ datas = [
     (str(prompt_dir / "M2_system_v0.1.txt"), "resources/prompts"),
     (str(prompt_dir / "M2_system_v0.2.txt"), "resources/prompts"),
     (str(prompt_dir / "M2_system_v0.3.txt"), "resources/prompts"),
+    (str(prompt_dir / "M2_system_v0.4.txt"), "resources/prompts"),
+    (str(prompt_dir / "M2_system_v0.5.txt"), "resources/prompts"),
+    (str(prompt_dir / "M2_system_v0.6.txt"), "resources/prompts"),
+    (str(prompt_dir / "M2_input_v0.2.schema.json"), "resources/prompts"),
     (str(prompt_dir / "M2_input_v0.1.schema.json"), "resources/prompts"),
     (str(prompt_dir / "M2_output_v0.1.schema.json"), "resources/prompts"),
     (str(prompt_dir / "M2_output_v0.2.schema.json"), "resources/prompts"),
@@ -60,14 +74,18 @@ datas = [
     (str(project / "resources" / "skill_catalog" / "catalog_v0.1.json"), "resources/skill_catalog"),
     (str(project / "resources" / "skill_catalog" / "NOTICE.md"), "resources/skill_catalog"),
     (str(project / "resources" / "skill_catalog" / "sources"), "resources/skill_catalog/sources"),
+    (str(project / "resources" / "ui" / "model_icons"), "resources/ui/model_icons"),
+    (str(project / "resources" / "ui" / "action_icons"), "resources/ui/action_icons"),
+    (str(project / "resources" / "ui" / "workspace"), "resources/ui/workspace"),
 ]
+datas += collect_data_files("webview")
 
 a = Analysis(
     [str(project / "run_promptsmith.py")],
     pathex=[str(project / "src")],
     binaries=[],
     datas=datas,
-    hiddenimports=[],
+    hiddenimports=["webview.platforms.winforms", "webview.platforms.edgechromium"],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -89,6 +107,7 @@ exe = EXE(
     strip=False,
     upx=True,
     console=False,
+    manifest=str(project / "resources" / "ui" / "PromptSmith.manifest"),
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,

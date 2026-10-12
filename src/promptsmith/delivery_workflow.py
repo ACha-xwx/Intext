@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from concurrent.futures import CancelledError
+
 import hashlib
 import json
+import logging
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
@@ -11,6 +14,7 @@ from typing import Any
 from uuid import uuid4
 
 from .api import ApiError, ApiResult
+from .task_scope import check_cancelled
 from .finalization import (
     DeliveryValidationError,
     build_final_draft,
@@ -256,6 +260,20 @@ class DeliveryWorkflow:
             "plan_version": self.session.plan["plan_version"],
             **plan_content,
         }
+        from .clarification import without_skipped_unknowns
+        baseline_plan["unresolved_items"] = without_skipped_unknowns(self.session, baseline_plan.get("unresolved_items", []))
+        # Textual step/work fields are already carried by the top-level model
+        # projections. Keep only their IDs and extra dependency/coverage fields
+        # here, so the complete plan can be reconstructed by joining those IDs.
+        for name, project, id_field in (
+            ("steps", _step_for_model, "step_id"),
+            ("key_work", _key_work_for_model, "key_work_id"),
+        ):
+            metadata = []
+            for row in baseline_plan.get(name, []):
+                shared_fields = project(row)
+                metadata.append({key: value for key, value in row.items() if key == id_field or key not in shared_fields})
+            baseline_plan[name] = metadata
         baseline_unknowns = [
             {
                 "unknown_id": str(row.get("unknown_id") or row.get("unresolved_id") or row.get("source_gap_id") or f"unknown-{index + 1}"),
@@ -508,6 +526,7 @@ class DeliveryWorkflow:
         configured_model: str,
         request_parameters: dict[str, Any] | None,
     ) -> DeliveryCallOutcome:
+        check_cancelled()
         request_id = str(payload.get("request_id", ""))
         context = self._requests.get(request_id)
         if context is None or context.get("purpose") != purpose or context.get("payload_json") != _canonical(payload):
@@ -518,9 +537,15 @@ class DeliveryWorkflow:
         error: str | None = None
         status_code: int | None = None
         check: dict[str, Any]
+        normalization: list[dict[str, Any]] = []
         try:
             api_result = client.complete_json(assets.system_prompt, payload, assets.output_schema)
+            check_cancelled()
+        except CancelledError:
+            raise
         except ApiError as exc:
+            check_cancelled()
+            logging.getLogger(__name__).exception("%s model API failed; request=%s", purpose, request_id)
             failure_kind, error, status_code = exc.kind, str(exc), exc.status_code
             api_result = ApiResult.from_error(exc)
             check = {
@@ -535,6 +560,7 @@ class DeliveryWorkflow:
             }
         except Exception as exc:
             failure_kind = "client_error"
+            logging.getLogger(__name__).exception("%s model client failed; request=%s", purpose, request_id)
             error = f"模型调用失败（{type(exc).__name__}）。"
             check = {
                 "valid": False,
@@ -547,16 +573,18 @@ class DeliveryWorkflow:
         else:
             try:
                 parser = parse_m3_response if purpose == "m3" else parse_m4_response
-                parsed = parser(api_result.content, payload, assets.output_schema)
+                parsed = parser(api_result.content, payload, assets.output_schema, normalization_report=normalization)
                 check = {
                     "valid": True,
                     "schema": "passed",
                     "semantic": "passed",
                     "business_status": parsed["status"],
                     "error": None,
+                    "normalization": normalization,
                 }
             except Exception as exc:
                 failure_kind = "validation_error"
+                logging.getLogger(__name__).exception("%s response validation failed; request=%s", purpose, request_id)
                 error = str(exc)
                 check = {
                     "valid": False,
@@ -584,6 +612,7 @@ class DeliveryWorkflow:
                 "request_parameters": request_parameters or {},
             },
             check={**check, "finish_reason": api_result.finish_reason},
+            effective_response=parsed,
         )
         if parsed and parsed.get("status") == "error":
             error = parsed["error"]["message"]

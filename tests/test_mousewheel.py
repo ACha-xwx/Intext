@@ -14,9 +14,34 @@ def mousewheel_app(tk_root):
     root.withdraw()
     root.geometry("1120x780")
     app = PromptSmithApp(root)
-    # The detailed tables are intentionally collapsed in the new default flow.
-    app.widgets["advanced_requirements_panel"]._show(True)
+    # Exercise routing on visible, test-owned controls in the current page.
+    # The old requirements details page and its duplicate form were removed.
+    app.session.set_task("检查对话区域的滚轮行为")
+    app.widgets.get("task_text").insert("1.0",app.session.task_text)
+    app.refresh()
+    surface=ttk.Frame(app.widgets["requirements_page_content"])
+    surface.grid(row=90,column=0,sticky="ew")
+    surface.columnconfigure(0,weight=1)
+    label=ttk.Label(surface,text="滚轮路由测试")
+    label.grid(row=0,column=0,sticky="w")
+    text=tk.Text(surface,height=3,width=1)
+    text.grid(row=1,column=0,sticky="ew")
+    tree=ttk.Treeview(surface,height=3,columns=("content","description","status"),show="headings")
+    tree.grid(row=2,column=0,sticky="ew")
+    entry=ttk.Entry(surface)
+    entry.grid(row=3,column=0,sticky="ew")
+    button=ttk.Button(surface,text="测试按钮")
+    button.grid(row=4,column=0,sticky="w")
+    combo=ttk.Combobox(surface,values=("选项一","选项二"),state="readonly")
+    combo.current(0)
+    combo.grid(row=5,column=0,sticky="w")
+    reading=ttk.Frame(surface)
+    reading.grid(row=6,column=0,sticky="ew")
+    details=app._conversation_reading(reading,"测试只读正文",height=3)
+    app.widgets.update(wheel_text=text,wheel_tree=tree,wheel_entry=entry,wheel_button=button,
+                       wheel_combo=combo,wheel_details=details)
     ttk.Label(app.widgets["requirements_page_content"], text="\n" * 30).grid(row=99, column=0)
+    app._register_page_wheel_routing()
     root.deiconify()
     root.update_idletasks()
     root.update()
@@ -57,11 +82,11 @@ def first_label(root: tk.Misc) -> ttk.Label:
 def test_page_wheel_works_over_label_empty_text_tree_and_entry(mousewheel_app) -> None:
     root, app = mousewheel_app
     canvas = app.widgets["requirements_page_canvas"]
-    task = app.widgets["task_text"]
-    tree = app.widgets["requirements_tree"]
+    task = app.widgets["wheel_text"]
+    tree = app.widgets["wheel_tree"]
     label = first_label(app.widgets["requirements_page_content"])
-    entry = app.widgets["api_base_entry"]
-    button = app.widgets["model_list_button"]
+    entry = app.widgets["wheel_entry"]
+    button = app.widgets["wheel_button"]
 
     for target in (label, task, tree, entry, button, canvas):
         canvas.yview_moveto(0.0)
@@ -85,12 +110,14 @@ def test_page_wheel_works_over_label_empty_text_tree_and_entry(mousewheel_app) -
 def test_long_text_and_tree_scroll_inside_then_page_takes_next_event(mousewheel_app) -> None:
     root, app = mousewheel_app
     canvas = app.widgets["requirements_page_canvas"]
-    text = app.widgets["task_text"]
-    tree = app.widgets["requirements_tree"]
+    text = app.widgets["wheel_text"]
+    tree = app.widgets["wheel_tree"]
     add_lines(text)
 
     canvas.yview_moveto(0.0)
     text.yview_moveto(0.0)
+    root.update()
+    app._reveal_guided(text)
     root.update()
     page_before = tuple(canvas.yview())
     inner_before = tuple(text.yview())
@@ -104,6 +131,8 @@ def test_long_text_and_tree_scroll_inside_then_page_takes_next_event(mousewheel_
 
     text.yview_moveto(1.0)
     canvas.yview_moveto(0.0)
+    root.update()
+    app._reveal_guided(text)
     root.update()
     page_before = tuple(canvas.yview())
     send_wheel(root, text, -120)
@@ -141,7 +170,7 @@ def test_long_text_and_tree_scroll_inside_then_page_takes_next_event(mousewheel_
 def test_readonly_details_uses_inner_scroll_and_then_page_at_boundary(mousewheel_app) -> None:
     root, app = mousewheel_app
     canvas = app.widgets["requirements_page_canvas"]
-    details = app.widgets["details_text"]
+    details = app.widgets["wheel_details"]
     details.configure(state="normal")
     add_lines(details)
     details.configure(state="disabled")
@@ -187,6 +216,9 @@ def test_plan_page_scrolls_independently_when_content_overflows(mousewheel_app) 
 
 def test_plan_page_without_overflow_stays_stable(mousewheel_app) -> None:
     root, app = mousewheel_app
+    # Global 125% typography makes this form taller. Use an actual viewport
+    # large enough for the non-overflow case instead of assuming the old size.
+    root.geometry("1440x1100+20+20")
     plan = app.widgets["plan_page_canvas"]
     app.notebook.select(1)
     root.update()
@@ -219,7 +251,10 @@ def test_open_dialog_wheel_isolated_from_main_page(mousewheel_app) -> None:
     assert tuple(text.yview()) != inner_before
     assert tuple(canvas.yview()) == page_before
     dialog.destroy()
-    send_wheel(root, app.widgets["task_text"], -120)
+    app._reveal_guided(app.widgets["wheel_text"])
+    root.update()
+    page_before = tuple(canvas.yview())
+    send_wheel(root, app.widgets["wheel_text"], -120)
     assert tuple(canvas.yview()) != page_before
 
 
@@ -236,7 +271,7 @@ def test_menu_is_outside_page_wheel_routing(mousewheel_app) -> None:
 def test_fractional_delta_and_target_changes_do_not_leak_or_double_scroll(mousewheel_app) -> None:
     root, app = mousewheel_app
     canvas = app.widgets["requirements_page_canvas"]
-    task = app.widgets["task_text"]
+    task = app.widgets["wheel_text"]
     label = first_label(app.widgets["requirements_page_content"])
     canvas.yview_moveto(0.0)
     root.update()
@@ -274,7 +309,7 @@ def test_fractional_delta_and_target_changes_do_not_leak_or_double_scroll(mousew
 def test_combobox_wheel_does_not_change_value_or_route_shift_to_vertical(mousewheel_app) -> None:
     root, app = mousewheel_app
     canvas = app.widgets["requirements_page_canvas"]
-    combo = app.widgets["category_combo"]
+    combo = app.widgets["wheel_combo"]
     original = combo.get()
     canvas.yview_moveto(0.0)
     root.update()
@@ -295,11 +330,13 @@ def test_combobox_wheel_does_not_change_value_or_route_shift_to_vertical(mousewh
 def test_shift_wheel_keeps_horizontal_scroll_on_long_text(mousewheel_app) -> None:
     root, app = mousewheel_app
     canvas = app.widgets["requirements_page_canvas"]
-    text = app.widgets["task_text"]
+    text = app.widgets["wheel_text"]
     text.configure(wrap="none")
     text.insert("1.0", "x" * 1000)
     text.xview_moveto(0.0)
     canvas.yview_moveto(0.0)
+    root.update()
+    app._reveal_guided(text)
     root.update()
     inner_before = tuple(text.xview())
     page_before = tuple(canvas.yview())
@@ -313,8 +350,9 @@ def test_shift_wheel_keeps_horizontal_scroll_on_long_text(mousewheel_app) -> Non
 def test_expanded_combobox_list_wheel_does_not_scroll_background(mousewheel_app) -> None:
     root, app = mousewheel_app
     canvas = app.widgets["requirements_page_canvas"]
-    combo = app.widgets["category_combo"]
+    combo = app.widgets["wheel_combo"]
     combo.configure(values=tuple(f"category {index}" for index in range(40)))
+    app._reveal_guided(combo)
     combo.tk.call("ttk::combobox::Post", combo._w)
     root.update()
     grab_path = root.tk.call("grab", "current", root._w)
@@ -371,7 +409,7 @@ def test_expanded_combobox_list_wheel_does_not_scroll_background(mousewheel_app)
 def test_refresh_reuses_bindings_and_scroll_does_not_mutate_business_state(mousewheel_app) -> None:
     root, app = mousewheel_app
     canvas = app.widgets["requirements_page_canvas"]
-    task = app.widgets["task_text"]
+    task = app.widgets["wheel_text"]
     task.insert("1.0", "unchanged task")
     state_before = (
         app.session.to_dict(),

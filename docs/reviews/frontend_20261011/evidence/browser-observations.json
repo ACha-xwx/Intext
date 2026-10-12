@@ -1,0 +1,752 @@
+{
+  "browser": "154.0.8037.98",
+  "source": "current worktree",
+  "data": "synthetic Python projection + simulated bridge",
+  "observations": [
+    {
+      "name": "Hero centered and visible",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "Empty send disabled",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "Six exclusive history groups",
+      "actual": [
+        "置顶",
+        "今天",
+        "昨天",
+        "七天内",
+        "30天内",
+        "更早"
+      ],
+      "expected": [
+        "置顶",
+        "今天",
+        "昨天",
+        "七天内",
+        "30天内",
+        "更早"
+      ],
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "Composer Shift Enter keeps newline",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "Composer IME Enter does not send",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "Picker 5 provider tabs",
+      "actual": 5,
+      "expected": 5,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "Picker 8 OpenAI presets",
+      "actual": 8,
+      "expected": 8,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "Picker unnamed dialog",
+      "actual": false,
+      "expected": true,
+      "passed": false,
+      "detail": null
+    },
+    {
+      "name": "DeepSeek two models",
+      "actual": 2,
+      "expected": 2,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "DeepSeek no image icons",
+      "actual": 0,
+      "expected": 0,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "Model no-match recovery",
+      "actual": "没有匹配的模型。",
+      "expected": "没有匹配的模型。",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "Radio keyboard reaches max",
+      "actual": "true",
+      "expected": "true",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "Picker close returns focus to trigger",
+      "actual": false,
+      "expected": true,
+      "passed": false,
+      "detail": null
+    },
+    {
+      "name": "Long thought eventually drains",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "Thought owns wheel scrolling",
+      "actual": "contain",
+      "expected": "contain",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "Thought wheel leaves page scroll unchanged",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "Collapsed trace excludes hidden descendants from Tab",
+      "actual": false,
+      "expected": true,
+      "passed": false,
+      "detail": null
+    },
+    {
+      "name": "Answer Shift Enter newline",
+      "actual": "逐题回答\n",
+      "expected": "逐题回答\n",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "Failed answer preserves draft",
+      "actual": "逐题回答\n",
+      "expected": "逐题回答\n",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "Failed action exposes next step",
+      "actual": "暂时无法完成操作。请重试，或查看 Debug 控制台。",
+      "expected": "合成操作失败，保留数据重试",
+      "passed": false,
+      "detail": null
+    },
+    {
+      "name": "Locked state disables editing/send",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "Locked model request has visible cancel control",
+      "actual": false,
+      "expected": true,
+      "passed": false,
+      "detail": null
+    },
+    {
+      "name": "requirements panel visible",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "requirements panel has accessible name",
+      "actual": false,
+      "expected": true,
+      "passed": false,
+      "detail": null
+    },
+    {
+      "name": "Requirement selectable rows keyboard reachable",
+      "actual": false,
+      "expected": true,
+      "passed": false,
+      "detail": null
+    },
+    {
+      "name": "Requirement selection reveals full text",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "plan panel visible",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "plan panel has accessible name",
+      "actual": false,
+      "expected": true,
+      "passed": false,
+      "detail": null
+    },
+    {
+      "name": "Plan headings collapse to details",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "Plan disclosure opens",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "summary panel visible",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "summary panel has accessible name",
+      "actual": false,
+      "expected": true,
+      "passed": false,
+      "detail": null
+    },
+    {
+      "name": "Result options stay in current workspace",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "Final stage contains no pending question cards",
+      "actual": 0,
+      "expected": 0,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "Skill local and online remain together",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "Selected Skill action disabled",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "Selected Skill cancel offered",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "depth-button options visible",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "category-button options visible",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "file-button options visible",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "History menu arrow navigation",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "History menu second item focus",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "History modal has explicit accessible name",
+      "actual": "搜索历史会话",
+      "expected": "搜索历史会话",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "History query filters metadata",
+      "actual": 1,
+      "expected": 1,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "History search IME Enter must not open record",
+      "actual": false,
+      "expected": true,
+      "passed": false,
+      "detail": null
+    },
+    {
+      "name": "Rename IME Enter must not save",
+      "actual": false,
+      "expected": true,
+      "passed": false,
+      "detail": null
+    },
+    {
+      "name": "Delete requires explicit confirmation",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "Cancel delete preserves records",
+      "actual": 6,
+      "expected": 6,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "light 模型 settings controls labeled",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "light 模型 save reachable",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "light Skill 搜索 settings controls labeled",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "light Skill 搜索 save reachable",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "light 界面 settings controls labeled",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "light 界面 save reachable",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "light 会话与导出 settings controls labeled",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "light 会话与导出 save reachable",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "light 诊断 settings controls labeled",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "light 诊断 save reachable",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "light settings Tabs ArrowRight selects next",
+      "actual": "诊断",
+      "expected": "Skill 搜索",
+      "passed": false,
+      "detail": null
+    },
+    {
+      "name": "light background snapshot retains settings draft",
+      "actual": "edited-model",
+      "expected": "edited-model",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "dark 模型 settings controls labeled",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "dark 模型 save reachable",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "dark Skill 搜索 settings controls labeled",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "dark Skill 搜索 save reachable",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "dark 界面 settings controls labeled",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "dark 界面 save reachable",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "dark 会话与导出 settings controls labeled",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "dark 会话与导出 save reachable",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "dark 诊断 settings controls labeled",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "dark 诊断 save reachable",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "dark settings Tabs ArrowRight selects next",
+      "actual": "诊断",
+      "expected": "Skill 搜索",
+      "passed": false,
+      "detail": null
+    },
+    {
+      "name": "dark background snapshot retains settings draft",
+      "actual": "edited-model",
+      "expected": "edited-model",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "720x440 font=12 collapsed=True no horizontal overflow",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "720x440 font=12 collapsed=True header fits",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "720x440 font=12 picker contains effort controls",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "720x440 font=12 collapsed=False no horizontal overflow",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "720x440 font=12 collapsed=False header fits",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "720x440 font=12 picker contains effort controls",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "720x440 font=18 collapsed=True no horizontal overflow",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "720x440 font=18 collapsed=True header fits",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "720x440 font=18 picker contains effort controls",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "720x440 font=18 collapsed=False no horizontal overflow",
+      "actual": false,
+      "expected": true,
+      "passed": false,
+      "detail": null
+    },
+    {
+      "name": "720x440 font=18 collapsed=False header fits",
+      "actual": false,
+      "expected": true,
+      "passed": false,
+      "detail": null
+    },
+    {
+      "name": "720x440 font=18 picker contains effort controls",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "small max font 模型 footer not covering form",
+      "actual": false,
+      "expected": true,
+      "passed": false,
+      "detail": null
+    },
+    {
+      "name": "small max font Skill 搜索 footer not covering form",
+      "actual": false,
+      "expected": true,
+      "passed": false,
+      "detail": null
+    },
+    {
+      "name": "small max font 界面 footer not covering form",
+      "actual": false,
+      "expected": true,
+      "passed": false,
+      "detail": null
+    },
+    {
+      "name": "small max font 会话与导出 footer not covering form",
+      "actual": false,
+      "expected": true,
+      "passed": false,
+      "detail": null
+    },
+    {
+      "name": "small max font 诊断 footer not covering form",
+      "actual": false,
+      "expected": true,
+      "passed": false,
+      "detail": null
+    },
+    {
+      "name": "Reduced motion removes transitions",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "Debug debug severity class exists",
+      "actual": 1,
+      "expected": 1,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "Debug info severity class exists",
+      "actual": 1,
+      "expected": 1,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "Debug warning severity class exists",
+      "actual": 1,
+      "expected": 1,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "Debug error severity class exists",
+      "actual": 1,
+      "expected": 1,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "Debug save initially opt-in",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "Debug clear only displayed logs",
+      "actual": 0,
+      "expected": 0,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "Debug manual save visible",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "Debug failure visible",
+      "actual": true,
+      "expected": true,
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "Debug successful synchronization clears stale error",
+      "actual": false,
+      "expected": true,
+      "passed": false,
+      "detail": null
+    },
+    {
+      "name": "No uncaught JS exceptions",
+      "actual": [],
+      "expected": [],
+      "passed": true,
+      "detail": null
+    }
+  ],
+  "errors": [],
+  "screenshots": [
+    "workspace-light.png",
+    "picker-light.png",
+    "interview-busy.png",
+    "panel-requirements.png",
+    "panel-plan.png",
+    "panel-summary.png",
+    "panel-result.png",
+    "skills-light.png",
+    "settings-light-0.png",
+    "settings-light-1.png",
+    "settings-light-2.png",
+    "settings-light-3.png",
+    "settings-light-4.png",
+    "settings-dark-0.png",
+    "settings-dark-1.png",
+    "settings-dark-2.png",
+    "settings-dark-3.png",
+    "settings-dark-4.png",
+    "small-f12-c1.png",
+    "small-picker-f12-c1.png",
+    "small-f12-c0.png",
+    "small-picker-f12-c0.png",
+    "small-f18-c1.png",
+    "small-picker-f18-c1.png",
+    "small-f18-c0.png",
+    "small-picker-f18-c0.png",
+    "small-settings-max-font.png",
+    "debug-dark.png"
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "project_root": "C:\\Users\\ACha_\\Documents\\GitHub\\PromptSmith",
+  "discovery_level": "heuristic_candidates_only",
+  "files_listed": 636,
+  "packages": [],
+  "route_source_candidates": [],
+  "path_literal_candidates": [],
+  "component_declaration_candidates": [
+    {
+      "name": "SVG_NS",
+      "path": "resources\\ui\\workspace\\workspace.js",
+      "line": 4,
+      "kind": "capitalized declaration candidate, may not be a rendered component"
+    },
+    {
+      "name": "TraceView",
+      "path": "resources\\ui\\workspace\\workspace.js",
+      "line": 127,
+      "kind": "capitalized declaration candidate, may not be a rendered component"
+    },
+    {
+      "name": "SettingsPage",
+      "path": "resources\\ui\\workspace\\settings.js",
+      "line": 3,
+      "kind": "capitalized declaration candidate, may not be a rendered component"
+    }
+  ],
+  "configuration_candidates": [],
+  "skipped": [],
+  "warnings": [],
+  "must_reconcile": [
+    "Resolve framework routes, dynamic parameters, aliases, guards, redirects, flags, nested and parallel routes.",
+    "Inspect runtime navigation and pages reachable only through dialogs, roles, tenant settings or deep links.",
+    "Map rendered UI instances, including conditionally rendered and inline components.",
+    "Do not use this file as proof that all routes or components have been discovered or reviewed."
+  ]
+}

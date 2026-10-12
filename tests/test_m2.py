@@ -223,7 +223,7 @@ def test_m2_input_adapts_unspecified_strength_without_mutating_requirement() -> 
 
 
 @pytest.mark.parametrize("tamper", ["missing_coverage", "bad_reference", "cycle"])
-def test_m2_semantic_validation_rejects_invalid_plan(tamper: str) -> None:
+def test_m2_repairs_model_plan_and_retains_unknown_warning(tamper: str) -> None:
     session = confirmed_session()
     payload = build_m2_input(session, f"invalid-{tamper}", current_date="2026-09-23")
     result = valid_result(payload)
@@ -237,8 +237,11 @@ def test_m2_semantic_validation_rejects_invalid_plan(tamper: str) -> None:
         result["plan"]["steps"][0]["depends_on_step_ids"] = ["s2"]
         result["plan"]["steps"].append(step)
 
-    with pytest.raises(M2ValidationError):
-        parse_m2_response(json.dumps(result, ensure_ascii=False), payload, ASSETS.output_schema)
+    parsed = parse_m2_response(json.dumps(result, ensure_ascii=False), payload, ASSETS.output_schema)
+    assert {row["requirement_id"] for row in parsed["plan"]["requirement_coverage"]} == {row["item_id"] for row in payload["requirements"]}
+    assert any("不一致" in row["description"] for row in parsed["plan"]["unresolved_items"])
+    apply_m2_response(session, payload, parsed)
+    assert session.plan["status"] == "draft"
 
 
 def test_m2_missing_unknown_is_restored_from_input():

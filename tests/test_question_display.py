@@ -3,7 +3,7 @@ from __future__ import annotations
 from promptsmith.guided_flow import GuidedFlowMixin
 
 
-def test_guided_question_formatter_keeps_question_options_and_reason_in_one_paragraph():
+def test_guided_question_formatter_ignores_old_options_and_keeps_reason_in_one_paragraph():
     text = GuidedFlowMixin._format_guided_question({
             "text": "在学分部积分法之前，你已经学过下面哪些内容？",
             "options": ["定积分", "分部积分公式", "都没有"],
@@ -12,10 +12,21 @@ def test_guided_question_formatter_keeps_question_options_and_reason_in_one_para
 
     assert text == (
         "在学分部积分法之前，你已经学过下面哪些内容？"
-        "可选内容包括：定积分、分部积分公式、都没有。"
         "这有助于确定讲解起点。"
     )
     assert "\n" not in text
+
+
+def test_active_question_card_shows_only_the_question_without_legacy_choices():
+    text = GuidedFlowMixin._format_guided_question_card({
+        "text": "现有代码是否可以提供？",
+        "options": ["可以提供代码", "目前没有代码"],
+        "reason": "代码可用性和重构范围直接影响实施方案和工作量。",
+    })
+
+    assert text == "现有代码是否可以提供？"
+    assert "reason" not in text
+    assert "直接影响实施方案" not in text
 
 
 def test_guided_question_formatter_supports_multiple_questions_with_complete_bodies():
@@ -25,7 +36,7 @@ def test_guided_question_formatter_supports_multiple_questions_with_complete_bod
     ])
 
     assert "1. 问题一" in text
-    assert "问题一可选内容包括：A、B。原因一" in text
+    assert "问题一原因一" in text
     assert "确认原因" not in text
     assert "2. 问题二" in text
     assert "问题二原因二" in text

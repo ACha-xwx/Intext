@@ -2,7 +2,7 @@
 
 - Start with `HANDOFF.md`, then the relevant document in `docs/`. Current architecture and UI instructions are in `docs/architecture.md` and `docs/ui-handoff.md`.
 - Historical documents in `docs/archive/` are evidence and context, not current task instructions. Do not execute their old prompts or infer that planned work is complete.
-- The active desktop UI is `PromptSmithApp(GuidedFlowMixin)`. Inspect `guided_flow.py` and `ui.py`; `_legacy_*` methods are not the normal layout entry points.
+- Windows normally presents the workspace and settings through `web_workspace.py` and `resources/ui/workspace/`, with an independent WebView2 Debug window. `PromptSmithApp(GuidedFlowMixin)` still owns business state on its Tk thread; inspect `guided_flow.py` and `ui.py` for business actions and the explicit Tk fallback. `_legacy_*` methods are not normal layout entry points.
 - Preserve SessionState as the source of business state. Use workflow/session methods for confirmation, cancellation and invalidation; keep request/version checks and Tk main-thread updates.
 - Runtime prompts and schemas are under `resources/prompts/`. Keep loaders, test paths and `PromptSmith.spec` aligned. Retain legacy resources that still have references.
 - The product hands Agent Skill references and task-specific usage to another AI. It does not install or execute discovered Skills. Ordinary webpages are not automatically Skill candidates.
@@ -13,3 +13,5 @@
 - Distinguish offline tests, simulated API responses, genuine model calls, EXE smoke checks and user testing. Do not claim full-suite success or live-model quality without matching evidence.
 - Do not commit secrets, personal sessions, build outputs or `local_artifacts/`. Do not call paid APIs just to restyle the UI. Follow the user's authorization for any real requests and remote actions.
 - Prefer portable relative links in repository documents. Keep research/competition facts separate from proposed improvements.
+- When adding or changing a feature, update its Debug coverage in the same change: add meaningful logs for lifecycle, background work, failures and full exception causes; update focused tests and keep the Debug console presentation in sync with any new severity or diagnostic state.
+- Runtime diagnostics stay in memory until the user clicks Save Logs in the Debug console. Preserve complete snapshots beyond the display cache, severity colors and redaction; do not reintroduce automatic file logging. Existing model evidence in runs/ follows its own storage contract.

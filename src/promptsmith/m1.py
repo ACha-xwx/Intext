@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from copy import deepcopy
 from dataclasses import dataclass
@@ -23,8 +24,8 @@ class M1JsonError(M1ValidationError):
     """The provider returned content that is not a strict JSON object."""
 
 
-M1_INCREMENTAL_PROMPT_VERSION = "M1_incremental_v0.15"
-M1_SYSTEM_PROMPT_VERSION = "M1_system_v0.22"
+M1_INCREMENTAL_PROMPT_VERSION = "M1_incremental_v0.18"
+M1_SYSTEM_PROMPT_VERSION = "M1_system_v0.25"
 
 
 def m1_request_mode(*, has_pending_answers: bool, compact_retry: bool = False) -> str:
@@ -55,10 +56,8 @@ def m1_system_prompt(system_prompt: str, *, mode: str) -> str:
     if mode not in {"incremental", "compact_retry"}:
         raise ValueError(f"不支持的M1请求模式：{mode}")
     root = m1_asset_dir()
-    incremental = (root / "M1_incremental_v0.11.txt").read_text(encoding="utf-8-sig")
-    addendum = root / f"{M1_INCREMENTAL_PROMPT_VERSION}.txt"
-    if addendum.exists():
-        incremental = f"{incremental}\n\n{addendum.read_text(encoding='utf-8-sig')}"
+    incremental = "\n\n".join((root / name).read_text(encoding="utf-8-sig") for name in (
+        "M1_contract_v0.1.txt", f"{M1_INCREMENTAL_PROMPT_VERSION}.txt"))
     return f"{incremental}\n\n{_COMPACT_RETRY_INSTRUCTION}" if mode == "compact_retry" else incremental
 
 
@@ -81,14 +80,12 @@ class M1Assets:
                 prompt_version="M1_system_v0.3",
                 contract_version="m1.v0.1",
             )
-        system_prompt = (root / "M1_system_v0.18.txt").read_text(encoding="utf-8-sig")
-        addendum = root / f"{M1_SYSTEM_PROMPT_VERSION}.txt"
-        if addendum.exists():
-            system_prompt = f"{system_prompt}\n\n{addendum.read_text(encoding='utf-8-sig')}"
+        system_prompt = "\n\n".join((root / name).read_text(encoding="utf-8-sig") for name in (
+            "M1_contract_v0.1.txt", f"{M1_SYSTEM_PROMPT_VERSION}.txt"))
         return cls(
             system_prompt=system_prompt,
-            input_schema=json.loads((root / "M1_input_v0.4.schema.json").read_text(encoding="utf-8-sig")),
-            output_schema=json.loads((root / "M1_output_v0.3.schema.json").read_text(encoding="utf-8-sig")),
+            input_schema=json.loads((root / "M1_input_v0.5.schema.json").read_text(encoding="utf-8-sig")),
+            output_schema=json.loads((root / "M1_output_v0.4.schema.json").read_text(encoding="utf-8-sig")),
         )
 
 
@@ -113,6 +110,7 @@ def build_m1_input(
     current_date: str | None = None,
 ) -> dict[str, Any]:
     session._validate_active_references()
+    from .interview import rounds_used, round_limit
     request = session.begin_request(request_id)
     source_count = len(session.sources)
     question_history = []
@@ -181,11 +179,15 @@ def build_m1_input(
             # Compatibility fields remain for older sessions and UI, but this
             # policy tells the model which signal controls interview quality.
             "quality_policy": "model_judgment_first",
+            "interview_policy": "comprehensive_batch",
+            "interview_round_limit": round_limit(session),
+            "interview_rounds_used": rounds_used(session),
+            "interview_rounds_remaining": max(0, round_limit(session) - rounds_used(session)),
         },
         "state": {
             "selected_category": session.selected_category,
             "requirements": deepcopy(session.requirements),
-            "gaps": deepcopy(session.gaps),
+            "gaps": session.active_gaps(),
             "question_history": question_history,
             "question_reopen_history": reopen_history,
             "open_conflicts": [_open_conflict_for_input(row) for row in session.open_conflicts],
@@ -545,7 +547,10 @@ def _semantic_validate(result: dict[str, Any], payload: dict[str, Any]) -> None:
         answer_id = update["answer_id"]
         target_gap = state_gaps.get(target_gap_id)
         answer = pending_answers.get(answer_id)
-        _fail(target_gap is None, f"缺口更新引用了不存在的缺口：{target_gap_id}")
+        historical_answer = bool(answer and target_gap_id in (
+            set(answer.get("context_gap_ids", [])) | {answer.get("gap_id")}
+        ) and update["action"] in {"resolved", "not_applicable"})
+        _fail(target_gap is None and not historical_answer, f"缺口更新引用了不存在的缺口：{target_gap_id}")
         _fail(answer is None, f"缺口更新引用了不存在或已处理的回答：{answer_id}")
         allowed_gaps = set(answer.get("context_gap_ids", [])) | {answer.get("gap_id")}
         _fail(target_gap_id not in allowed_gaps, "缺口更新的回答与目标缺口不一致。")
@@ -623,6 +628,7 @@ def _semantic_validate(result: dict[str, Any], payload: dict[str, Any]) -> None:
         (row["field"], row["scope"]): row.get("gap_id")
         for row in payload["state"]["question_history"]
         if row["disposition"] == "answered" and row.get("assessment_status") == "pending"
+        and row.get("gap_id") not in closed_gap_ids
     }
     continued_answer_gap_ids = {
         row["target_gap_id"]
@@ -706,7 +712,7 @@ def _semantic_validate(result: dict[str, Any], payload: dict[str, Any]) -> None:
     # These values are legacy UI hints carried in the stable input contract.
     # The model decides whether an unresolved direction still needs a question;
     # rejecting that decision here was the cause of the JGS dead end.  The JSON
-    # Schema still bounds one response to three questions, while duplicate,
+    # The current schema allows a complete batch, while duplicate,
     # stale, unsupported, and unreferenced questions remain hard failures.
 
     judgment = result.get("model_judgment")
@@ -846,25 +852,140 @@ def _incremental_result(result: dict[str, Any], payload: dict[str, Any]) -> dict
     return effective
 
 
+def _restore_literal_source_quotes(
+    result: dict[str, Any], payload: dict[str, Any], repairs: list[dict[str, Any]]
+) -> None:
+    """Expand unambiguous ellipsis/spacing quotes back to actual source bytes."""
+    sources = {row["source_id"]: row["text"] for row in payload["sources"]}
+    for collection in ("proposals", "gaps", "questions"):
+        for index, record in enumerate(result.get(collection, [])):
+            for ref_index, ref in enumerate(record.get("source_refs", [])):
+                source = sources.get(ref["source_id"])
+                quote = ref["quote"]
+                if source is None or quote in source:
+                    continue
+                # Retain order, punctuation and every substantive character;
+                # only whitespace, casing and explicit ellipsis are flexible.
+                positions: list[int] = []
+                characters: list[str] = []
+                for position, character in enumerate(source):
+                    if not character.isspace():
+                        folded = character.casefold()
+                        characters.extend(folded)
+                        positions.extend([position] * len(folded))
+                parts = ["".join(part.split()).casefold()
+                         for part in re.split(r"\.{3,}|…+", quote)]
+                parts = [part for part in parts if part]
+                if sum(map(len, parts)) < 4:
+                    continue
+                pattern = ".*?".join(re.escape(part) for part in parts)
+                matches = re.finditer(f"(?=({pattern}))", "".join(characters))
+                first = next(matches, None)
+                if first is None or next(matches, None) is not None:
+                    continue
+                start, end = first.span(1)
+                ref["quote"] = source[positions[start]:positions[end - 1] + 1]
+                repairs.append({"action": "restore_literal_source_quote",
+                                "path": f"$.{collection}[{index}].source_refs[{ref_index}].quote",
+                                "source_id": ref["source_id"]})
+
+
+def _exclude_skipped_followups(result, payload, repairs):
+    latest = {row.get("gap_id"): row.get("disposition") for row in payload["state"]["question_history"]
+              if row.get("gap_id")}
+    skipped = {key for key, decision in latest.items() if decision == "skipped"}
+    skipped -= {row.get("gap_id") for row in payload["state"].get("pending_questions", [])}
+    if not skipped:
+        return
+    scopes = {(row.get("field"), row.get("scope")) for row in payload["state"]["question_history"]
+              if row.get("gap_id") in skipped}
+    skipped.update(row["gap_id"] for row in result.get("gaps", [])
+                   if (row.get("field"), row.get("scope")) in scopes)
+    removed = []
+    for collection in ("gaps", "questions"):
+        kept = [row for row in result.get(collection, []) if row.get("gap_id") not in skipped]
+        if len(kept) != len(result.get(collection, [])):
+            removed.append(collection)
+        result[collection] = kept
+    result["proposals"] = [row for row in result.get("proposals", [])
+                           if (row.get("interpretation_for") or {}).get("gap_id") not in skipped]
+    ready = result.get("readiness") or {}
+    ready["blocking_gap_ids"] = [key for key in ready.get("blocking_gap_ids", []) if key not in skipped]
+    judgment = result.get("model_judgment") or {}
+    judgment["critical_gap_ids"] = [key for key in judgment.get("critical_gap_ids", []) if key not in skipped]
+    if removed:
+        # Honor a user's exclusion without pretending the missing answer is known.
+        if result.get("next_action") == "ask" and not result["questions"]:
+            result["next_action"] = "pause_with_unknowns"
+            judgment["continue_interview"] = False
+        repairs.append({"action": "exclude_user_skipped_followups", "collections": removed})
+
+
 def parse_m1_response(
     raw: str,
     payload: dict[str, Any],
     output_schema: dict[str, Any],
     *,
     incremental: bool = False,
+    normalization_report: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    result = _strict_json_loads(raw)
+    from .model_output import json_text, normalize_shape, log_repairs, extra_notes
+    repairs = normalization_report if normalization_report is not None else []
+    result = normalize_shape(_strict_json_loads(json_text(raw)), output_schema, repairs)
+    for question in result.get("questions", []):
+        if isinstance(question, dict):
+            question.setdefault("options", [])  # Internal compatibility; no suggestions requested or displayed.
     errors = sorted(Draft202012Validator(output_schema).iter_errors(result), key=lambda e: list(e.path))
     if errors:
         path = ".".join(str(part) for part in errors[0].path) or "$"
         raise M1ValidationError(f"M1输出不符合Schema（{path}）：{errors[0].message}")
+    if result.get("status") == "ok":
+        _restore_literal_source_quotes(result, payload, repairs)
     if incremental:
         result = _incremental_result(result, payload)
     if result.get("status") == "ok" and "model_judgment" not in result:
         if "model_judgment" in output_schema.get("properties", {}):
             result["model_judgment"] = _compat_model_judgment(result, payload)
+    if result.get("status") == "ok":
+        _exclude_skipped_followups(result, payload, repairs)
+        from .clarification import answered_question_clarification
+        continued = {row["target_gap_id"] for row in result.get("gap_updates", [])
+                     if row["action"] in {"partial", "unresolved"}}
+        for question in result.get("questions", []):
+            if question["gap_id"] not in continued:
+                continue
+            clarification = answered_question_clarification(question, payload["state"]["question_history"])
+            if clarification:
+                question["text"] = clarification
+                question["reason"] = "仅核对上一条回答仍含糊的意思，不重复原问题"
+                repairs.append({"action": "clarify_repeated_answered_question", "question_id": question["question_id"]})
+                logging.getLogger(__name__).info(
+                    "Repeated interview question converted; request=%s question=%s gap=%s",
+                    payload["request_id"], question["question_id"], question["gap_id"],
+                )
+        judgment = result.get("model_judgment")
+        if judgment and judgment.get("answer_assessment") == "sufficient" and (
+            judgment.get("critical_gap_ids") or judgment.get("continue_interview")
+        ):
+            judgment["answer_assessment"] = "partial"
+            repairs.append({"action": "reconcile_answer_assessment"})
+        notes = extra_notes(repairs)
+        if notes:
+            result["assistant_text"] += "\n" + "\n".join(notes)
+            for index, note in enumerate(notes):
+                gap_id = f"g-model-note-{payload['request_id']}-{index + 1}"
+                result["gaps"].append({"gap_id": gap_id, "field": "constraints", "scope": "模型补充说明",
+                    "description": note, "importance": "can_defer", "origin": "ambiguous",
+                    "source_refs": [], "depends_on": []})
+    from .interview import close_question_batch
+    result = close_question_batch(result, exhausted=(payload.get("control", {}).get("interview_rounds_remaining") == 0))
     _validate_model_judgment_consistency(result)
     _semantic_validate(result, payload)
+    live_gaps = {row["gap_id"] for row in payload["state"]["gaps"]}
+    for update in result.get("gap_updates", []):
+        if update["target_gap_id"] not in live_gaps:
+            repairs.append({"action": "assess_historical_answer", "answer_id": update["answer_id"]})
+    log_repairs("M1", payload["request_id"], repairs)
     return result
 
 

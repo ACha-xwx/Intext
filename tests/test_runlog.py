@@ -1,9 +1,35 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime, timezone
 
+import pytest
+
 from promptsmith.runlog import RunEvidenceWriter
+
+
+@pytest.mark.parametrize(("check", "expected_level"), [
+    ({"valid": False, "auto_correction": {"attempt": 1, "action": "retry_with_contextual_correction"}}, logging.WARNING),
+    ({"valid": False, "auto_correction": {"attempt": 3, "action": "exhausted"}}, logging.ERROR),
+    ({"valid": False, "failure_kind": "network"}, logging.ERROR),
+    ({"valid": True}, logging.INFO),
+])
+def test_recoverable_attempt_warning_keeps_traceback_and_final_errors(tmp_path, caplog, check, expected_level):
+    caplog.set_level(logging.DEBUG, logger="promptsmith.runlog")
+    try:
+        raise ValueError("synthetic quote validation failure")
+    except ValueError:
+        location = RunEvidenceWriter(tmp_path).write(
+            task_id="task-recovery", request_id="req-recovery", prompt_version="fixture",
+            protocol="offline", model="fixture", input_payload={}, system_prompt="fixture",
+            output_schema={}, raw_response="{}", metadata={}, check=check,
+        )
+    record = next(record for record in caplog.records if record.name == "promptsmith.runlog")
+    assert record.levelno == expected_level
+    assert record.exc_info and record.exc_info[0] is ValueError
+    assert "synthetic quote validation failure" in caplog.text
+    assert json.loads((location / "check.json").read_text(encoding="utf-8")) == check
 
 
 def test_run_evidence_uses_unique_location_when_timestamp_and_request_repeat(tmp_path, monkeypatch) -> None:

@@ -492,7 +492,7 @@ def _m4_change(change_id: str = "change-1", *, bindings: list[str] | None = None
     }
 
 
-def test_unknown_skill_prerequisite_requires_an_executable_fallback() -> None:
+def test_unknown_skill_prerequisite_is_explained_without_blocking_delivery() -> None:
     session = _session_with_bound_prerequisite("unknown", ["先只整理用户已提供的术语，缺失材料标为待补充。"])
     assert confirm_final(session) == session.final_result["revision"]
 
@@ -500,21 +500,17 @@ def test_unknown_skill_prerequisite_requires_an_executable_fallback() -> None:
     assert confirm_final(satisfied) == satisfied.final_result["revision"]
 
     blocked = _session_with_bound_prerequisite("unknown", [])
-    before = blocked.to_dict()
-    with pytest.raises(DeliveryValidationError, match="前提|fallback|替代"):
-        confirm_final(blocked)
-    assert blocked.to_dict() == before
+    assert "待核对前提" in blocked.final_result["canonical_body"]
+    assert confirm_final(blocked) == blocked.final_result["revision"]
 
 
-def test_incompatible_skill_prerequisite_cannot_be_confirmed_even_with_fallback() -> None:
+def test_incompatible_skill_prerequisite_remains_a_reference_for_downstream_review() -> None:
     session = _session_with_bound_prerequisite("satisfied", [])
     session.skill_state["bindings"][0]["precondition_assessments"][0]["status"] = "incompatible"
-    before = session.to_dict()
-
-    with pytest.raises(DeliveryValidationError, match="不兼容|前提"):
-        confirm_final(session)
-
-    assert session.to_dict() == before
+    draft = build_final_draft(session)
+    stage_final_draft(session, draft, expected_basis=draft["basis"])
+    assert "incompatible" in session.final_result["canonical_body"]
+    assert confirm_final(session) == session.final_result["revision"]
 
 
 def test_skill_prerequisite_status_requires_a_recorded_source() -> None:

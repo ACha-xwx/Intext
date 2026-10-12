@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 from copy import deepcopy
 from datetime import datetime, timezone
 from typing import Any
@@ -52,7 +53,11 @@ def validate_delivery_entry(session: SessionState, *, allow_unconfirmed_plan: bo
         raise DeliveryValidationError("当前需求仍有冲突，不能生成或导出结果。")
     if session.pending_review_item_ids or any(row.get("confirmation") == "review_needed" for row in session.requirements):
         raise DeliveryValidationError("当前需求仍需复核，不能生成或导出结果。")
-    if any(row.get("importance") == "blocking_direction" for row in session.gaps) and not session.current_draft_authorization():
+    try:
+        session.validate_unknown_reviews()
+    except SessionStateError as exc:
+        raise DeliveryValidationError(str(exc)) from exc
+    if session._blocking_gap_snapshot() and not session.current_draft_authorization():
         raise DeliveryValidationError("方向仍未确定，请补充说明或明确选择先做草稿。")
     plan = session.plan
     interim = allow_unconfirmed_plan and plan.get("status") == "draft"
@@ -86,8 +91,10 @@ def validate_delivery_entry(session: SessionState, *, allow_unconfirmed_plan: bo
 
 
 def _baseline(session: SessionState, *, legacy: bool = False) -> dict[str, Any]:
+    from .clarification import without_skipped_unknowns
     plan = deepcopy(session.plan["content"])
-    # Reconstruct old baselines exactly when validating an already saved final.
+    plan["unresolved_items"] = without_skipped_unknowns(session, plan.get("unresolved_items", []))
+    # Preserve old baseline formatting while honoring current explicit skips.
     # New drafts always use the conservative union and explicit guidance.
     unknown = (
         deepcopy(plan.get("unresolved_items", []) or session.plan_unresolved_items())
@@ -384,8 +391,6 @@ def _validate_skill_bindings(session: SessionState) -> set[str]:
         work = works.get(binding.get("key_work_id"))
         if not binding_id or binding_id in live_ids or not isinstance(snapshot, dict) or work is None:
             raise DeliveryValidationError("当前 Skill 绑定缺少有效来源、关键工作或唯一编号。")
-        if binding.get("usage_mode") != "method_adaptation" or not snapshot.get("method_adaptation_allowed"):
-            raise DeliveryValidationError("当前绑定不支持已核验的方法适配。")
         if binding.get("skill_id") != snapshot.get("skill_id") or binding.get("record_hash") != snapshot.get("record_hash"):
             raise DeliveryValidationError("Skill 绑定与其来源快照不一致。")
         if not set(binding.get("step_ids", [])) <= set(work.get("step_ids", [])):
@@ -411,8 +416,6 @@ def _validate_skill_bindings(session: SessionState) -> set[str]:
                 raise DeliveryValidationError("Skill 前提评估来源无效。")
             if snapshot.get("origin") == "remote" and source == "catalog_evidence":
                 raise DeliveryValidationError("远程 Skill 前提不能标记为本地目录证据。")
-            if status == "incompatible":
-                raise DeliveryValidationError("所选 Agent Skill 与当前环境或任务前提不兼容。")
             seen_assessments.add(prerequisite_id)
         live_ids.add(str(binding_id))
     return live_ids
@@ -441,29 +444,8 @@ def validate_current_final(
     if not isinstance(baseline, dict) or baseline != _baseline(session, legacy=legacy):
         raise DeliveryValidationError("最终结果没有完整承接当前已确认基线。")
     bindings = _validate_skill_bindings(session)
-    binding_by_id = {
-        row["binding_id"]: row for row in session.skill_state.get("bindings", [])
-    }
-    unknown_prerequisites: dict[str, set[str]] = {}
-    for binding_id, binding in binding_by_id.items():
-        snapshot = binding.get("record_snapshot") or {}
-        expected = {
-            row.get("prerequisite_id")
-            for row in snapshot.get("adaptation_prerequisites", [])
-            if isinstance(row, dict) and row.get("prerequisite_id")
-        }
-        statuses = {
-            row.get("prerequisite_id"): row.get("status", "unknown")
-            for row in binding.get("precondition_assessments", [])
-        }
-        unknown_prerequisites[binding_id] = {
-            prerequisite_id
-            for prerequisite_id in expected
-            if statuses.get(prerequisite_id, "unknown") == "unknown"
-        }
     contributions = content.get("skill_contributions", [])
     contribution_bindings: set[str] = set()
-    represented_unknowns: dict[str, set[str]] = {binding_id: set() for binding_id in bindings}
     for row in contributions:
         origins = set(row.get("origin_binding_ids", []))
         if row.get("binding_id"):
@@ -471,39 +453,6 @@ def validate_current_final(
         if not origins or not origins <= bindings:
             raise DeliveryValidationError("最终结果包含未选用或已过期的 Agent Skill 内容。")
         contribution_bindings.update(origins)
-        inactive_changes = row.get("disabled_by_rejected_changes", [])
-        inactive_review_ids = {
-            f"m4-fallback-required:{item.get('generation_request_id')}:{item.get('change_id')}"
-            for item in inactive_changes
-            if isinstance(item, dict) and item.get("generation_request_id") and item.get("change_id")
-        }
-        actions_disabled = (
-            not row.get("method_actions")
-            and inactive_changes
-            and not any(_review_id_is_blocking(result, review_id) for review_id in inactive_review_ids)
-        )
-        if (not row.get("method_actions") and not actions_disabled) or not row.get("planned_inputs") or not row.get("expected_outputs") or not row.get("checkpoints"):
-            raise DeliveryValidationError("Agent Skill 适配内容缺少具体动作、输入、输出或检查点。")
-        prerequisite_ids = set(row.get("prerequisite_ids", []))
-        for binding_id in origins:
-            unresolved = unknown_prerequisites.get(binding_id, set())
-            represented_unknowns[binding_id].update(prerequisite_ids & unresolved)
-            if prerequisite_ids & unresolved:
-                fallback = row.get("fallback_actions")
-                usable_fallback = (
-                    isinstance(fallback, list)
-                    and any(
-                        isinstance(action, str)
-                        and action.strip()
-                        and action.strip().casefold() not in {"无", "none", "n/a"}
-                        for action in fallback
-                    )
-                )
-                if not usable_fallback:
-                    raise DeliveryValidationError("未知 Skill 前提只有在存在可执行 fallback 时才能确认。")
-    for binding_id, unknown_ids in unknown_prerequisites.items():
-        if not unknown_ids <= represented_unknowns[binding_id]:
-            raise DeliveryValidationError("未知 Skill 前提没有关联到适配内容和 fallback。")
     if contribution_bindings != bindings:
         raise DeliveryValidationError("最终结果没有覆盖全部当前选用的 Agent Skill。")
     body = result.get("canonical_body")
@@ -552,10 +501,26 @@ def build_final_draft(
         for row in previous.get("suggestion_decisions", [])
         if previous_same_plan and row.get("suggestion_id") in current_suggestion_ids
     ]
-    contributions = _attach_skill_provenance(
-        session,
-        _skill_contributions(session, selected_contributions),
-    )
+    from .model_output import reference_contribution, string_list
+    contributions = _skill_contributions(session, selected_contributions)
+    bindings = {row["binding_id"]: row for row in session.skill_state.get("bindings", [])}
+    works = {row["key_work_id"]: row for row in session.plan["content"].get("key_work", [])}
+    for row in contributions:
+        origin = row.get("binding_id") or next(iter(row.get("origin_binding_ids", [])), None)
+        if origin in bindings:
+            binding = bindings[origin]
+            defaults = reference_contribution(binding, works[binding["key_work_id"]])
+            for key in ("method_actions", "planned_inputs", "expected_outputs", "checkpoints"):
+                if not row.get(key) and not (key == "method_actions" and row.get("disabled_by_rejected_changes")):
+                    row[key] = defaults[key]
+            row["fallback_actions"] = list(dict.fromkeys([*string_list(row.get("fallback_actions")), *defaults["fallback_actions"]]))
+    represented = {binding_id for row in contributions for binding_id in (
+        [*row.get("origin_binding_ids", []), *([row["binding_id"]] if row.get("binding_id") else [])]
+    )}
+    for binding in session.skill_state.get("bindings", []):
+        if binding["binding_id"] not in represented:
+            contributions.append(reference_contribution(binding, works[binding["key_work_id"]]))
+    contributions = _attach_skill_provenance(session, contributions)
     contribution_bindings: set[str] = set()
     for row in contributions:
         origins = set(row.get("origin_binding_ids", []))
@@ -640,7 +605,8 @@ def build_final_draft(
         "canonical_body": body,
         "body_sha256": _content_hash(body),
         "renderer_version": "final-render.v0.2",
-        "tone": str(previous.get("tone", "neutral")),
+        "tone": str(session.control.get("default_tone", "neutral") if previous.get("status", "not_started") == "not_started"
+                    else previous.get("tone", "neutral")),
         "suggestion_decisions": prior_decisions,
         "change_decisions": deepcopy(previous.get("change_decisions", [])),
         "review_required_ids": [],
@@ -941,6 +907,32 @@ def validate_loaded_delivery(session: SessionState) -> None:
 
     result["recovery_notice"] = None
     content = result["content"]
+    from .clarification import without_skipped_unknowns
+    baseline = content.get("baseline", {})
+    before = deepcopy(baseline)
+    baseline["unknown"] = without_skipped_unknowns(session, baseline.get("unknown", []))
+    if isinstance(baseline.get("plan"), dict):
+        baseline["plan"]["unresolved_items"] = without_skipped_unknowns(session, baseline["plan"].get("unresolved_items", []))
+    authorization = baseline.get("draft_authorization")
+    if authorization and without_skipped_unknowns(session, authorization.get("unresolved_items", [])) != authorization.get("unresolved_items"):
+        current = session.current_draft_authorization()
+        if current:
+            baseline["draft_authorization"] = current
+        else:
+            baseline.pop("draft_authorization", None)
+    if baseline != before:
+        archived = deepcopy(result)
+        archived["content"]["baseline"] = before
+        archived["archived_reason"] = "skipped_unknowns_removed"
+        session.final_archive.append(archived)
+        result["canonical_body"] = render_canonical_body(content)
+        result["body_sha256"] = _content_hash(result["canonical_body"])
+        result["revision"] = int(result.get("revision", 0)) + 1
+        if status != "stale":
+            result["status"] = "draft"
+        result["confirmed_revision"] = None
+        result["recovery_notice"] = "已从提示词移除跳过的事项，原内容保留在历史记录。"
+        logging.getLogger(__name__).info("Removed skipped unknowns from saved final prompt; task=%s revision=%s", session.task_id, result["revision"])
     expected_body = render_canonical_body(content)
     cached_body = result.get("canonical_body")
     legacy_body_is_valid = (
@@ -1149,7 +1141,7 @@ def render_canonical_body(content: dict[str, Any], *, _legacy_v01: bool = False)
     else:
         lines.append("- 本方案未采用外部 Agent Skill。")
     lines.extend(["", "未决事项"])
-    unknown = baseline.get("unknown", [])
+    unknown = [row for row in baseline.get("unknown", []) if row.get("origin") != "user_skipped"]
     if unknown:
         if baseline.get("unknown_handling") == "ask_then_defer":
             lines.append("使用本提示时，优先询问影响当前工作的缺失信息；用户暂不回答或含义仍不清楚时，保留未决标记，先推进不依赖它的部分，不自行编造答案。")

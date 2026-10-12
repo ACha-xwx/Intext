@@ -261,6 +261,10 @@ def make_session(*, with_binding: bool = False) -> SessionState:
             },
             bindings=[],
         )
+    # This downstream fixture represents a user who explicitly deferred the
+    # missing repository material before confirming the plan.
+    for question in session.questions_for_review():
+        session.record_question(question["question_id"], "skipped")
     return session
 
 
@@ -274,6 +278,22 @@ def client_for(server: str, protocol: str):
             protocol=protocol,
         )
     )
+
+
+def test_m4_does_not_repeat_plan_step_and_key_work_text(tmp_path: Path) -> None:
+    session = make_session(with_binding=True)
+    before = deepcopy(session.plan)
+    workflow = DeliveryWorkflow(session, evidence_root=tmp_path)
+    payload = workflow.prepare_m4("compact-m4", connection_version=1)
+
+    assert session.plan == before
+    assert payload["steps"][0]["actions"] == before["content"]["steps"][0]["actions"]
+    assert payload["key_work"][0]["goal"] == before["content"]["key_work"][0]["goal"]
+    assert payload["baseline"]["plan"]["steps"][0]["depends_on_step_ids"] == []
+    assert payload["baseline"]["plan"]["steps"][0]["requirement_ids"] == ["r1"]
+    wire = json.dumps(payload, ensure_ascii=False)
+    assert wire.count("整理需求和验收方式") == 1
+    assert wire.count("形成软件报名系统规格文档") == 1
 
 
 @pytest.mark.parametrize("protocol", PROTOCOLS)
@@ -552,7 +572,7 @@ def test_connection_aba_and_cancelled_response_cannot_apply(tmp_path: Path) -> N
     assert session.to_dict() == before
 
 
-def test_m4_validation_failure_preserves_previous_final_result(tmp_path: Path) -> None:
+def test_m4_partial_response_generates_reference_prompt_and_preserves_selection(tmp_path: Path) -> None:
     session = make_session(with_binding=True)
     workflow = DeliveryWorkflow(session, evidence_root=tmp_path / "evidence")
     payload = workflow.prepare_m4("m4-invalid-output", connection_version=1)
@@ -565,14 +585,11 @@ def test_m4_validation_failure_preserves_previous_final_result(tmp_path: Path) -
         "skill_state": deepcopy(session.skill_state),
     }
 
-    with pytest.raises(DeliveryCallFailure):
-        workflow.apply_m4(payload, outcome, connection_version=1)
-
-    assert session.final_result == before["final_result"]
-    assert session.final_archive == before["final_archive"]
-    assert session.delivery_revision == before["delivery_revision"]
+    workflow.apply_m4(payload, outcome, connection_version=1)
+    assert session.final_result["status"] == "draft"
+    assert "to-spec" in session.final_result["canonical_body"]
+    assert "an M4 response" in session.final_result["canonical_body"]
     assert session.skill_state == before["skill_state"]
-    assert session.errors[-1]["kind"].startswith("m4_")
 
 
 def test_m3_delayed_response_after_task_change_is_discarded_without_apply_writes(

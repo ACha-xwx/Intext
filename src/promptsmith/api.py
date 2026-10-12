@@ -1,14 +1,24 @@
 from __future__ import annotations
 
+from uuid import uuid4
+from .streaming import consume_sse, StreamError, stream_observed, publish, response_reasoning
+
 import json
+import logging
+import math
 import re
 import socket
 import time
+from concurrent.futures import CancelledError
 from dataclasses import dataclass, field
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlsplit
 from urllib.request import Request, urlopen
+
+from .task_scope import check_cancelled, interrupt_on_cancel
+from .model_catalog import find_model
+from .model_input import prepare_json_input, log_response_usage
 
 
 PROVIDER_ID = "deepseek"
@@ -66,6 +76,10 @@ class ApiConfig:
     timeout_seconds: float = DEFAULT_GENERATION_TIMEOUT_SECONDS
     provider: str = PROVIDER_ID
     protocol: str = PROTOCOL_ID
+    max_tokens: int | None = None
+    temperature: float | str | None = "auto"
+    top_p: float | None = None
+    reasoning_effort: str = "auto"
 
     def __post_init__(self) -> None:
         for name in ("base_url", "model", "api_key", "provider", "protocol"):
@@ -76,8 +90,20 @@ class ApiConfig:
         if normalized_protocol not in SUPPORTED_PROTOCOLS:
             raise ValueError(f"当前版本不支持协议：{normalized_protocol}")
         object.__setattr__(self, "protocol", normalized_protocol)
-        if self.timeout_seconds <= 0:
+        if not math.isfinite(self.timeout_seconds) or self.timeout_seconds <= 0:
             raise ValueError("timeout_seconds必须大于0。")
+        if self.max_tokens is not None and (isinstance(self.max_tokens, bool) or not isinstance(self.max_tokens, int) or not 1 <= self.max_tokens <= 262144):
+            raise ValueError("max_tokens必须是1到262144之间的整数，或使用自动值。")
+        for name, maximum in (("temperature", 1 if normalized_protocol == ANTHROPIC_MESSAGES_PROTOCOL else 2), ("top_p", 1)):
+            value = getattr(self, name)
+            if value is None or (name == "temperature" and value == "auto"):
+                continue
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not 0 <= value <= maximum:
+                raise ValueError(f"{name}必须在0到{maximum}之间，或留空使用服务端默认。")
+        if normalized_protocol == ANTHROPIC_MESSAGES_PROTOCOL and self.temperature not in (None, "auto") and self.top_p is not None:
+            raise ValueError("Anthropic Messages 请只设置 temperature 或 top_p 中的一项。")
+        if self.reasoning_effort not in {"auto", "omit", "low", "medium", "high", "max"}:
+            raise ValueError("推理强度无效。")
 
 
 @dataclass(frozen=True)
@@ -92,6 +118,8 @@ class ApiResult:
     request_snapshot: dict[str, Any] | None = None
     response_envelope: dict[str, Any] | None = None
 
+    reasoning_content: str = ""
+
     @classmethod
     def from_error(cls, error: ApiError) -> "ApiResult":
         return cls(
@@ -99,6 +127,7 @@ class ApiResult:
             error.response_id, error.response_model, finish_reason=error.finish_reason,
             request_snapshot=getattr(error, "request_snapshot", None),
             response_envelope=getattr(error, "response_envelope", None),
+            reasoning_content=getattr(error, "reasoning_content", ""),
         )
 
 
@@ -131,12 +160,59 @@ def _is_verified_deepseek(config: ApiConfig) -> bool:
 def structured_request_parameters(config: ApiConfig) -> dict[str, Any]:
     """Return only protocol/provider parameters that this request may send."""
     verified = _is_verified_deepseek(config)
-    limit = DEEPSEEK_STRUCTURED_OUTPUT_MAX_TOKENS if verified else STRUCTURED_OUTPUT_MAX_TOKENS
+    limit = config.max_tokens or (DEEPSEEK_STRUCTURED_OUTPUT_MAX_TOKENS if verified else STRUCTURED_OUTPUT_MAX_TOKENS)
+    parameters = reasoning_request_parameters(config)
     if config.protocol == OPENAI_RESPONSES_PROTOCOL:
-        return {"max_output_tokens": limit, **({"reasoning": {"effort": "low"}} if verified else {})}
+        return {"max_output_tokens": limit, **parameters}
     if config.protocol == ANTHROPIC_MESSAGES_PROTOCOL:
-        return {"max_tokens": limit, **({"output_config": {"effort": "low"}} if verified else {})}
-    return {"max_tokens": limit, **({"reasoning_effort": "low"} if verified else {})}
+        return {"max_tokens": limit, **parameters}
+    # GPT-6 Chat Completions budgets include both reasoning and visible output.
+    model = find_model(config.model)
+    key = "max_completion_tokens" if model and model.provider == "OpenAI" else "max_tokens"
+    return {key: limit, **parameters}
+
+
+def reasoning_request_parameters(config: ApiConfig) -> dict[str, Any]:
+    """Translate the four UI levels to documented provider/protocol values."""
+    model = find_model(config.model)
+    effort = "low" if config.reasoning_effort == "auto" and _is_verified_deepseek(config) else config.reasoning_effort
+    if effort in {"auto", "omit"}:
+        return {}
+    actual = model.map_effort(effort) if model else effort
+    if actual != effort:
+        logging.getLogger(__name__).debug("Thinking effort mapped: model=%s selected=%s effective=%s", config.model, effort, actual)
+    if config.protocol == OPENAI_RESPONSES_PROTOCOL:
+        return {"reasoning": {"effort": actual}}
+    if config.protocol == ANTHROPIC_MESSAGES_PROTOCOL:
+        thinking = {"thinking": {"type": "enabled"}} if model and model.provider == "DeepSeek" else (
+            {"thinking": {"type": "adaptive"}} if model and model.adaptive else {})
+        return {**thinking, "output_config": {"effort": actual}}
+    thinking = {"thinking": {"type": "enabled"}} if model and model.provider == "DeepSeek" else {}
+    return {**thinking, "reasoning_effort": actual}
+
+
+def bounded_request_parameters(config: ApiConfig, limit: int) -> dict[str, Any]:
+    """Connection probes and text completions share generation's effort mapping."""
+    key = ("max_output_tokens" if config.protocol == OPENAI_RESPONSES_PROTOCOL else
+           "max_completion_tokens" if config.protocol == PROTOCOL_ID and (model := find_model(config.model)) and model.provider == "OpenAI" else "max_tokens")
+    return {key: limit, **reasoning_request_parameters(config)}
+
+
+def sampling_request_parameters(config: ApiConfig) -> dict[str, Any]:
+    parameters = {}
+    model = find_model(config.model)
+    # These providers ignore or reject temperature during reasoning. Omit it
+    # rather than present a setting as effective when the API does not use it.
+    no_temperature = bool(model and model.provider in {"OpenAI", "Anthropic", "DeepSeek"})
+    temperature = 0 if config.temperature == "auto" and config.protocol == PROTOCOL_ID else config.temperature
+    if temperature not in (None, "auto") and not no_temperature:
+        parameters["temperature"] = temperature
+    if config.top_p is not None:
+        if not model or model.provider not in {"OpenAI", "Anthropic"}:
+            parameters["top_p"] = max(.95, config.top_p) if model and model.provider == "DeepSeek" else config.top_p
+    if no_temperature and (temperature not in (None, "auto") or config.top_p is not None):
+        logging.getLogger(__name__).debug("Sampling parameters adapted for thinking model=%s; effective=%s", config.model, parameters)
+    return parameters
 
 
 class _HttpClient:
@@ -206,11 +282,78 @@ class _HttpClient:
         invalid_message: str,
         model_directory: bool = False,
     ) -> tuple[dict[str, Any], int]:
+        check_cancelled()
+        logger = logging.getLogger(__name__)
+        endpoint = urlsplit(request.full_url)
+        target = f"{endpoint.scheme}://{endpoint.hostname}{endpoint.path}"
+        logger.debug("HTTP request started: %s %s; protocol=%s model=%s timeout=%ss",
+                     request.get_method(), target, self.config.protocol, self.config.model,
+                     self.config.timeout_seconds)
+        if request.data:
+            parameters = json.loads(request.data)
+            options = {
+                key: parameters[key] for key in ("max_tokens", "max_output_tokens", "max_completion_tokens",
+                                                "temperature", "top_p", "reasoning_effort", "reasoning", "thinking")
+                if key in parameters
+            }
+            if isinstance(parameters.get("output_config"), dict) and "effort" in parameters["output_config"]:
+                options["output_config"] = {"effort": parameters["output_config"]["effort"]}
+            logger.debug("Model request options: %s", options)
+        try:
+            result, latency = self._send_json_impl(request, invalid_message=invalid_message,
+                                                   model_directory=model_directory)
+            check_cancelled()
+        except CancelledError:
+            logger.info("HTTP response discarded after task cancellation: %s %s", request.get_method(), target)
+            raise
+        except Exception as exc:
+            check_cancelled()
+            logger.exception("HTTP request failed: %s %s; kind=%s status=%s latency_ms=%s",
+                             request.get_method(), target, getattr(exc, "kind", None),
+                             getattr(exc, "status_code", None), getattr(exc, "latency_ms", None))
+            raise
+        logger.info("HTTP request completed: %s %s; latency_ms=%s", request.get_method(), target, latency)
+        return result, latency
+
+    def _send_json_impl(
+        self,
+        request: Request,
+        *,
+        invalid_message: str,
+        model_directory: bool = False,
+    ) -> tuple[dict[str, Any], int]:
         started = time.perf_counter()
         self.last_response_envelope = None
         try:
             with urlopen(request, timeout=self.config.timeout_seconds) as response:
-                raw = response.read()
+                # shutdown wakes a blocked read before BufferedReader.close
+                # tries to acquire its lock on the cancelling UI thread.
+                transport = getattr(getattr(getattr(response, "fp", None), "raw", None), "_sock", None)
+                def abort_response():
+                    if transport is not None:
+                        try:
+                            transport.shutdown(socket.SHUT_RDWR)
+                        except OSError:
+                            pass
+                    close = getattr(response, "close", None)
+                    if close is not None:
+                        close()
+                with interrupt_on_cancel(abort_response):
+                    if "text/event-stream" in str(getattr(response, "headers", {}).get("Content-Type", "")).lower():
+                        envelope, count, thought_size, text_size = consume_sse(response, self.config.protocol,
+                            lambda kind, text: publish(kind, id=self._stream_id, text=text))
+                        self.last_response_envelope = envelope
+                        logging.getLogger(__name__).info("Model stream received: id=%s events=%s reasoning_chars=%s content_chars=%s latency_ms=%s",
+                            self._stream_id, count, thought_size, text_size, self._elapsed(started))
+                        return envelope, self._elapsed(started)
+                    raw = response.read()
+        except StreamError as exc:
+            self.last_response_envelope = exc.envelope
+            raise ApiError(exc.kind, str(exc), latency_ms=self._elapsed(started),
+                           timeout_seconds=self.config.timeout_seconds if exc.kind == "timeout" else None,
+                           response_content=self._partial_stream_content(exc.envelope),
+                           response_usage=exc.envelope.get("usage"),
+                           response_id=exc.envelope.get("id"), response_model=exc.envelope.get("model")) from exc
         except HTTPError as exc:
             latency = self._elapsed(started)
             detail = self._http_error_detail(exc)
@@ -225,8 +368,8 @@ class _HttpClient:
                 message = f"接口返回HTTP {exc.code}。"
             if detail:
                 message = f"{message} 服务端说明：{detail}"
-            raise ApiError(kind, message, exc.code, latency, error_detail=detail) from None
-        except (TimeoutError, socket.timeout):
+            raise ApiError(kind, message, exc.code, latency, error_detail=detail) from exc
+        except (TimeoutError, socket.timeout) as exc:
             latency = self._elapsed(started)
             message = (
                 f"获取模型列表超时（当前阈值 {self.config.timeout_seconds:g} 秒），可继续手动填写模型 ID。"
@@ -235,7 +378,7 @@ class _HttpClient:
             )
             raise ApiError(
                 "timeout", message, latency_ms=latency, timeout_seconds=self.config.timeout_seconds
-            ) from None
+            ) from exc
         except URLError as exc:
             latency = self._elapsed(started)
             if isinstance(exc.reason, (TimeoutError, socket.timeout)):
@@ -246,24 +389,34 @@ class _HttpClient:
                 )
                 raise ApiError(
                     "timeout", message, latency_ms=latency, timeout_seconds=self.config.timeout_seconds
-                ) from None
+                ) from exc
             message = (
                 "无法连接模型目录，可继续手动填写模型 ID。"
                 if model_directory
                 else "无法连接模型接口，请检查地址和网络。"
             )
-            raise ApiError("network", message, latency_ms=latency) from None
+            raise ApiError("network", message, latency_ms=latency) from exc
         latency = self._elapsed(started)
+        check_cancelled()
         try:
             envelope = json.loads(raw.decode("utf-8"))
             if not isinstance(envelope, dict):
                 raise TypeError
-        except (UnicodeDecodeError, json.JSONDecodeError, TypeError):
-            raise ApiError("invalid_response", invalid_message, latency_ms=latency) from None
+        except (UnicodeDecodeError, json.JSONDecodeError, TypeError) as exc:
+            raise ApiError("invalid_response", invalid_message, latency_ms=latency) from exc
         self.last_response_envelope = envelope
+        if stream_observed() and hasattr(self, "_stream_id"):
+            reasoning = response_reasoning(envelope, self.config.protocol)
+            if reasoning:
+                publish("reasoning", id=self._stream_id, text=reasoning)
+            logging.getLogger(__name__).debug("Model returned buffered JSON: id=%s reasoning_chars=%s", self._stream_id, len(reasoning))
         return envelope, latency
 
     def _post_json(self, endpoint: str, body: dict[str, Any], headers: dict[str, str]) -> tuple[dict[str, Any], int]:
+        self._stream_id = uuid4().hex
+        if stream_observed():
+            body = {**body, "stream": True}
+            publish("start", id=self._stream_id, model=self.config.model, protocol=self.config.protocol)
         self.last_request_snapshot = {
             "method": "POST",
             "endpoint": endpoint,
@@ -276,17 +429,22 @@ class _HttpClient:
             method="POST",
             headers={
                 "Content-Type": "application/json",
-                "Accept": "application/json",
+                "Accept": "text/event-stream, application/json" if stream_observed() else "application/json",
                 "User-Agent": "PromptSmith/0.2",
                 **headers,
             },
         )
         try:
-            return self._send_json(
+            result = self._send_json(
                 request,
                 invalid_message=f"模型接口响应格式不符合{self.protocol_name}约定。",
             )
+            log_response_usage(result[0], request_id=self._stream_id, latency_ms=result[1])
+            publish("end", id=self._stream_id)
+            return result
         except ApiError as exc:
+            publish("failed", id=self._stream_id, text=str(exc))
+            exc.reasoning_content = response_reasoning(self.last_response_envelope or {}, self.config.protocol)
             exc.request_snapshot = self.last_request_snapshot
             exc.response_envelope = self.last_response_envelope
             raise
@@ -302,6 +460,16 @@ class _HttpClient:
             invalid_message="模型目录响应格式不符合当前服务约定，可继续手动填写模型 ID。",
             model_directory=True,
         )
+
+    @staticmethod
+    def _partial_stream_content(envelope):
+        choices = envelope.get("choices") or []
+        if choices and isinstance(choices[0], dict):
+            return (choices[0].get("message") or {}).get("content", "")
+        if isinstance(envelope.get("content"), list):
+            return "".join(b.get("text", "") for b in envelope["content"] if isinstance(b, dict) and isinstance(b.get("text"), str))
+        return "".join(b.get("text", "") for row in envelope.get("output", []) if isinstance(row, dict)
+                       for b in row.get("content", []) if isinstance(b, dict) and isinstance(b.get("text"), str))
 
     @staticmethod
     def _parse_model_ids(envelope: dict[str, Any], latency_ms: int) -> ModelListResult:
@@ -357,7 +525,7 @@ class ChatCompletionsClient(_HttpClient):
                     {"role": "system", "content": "You are a connection test."},
                     {"role": "user", "content": "Reply with OK."},
                 ],
-                "max_tokens": 8192,
+                **bounded_request_parameters(self.config, 8192),
             },
             allow_probe_truncation=True,
         )
@@ -365,6 +533,7 @@ class ChatCompletionsClient(_HttpClient):
     def complete_json(
         self, system_prompt: str, payload: dict[str, Any], output_schema: dict[str, Any]
     ) -> ApiResult:
+        system_prompt, input_text = prepare_json_input(system_prompt, payload, output_schema)
         schema_text = json.dumps(output_schema, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
         system_with_contract = (
             f"{system_prompt}\n\n【应用提供的输出结构契约】\n"
@@ -377,11 +546,11 @@ class ChatCompletionsClient(_HttpClient):
                     {"role": "system", "content": system_with_contract},
                     {
                         "role": "user",
-                        "content": json.dumps(payload, ensure_ascii=False, separators=(",", ":"), allow_nan=False),
+                        "content": input_text,
                     },
                 ],
                 "response_format": {"type": "json_object"},
-                "temperature": 0,
+                **sampling_request_parameters(self.config),
             }
         body.update(structured_request_parameters(self.config))
         return self._post(body)
@@ -398,8 +567,8 @@ class ChatCompletionsClient(_HttpClient):
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_text},
                 ],
-                "max_tokens": max_output_tokens,
-                "temperature": 0,
+                **bounded_request_parameters(self.config, max_output_tokens),
+                **sampling_request_parameters(self.config),
             }
         )
 
@@ -420,9 +589,20 @@ class ChatCompletionsClient(_HttpClient):
             response_id = envelope.get("id") if isinstance(envelope.get("id"), str) else None
             response_model = envelope.get("model") if isinstance(envelope.get("model"), str) else None
             if truncated and not allow_probe_truncation:
+                details = (usage or {}).get("completion_tokens_details") or {}
+                reasoning_tokens = details.get("reasoning_tokens") if isinstance(details, dict) else None
+                output_tokens = (usage or {}).get("completion_tokens")
+                reasoning_only = (not partial_content.strip() and isinstance(reasoning_tokens, int)
+                                  and isinstance(output_tokens, int) and output_tokens > 0
+                                  and reasoning_tokens >= output_tokens)
+                message = ("模型思考耗尽输出预算，尚未返回正文；未自动重试。可更换模型，或自行调整思考强度后再试。"
+                           if reasoning_only else "模型输出因长度限制被截断。")
+                if reasoning_only:
+                    logging.getLogger(__name__).warning("Model reasoning exhausted output budget; model=%s reasoning_tokens=%s output_tokens=%s content_chars=0 retry=False",
+                                                        response_model, reasoning_tokens, output_tokens)
                 raise ApiError(
                     "truncated",
-                    "模型输出因长度限制被截断。",
+                    message,
                     latency_ms=latency,
                     response_content=partial_content,
                     response_usage=usage,
@@ -443,12 +623,12 @@ class ChatCompletionsClient(_HttpClient):
                 raise TypeError
         except ApiError:
             raise
-        except (KeyError, IndexError, TypeError, AttributeError):
+        except (KeyError, IndexError, TypeError, AttributeError) as exc:
             raise ApiError(
                 "invalid_response",
                 "模型接口响应格式不符合Chat Completions约定。",
                 latency_ms=latency,
-            ) from None
+            ) from exc
         usage = envelope.get("usage")
         return ApiResult(
             content,
@@ -460,6 +640,7 @@ class ChatCompletionsClient(_HttpClient):
             finish_reason if isinstance(finish_reason, str) else None,
             self.last_request_snapshot,
             self.last_response_envelope,
+            response_reasoning(envelope, self.config.protocol),
         )
 
 
@@ -495,7 +676,7 @@ class OpenAIResponsesClient(_HttpClient):
                 "model": self.config.model.strip(),
                 "instructions": "You are a connection test.",
                 "input": "Reply with OK.",
-                "max_output_tokens": 8192,
+                **bounded_request_parameters(self.config, 8192),
             },
             allow_probe_truncation=True,
         )
@@ -503,12 +684,14 @@ class OpenAIResponsesClient(_HttpClient):
     def complete_json(
         self, system_prompt: str, payload: dict[str, Any], output_schema: dict[str, Any]
     ) -> ApiResult:
+        system_prompt, input_text = prepare_json_input(system_prompt, payload, output_schema)
         request_parameters = structured_request_parameters(self.config)
         body = {
             "model": self.config.model.strip(),
             "instructions": system_prompt,
-            "input": json.dumps(payload, ensure_ascii=False, separators=(",", ":"), allow_nan=False),
+            "input": input_text,
             **request_parameters,
+            **sampling_request_parameters(self.config),
             "text": {
                 "format": {
                     "type": "json_schema",
@@ -521,11 +704,25 @@ class OpenAIResponsesClient(_HttpClient):
         try:
             return self._post(body)
         except ApiError as exc:
-            if exc.status_code != 400:
+            # Removing the native format cannot fix a bad model/parameter or
+            # authorization error. Only explicit format incompatibility merits
+            # one fallback request; malformed schemas remain visible failures.
+            detail = exc.error_detail.lower()
+            format_name = r"(?:\bjson_schema\b|\bstructured outputs?\b|\btext\.format\b|\bresponse_format\b)"
+            quoted_format = rf"['\"`]?{format_name}(?![\w.])['\"`]?"
+            incompatible = bool(re.search(
+                rf"{quoted_format}\s+(?:(?:is|are)\s+)?(?:not supported|unsupported|not implemented)\b"
+                rf"|(?:does not support|doesn't support)\s+{quoted_format}"
+                rf"|(?:unknown parameter|unrecognized parameter|unsupported parameter)\s*:\s*{quoted_format}",
+                detail,
+            ))
+            if exc.status_code != 400 or not incompatible:
+                logging.getLogger(__name__).debug(
+                    "Responses format fallback skipped: status=%s kind=%s", exc.status_code, exc.kind,
+                )
                 raise
-            # Some OpenAI-compatible Responses proxies reject complex schema
-            # keywords while accepting ordinary JSON text. Keep the same
-            # contract in the instructions and let the local parser validate it.
+            # Some Responses proxies lack native structured outputs. Keep the
+            # same contract in the instructions for local parser validation.
             schema_text = json.dumps(output_schema, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
             fallback_body = {
                 **body,
@@ -536,6 +733,9 @@ class OpenAIResponsesClient(_HttpClient):
                 ),
             }
             fallback_body.pop("text", None)
+            logging.getLogger(__name__).warning(
+                "Responses native JSON format unsupported; sending one compatible request with the same schema contract",
+            )
             return self._post(fallback_body)
 
     def complete_text(
@@ -548,7 +748,8 @@ class OpenAIResponsesClient(_HttpClient):
                 "model": self.config.model.strip(),
                 "instructions": system_prompt,
                 "input": user_text,
-                "max_output_tokens": max_output_tokens,
+                **bounded_request_parameters(self.config, max_output_tokens),
+                **sampling_request_parameters(self.config),
             }
         )
 
@@ -620,6 +821,7 @@ class OpenAIResponsesClient(_HttpClient):
             finish_reason,
             self.last_request_snapshot,
             self.last_response_envelope,
+            response_reasoning(envelope, self.config.protocol),
         )
 
 
@@ -699,7 +901,7 @@ class AnthropicMessagesClient(_HttpClient):
                 "model": self.config.model.strip(),
                 "system": "You are a connection test.",
                 "messages": [{"role": "user", "content": "Reply with OK."}],
-                "max_tokens": 8192,
+                **bounded_request_parameters(self.config, 8192),
             },
             allow_probe_truncation=True,
         )
@@ -707,6 +909,7 @@ class AnthropicMessagesClient(_HttpClient):
     def complete_json(
         self, system_prompt: str, payload: dict[str, Any], output_schema: dict[str, Any]
     ) -> ApiResult:
+        system_prompt, input_text = prepare_json_input(system_prompt, payload, output_schema)
         parameters = structured_request_parameters(self.config)
         output_config = {**parameters.pop("output_config", {}), "format": {"type": "json_schema", "schema": output_schema}}
         return self._post(
@@ -716,10 +919,11 @@ class AnthropicMessagesClient(_HttpClient):
                 "messages": [
                     {
                         "role": "user",
-                        "content": json.dumps(payload, ensure_ascii=False, separators=(",", ":"), allow_nan=False),
+                        "content": input_text,
                     }
                 ],
                 **parameters,
+                **sampling_request_parameters(self.config),
                 "output_config": output_config,
             }
         )
@@ -734,7 +938,8 @@ class AnthropicMessagesClient(_HttpClient):
                 "model": self.config.model.strip(),
                 "system": system_prompt,
                 "messages": [{"role": "user", "content": user_text}],
-                "max_tokens": max_output_tokens,
+                **bounded_request_parameters(self.config, max_output_tokens),
+                **sampling_request_parameters(self.config),
             }
         )
 
@@ -790,6 +995,7 @@ class AnthropicMessagesClient(_HttpClient):
             stop_reason if isinstance(stop_reason, str) else None,
             self.last_request_snapshot,
             self.last_response_envelope,
+            response_reasoning(envelope, self.config.protocol),
         )
 
 

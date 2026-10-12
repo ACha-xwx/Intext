@@ -283,7 +283,7 @@ def test_search_github_translates_http_and_json_errors(monkeypatch):
         search_github_repositories([{"key_work_id": "work-1", "title": "任务"}])
 
 
-def test_merge_candidates_deduplicates_by_skill_work_and_keeps_sources():
+def test_merge_candidates_keeps_local_and_remote_references_separate():
     local = {
         "candidate_id": "local-1",
         "skill_id": "same-skill",
@@ -304,8 +304,8 @@ def test_merge_candidates_deduplicates_by_skill_work_and_keeps_sources():
     }
     batch = merge_candidates([local], [remote], catalog_hash="local-hash")
 
-    assert len(batch["result"]["candidates"]) == 1
-    assert batch["result"]["candidates"][0]["origin"] == "local"
+    assert len(batch["result"]["candidates"]) == 2
+    assert {row["origin"] for row in batch["result"]["candidates"]} == {"local", "remote"}
     assert batch["sources"] == ["local", "remote"]
     assert batch["catalog_hash"] != "local-hash"
 

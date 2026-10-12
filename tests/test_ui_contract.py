@@ -270,11 +270,10 @@ def test_application_constructs_required_delivery_controls(tk_window) -> None:
         assert app.notebook.tab(4, "text") == "设置"
         for name in (
             "task_text",
-            "category_combo",
+            "conversation_composer",
             "analyze_button",
-            "requirements_tree",
-            "proposals_tree",
-            "questions_tree",
+            "task_summary_button",
+            "conversation_input",
             "api_key_entry",
             "plan_goal_text",
             "plan_steps_tree",
@@ -342,6 +341,11 @@ def test_ui_no_skill_delivery_tone_export_and_save_reopen(tmp_path, tk_window, m
 
 
 def test_ui_local_skill_can_be_selected_cancelled_and_integrated(tk_window, monkeypatch) -> None:
+    from promptsmith.local_skill_search import LocalSkillSearchResult
+
+    # Exercise builtin discovery deterministically, independent of installed Skills.
+    monkeypatch.setattr("promptsmith.ui.discover_local_skill_candidates", lambda *_args, **_kwargs:
+                        LocalSkillSearchResult("no_match", [], "fixture", 0, [], "fixture"))
     session = confirmed_plan_session()
     session.plan["content"]["key_work"][0]["title"] = "为活动报名软件系统整理需求规格和用户故事"
     app = PromptSmithApp(tk_window, session=session)
@@ -373,7 +377,8 @@ def test_ui_local_skill_can_be_selected_cancelled_and_integrated(tk_window, monk
         assert app.session.final_result["status"] == "draft"
         contribution = app.session.final_result["content"]["skill_contributions"][0]
         assert contribution["origin_binding_ids"] == [app.session.skill_state["bindings"][0]["binding_id"]]
-        assert app.notebook.select() == str(app.notebook.tabs()[3])
+        assert app.notebook.select() == str(app.notebook.tabs()[0])
+        assert "result" in app._conversation_frames
     finally:
         app.shutdown(wait=True)
 
