@@ -1006,3 +1006,6 @@ Q2补证脚本已完成：3个通知遮挡前置重取、教程缩窗/模态快�
 
 
 2026-10-14 J4产物完成：独立EXE构建成功，包内实际M4字节码8项通过；排除外部Python的实际WebView2/bridge/退出及依赖12项通过。桌面Intext.exe已更新为70,412,055字节，SHA256 e76a803a42ad3cee135b97cf3c646c1c3cd56522b3fc6c62a9307768bd79e1d0，与新构建一致。未请求真实模型或恢复安装包。Github无代理只读ls-remote已确认当前main=1045489，准备提交本批源码和维护记录。
+
+
+2026-10-14 J4完成：实现7baef43原SHA通过GitHub Git Data API同步main并读回一致，force=false；普通push连接重置，沿用上一批只在内存的Git凭据，不改全局代理/保存token。CodeGraph sync完成5 changed，AST/空白通过；桌面EXE哈希与上述8项包内/12项实际WebView2验收保持。最终仅文档完成状态提交同步，不重建或重复通过检查。安装包/全审保持暂停。

@@ -1140,6 +1140,6 @@ S3 (2026-10-14): online Skill discovery sends bounded introductions and task/key
 |J1 损坏 JSON 兜底|m4.py、test_model_output_recovery.py|实际整合/导出复现红→绿，原文留证据而不进入正文|complete|
 |J2 包装与额外对象|M4 解析与公共回归|有效包装保留方法，技术额外字段不混入，纯文本/错误说明仍可读|complete|
 |J3 保护与相邻回归|delivery/finalization/storage 测试|多个 Skill、请求身份/取消/迟到、有效 JSON 和保存重开保持|complete：204通过/1基点旧失败|
-|J4 审阅与交付|双轴 diff、维护交接、最终 EXE|限定范围 Spec/Standards 无待修，产物检查与远端结果如实记录|in_progress：两轴0待修、构建中|
+|J4 审阅与交付|双轴 diff、维护交接、最终 EXE|限定范围 Spec/Standards 无待修，产物检查与远端结果如实记录|complete：两轴0待修、包内8项/原生12项、桌面/GitHub一致|
 
 安装包与完整逐页审查继续暂停。
