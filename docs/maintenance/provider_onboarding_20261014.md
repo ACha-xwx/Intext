@@ -10,7 +10,7 @@
 |---|---|---|---|
 |P1 复现|生产DOM与真实设置schema测试|自定义供应商+Key、空模型应保存并解锁第2步；先出现精确红例|complete|
 |P2 最小修复|settings.js、必要的schema及Debug|整数设置仍拒绝小数，小数设置默认/合法值通过；密钥安全与失败保留|complete|
-|P3 回归与审阅|相邻设置/教程、原生WebView2及冻结EXE|首次保存→获取本地模拟目录→选择→教程；重启恢复；Spec/Standards审阅|complete（源码提交待推送）|
+|P3 回归与审阅|相邻设置/教程、原生WebView2及冻结EXE|首次保存→获取本地模拟目录→选择→教程；重启恢复；Spec/Standards审阅|complete；GitHub推送受当前网络阻断|
 |P4 数据目录改名|paths及所有默认存储入口、迁移与测试|新默认%LOCALAPPDATA%/Intext，旧设置/密钥/历史可继续读取，迁移不覆盖或丢失数据|complete|
 
 验收接口沿用已授权的公开Controller、生产DOM、磁盘设置加载/系统DPAPI与本地HTTP模型列表边界。定位与测试日志在忽略的local_artifacts/provider_onboarding_20261014/；完整运行日志仍仅手动保存。
@@ -36,3 +36,5 @@
 相关185项、后续迁移8项和密钥/凭据23项按(classname,name)去重，最终203个不同本地测试节点均通过。AST9文件、settings.js语法和git diff空白检查通过。生产源码与独立复制的冻结EXE各通过21项实际WebView2双启动验收；仅本地HTTP GET模型目录，没有付费模型请求。Spec、Standards最终复审各0待修；完整逐页审查未恢复，也不声称同学电脑已验证本次新版。
 
 Windows x64、Python3.11.9、PyInstaller6.20.0以PromptSmith.spec重建。产物70,409,255字节，SHA256 `8b5a642a7e92347c1148cf3a9a50a747833e6b998d98e72d0c8bb0162f42f0a7`。旧桌面Intext.exe被运行进程占用，首次复制失败，未中断该进程；改为桌面`Intext-修复版.exe`，与dist/Intext.exe哈希一致。用户应退出旧程序后启动修复版，再让同学重测。安装包制作仍暂停；产物和本地证据不提交源码Git。
+
+实现已提交本地`a6d0d1a`。GitHub直连push及ls-remote两次连接重置，HTTP/1.1直连仍443无法连接；使用原Git代理127.0.0.1:7897也无法连接本地代理。没有修改全局代理或启动用户网络软件，尚未完成推送/远端验证；联网恢复后重试`git push origin main`并核对远端SHA。生成的build、pytest及本批Python缓存已移至忽略的local_artifacts内可恢复归档，源码、产物、原始证据和用户数据保留。
