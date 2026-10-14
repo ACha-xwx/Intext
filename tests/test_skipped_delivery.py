@@ -185,11 +185,10 @@ def test_result_options_stay_in_conversation_and_update_prompt(app, monkeypatch,
         pump(app, .5)
     assert app.notebook.index(app.notebook.select()) == 0
     assert app._workspace_popover.kind == "result"
-    tone = app.widgets["conversation_final_tone"]
-    app.final_tone_var.set("适度礼貌")
-    tone.event_generate("<<ComboboxSelected>>")
-    pump(app, .05)
-    assert session.final_result["tone"] == "polite"
+    assert "conversation_final_tone" not in app.widgets
+    assert app._conversation_buttons["result_details"].cget("text") == "附注"
+    assert "confirm_final" not in app._conversation_buttons
+    assert "save" not in app._conversation_buttons
     monkeypatch.setattr("promptsmith.ui.simpledialog.askstring", lambda *a, **kw: "请优先复刻提供的组件。")
     app._conversation_buttons["add_final_note"].invoke()
     assert "请优先复刻提供的组件" in session.final_result["canonical_body"]

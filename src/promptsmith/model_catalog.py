@@ -72,11 +72,17 @@ def find_model(model_id: str) -> ModelPreset | None:
     return next((model for model in MODELS if model.id == model_id.strip()), None)
 
 
+def callable_model_ids(values):
+    """Exclude internal review entries from fetched and previously cached lists."""
+    return tuple(dict.fromkeys(str(value).strip() for value in values
+        if str(value).strip() and str(value).strip().casefold() != "codex-auto-review"))
+
+
 def picker_models(current_id: str, discovered_ids=(), *, service_provider="", model_provider="") -> tuple[ModelPreset, ...]:
     """Decorate actual fetched IDs with local metadata, never add suggestions."""
     seen = set()
     models = []
-    for value in discovered_ids:
+    for value in callable_model_ids(discovered_ids):
         model_id = str(value).strip()
         if model_id and model_id not in seen:
             seen.add(model_id)

@@ -135,7 +135,7 @@ class GuidedFlowMixin(ConversationWorkspaceMixin, SettingsMixin):
         header.columnconfigure(1, weight=1)
         identity = tk.Frame(header, bg=colors["bg"])
         identity.grid(row=0, column=0, sticky="w")
-        brand = tk.Label(identity, text="PromptSmith", bg=colors["bg"], fg=colors["fg"], font=ui_font(self.root, "title", "bold"))
+        brand = tk.Label(identity, text="Intext", bg=colors["bg"], fg=colors["fg"], font=ui_font(self.root, "title", "bold"))
         brand.pack(side="left")
         flow = tk.Label(identity, textvariable=self._flow_progress, bg=colors["bg"], fg=colors["muted"], font=ui_font(self.root))
         flow.pack(side="left", padx=18)
@@ -357,7 +357,10 @@ class GuidedFlowMixin(ConversationWorkspaceMixin, SettingsMixin):
         from .ui import PrimaryAction
         page = self.notebook.index(self.notebook.select()) if self.notebook.select() else 0
         if page == self._settings_page_index:
-            reason = "模型设置已确认；返回工作区继续当前任务。" if self._model_settings_confirmed() else "测试连接只检查接口；请点击模型设置中的“确认”后继续。"
+            if getattr(self, "_automatic_model_settings", False):
+                reason = "模型配置可直接使用；返回工作区继续当前任务。" if self._model_settings_confirmed() else "请填写有效模型配置后继续；测试连接只检查接口。"
+            else:
+                reason = "模型设置已确认；返回工作区继续当前任务。" if self._model_settings_confirmed() else "测试连接只检查接口；请点击模型设置中的“确认”后继续。"
             return PrimaryAction("return_from_settings", "返回工作区", reason)
         if self.busy or self.delivery_busy or self._skill_search_busy:
             return PrimaryAction("busy", "正在整理…", "正在处理，你可以查看已有内容。", False)
@@ -570,6 +573,37 @@ class GuidedFlowMixin(ConversationWorkspaceMixin, SettingsMixin):
         else:
             self.status_var.set("已选中一项相关要求，可在上方编辑或移除。")
 
+    def submit_guided_answers(self, answers):
+        """Save one batch before refreshing or starting a single reassessment."""
+        if self._conversation_locked():
+            raise SessionStateError("正在处理当前任务，请稍候或停止后再提交。")
+        self._sync_input()
+        shown = [key for key in self._shown_interpretations
+                 if any(row["proposal_id"] == key for row in self.session.pending_proposals)]
+        submitted = self.session.record_question_answers(
+            answers, context_gap_ids=[gap["gap_id"] for gap in self.session.active_gaps()],
+            reject_interpretation_ids=shown,
+        )
+        if not submitted:
+            return []
+        for key in submitted:
+            self._question_drafts.pop(key, None)
+            # Do not let the render's draft capture restore committed text.
+            self._question_inputs.pop(key, None)
+        self._answer_target_id = None
+        self.refresh()
+        remaining = len(self.session.questions_for_review())
+        analyze = not remaining and not self._missing_generation_config()
+        logging.getLogger(__name__).debug("Answer batch next action: task=%s remaining=%s analyze=%s",
+                                          self.session.task_id, remaining, analyze)
+        if analyze:
+            try:
+                self.start_analysis()
+            except Exception:
+                logging.getLogger(__name__).exception("Answers saved but reassessment could not start: task=%s", self.session.task_id)
+                self._show_error("回答已保存", "回答已保存，但暂时无法继续整理，请重试。", parent=self.root)
+        return submitted
+
     def submit_guided_answer(self):
         if self._conversation_locked() or not self.answer_var.get().strip():
             return
@@ -698,6 +732,7 @@ class GuidedFlowMixin(ConversationWorkspaceMixin, SettingsMixin):
             if self.session.questions_for_review():
                 self.show_workspace(0)
             return
+        self.session.control.pop("workspace_navigation", None)
         self.generate_default_final()
 
     def generate_default_final(self):
@@ -731,14 +766,14 @@ class GuidedFlowMixin(ConversationWorkspaceMixin, SettingsMixin):
             return
         try:
             self.session.validate_unknown_reviews()
-            if self.session.plan.get("status") != "confirmed":
-                self.session.confirm_plan_preview(self._plan_preview_shown)
+            self.session.confirm_plan_preview(self._plan_preview_shown)
         except (SessionStateError, ValueError) as exc:
             self.status_var.set(str(exc))
             self.refresh()
             if self.session.questions_for_review():
                 self.show_workspace(0)
             return
+        self.session.control.pop("workspace_navigation", None)
         self.find_skills()
         self.show_workspace(2)
 

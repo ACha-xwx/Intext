@@ -129,6 +129,10 @@ class HistoryWorkspace:
         if data.get("session") != self.app._session_instance_token:
             LOG.debug("Ignored late draft update from previous conversation")
             return
+        restore_id = self.app.session.control.get("workspace_drafts", {}).get("answer_restore_id")
+        if data.get("answer_restore_id") != restore_id:
+            LOG.debug("Ignored draft update from before answer restoration")
+            return
         sequence = data.get("sequence")
         if not isinstance(sequence, int) or sequence <= self.sequence:
             return
@@ -140,6 +144,8 @@ class HistoryWorkspace:
         self.sequence = sequence
         self.app.session.control["workspace_drafts"] = dict(message=message, answers=valid,
             reanswer=self.app._answer_target_id, scroll=max(0, min(1e8, float(data.get("scroll", 0)))))
+        if restore_id:
+            self.app.session.control["workspace_drafts"]["answer_restore_id"] = restore_id
         self.app._question_drafts = deepcopy(valid)
 
     def snapshot(self):

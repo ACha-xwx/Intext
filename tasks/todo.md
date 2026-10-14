@@ -105,3 +105,19 @@
 - [x] D4 键盘/弹层生命周期/真实WebView2/相邻回归、Debug/双轴审查与交接。
 - [x] J1 队员JSON输入报告对照、input可见指令/独立业务块红绿。
 - [x] J2 API/业务相邻、Debug/双轴审查与交接；本轮255节点及20项实际WebView2通过。
+
+
+## 2026-10-14 Targeted fixes
+
+- [x] S1 Hide Skill search/selection after prompt generation; preserve return/state and Debug coverage (5 focused checks, both review axes clear).
+- [x] S2 Equal glass action rows and notes-only controls; 20 focused checks passed, both review axes clear.
+- [x] S3 Introduction-based online AI scoring, robust response handling and accurate recommendation display.
+- [x] Run combined regression after S1-S3 (326 distinct latest nodes passed; initial obsolete reachability fixture preserved in evidence).
+
+
+- [x] S2a Full-width equal glass action rows and remove adoption button.
+- [x] S2b Result controls and notes-only panel, focused feedback/Debug/review.
+
+- [x] S3a One summary scoring pass, 0–1 scores and concrete usage.
+- [x] S3b Partial response recovery, status/details/Debug and cancellation.
+- [x] S3c Incremental two-axis review and S1–S3 combined regression.

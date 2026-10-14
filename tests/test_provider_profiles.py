@@ -59,7 +59,7 @@ def test_switch_preserves_drafts_and_restores_saved_keys_without_browser_disclos
     submit(view, "settings_provider", target="OpenAI", key="disposable-deepseek-draft")
     submit(view, "settings_provider", target="DeepSeek")
     assert app.api_key_var.get() == "disposable-deepseek-draft"
-    assert not view.settings_snapshot()["confirmed"]
+    assert view.settings_snapshot()["confirmed"]  # Valid Web configuration needs no explicit confirmation.
     assert "disposable-" not in json.dumps(view.snapshot(), ensure_ascii=False)
     loaded = load_settings(app._preferences_path)
     assert loaded.model_profiles["DeepSeek"].api_key == "disposable-deepseek-profile"

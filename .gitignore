@@ -23,6 +23,9 @@ coverage.xml
 /%SystemDrive%/
 *.spec.bak
 
+# Local frontend review reports and evidence
+/docs/reviews/
+
 # Run scripts write here; only reviewed baseline and handoff reports are shared
 /verification/*
 !/verification/README.md

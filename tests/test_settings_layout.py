@@ -23,12 +23,8 @@ def test_custom_delete_action_keeps_each_model_parameter_on_its_own_labeled_row(
             control.scroll_into_view_if_needed()
             label = page.locator(f'label[for="settings-field-{key}"]').bounding_box()
             box = control.bounding_box()
-            if width > 760:
-                assert label["x"] + label["width"] <= box["x"]
-                assert abs(label["y"] + label["height"]/2 - (box["y"] + box["height"]/2)) <= 1
-            else:
-                assert abs(label["x"] - box["x"]) <= 1
-                assert 0 <= box["y"] - (label["y"] + label["height"]) <= 10
+            assert abs(label["x"] - box["x"]) <= 1
+            assert 0 <= box["y"] - (label["y"] + label["height"]) <= 10
     events = page.evaluate("calls.filter(c=>c.action==='diagnostic'&&c.args[1]==='settings fields rendered')")
     assert len(events) == 1
     assert "full_width_actions=2" in events[0]["args"][2]

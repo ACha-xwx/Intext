@@ -3,6 +3,7 @@ from copy import deepcopy
 import _tkinter
 
 from promptsmith.storage import load_session, save_session
+from promptsmith.web_workspace import WorkspaceController, view_stamp
 from tests.test_conversation_workspace import app, install_session as _install_session
 from tests.test_final_delivery import confirmed_plan_session
 
@@ -97,30 +98,33 @@ def test_busy_disables_table_actions_and_selection_stays_read_only(app):
     assert str(app._conversation_buttons["edit_requirement"]["state"]) == "normal"
 
 
-def test_table_keeps_ai_interpretation_and_replacement_actions_explicit(app):
+def test_pending_interpretations_and_replacements_remain_editable_and_removable_without_adoption(app):
     from tests.test_session import proposal
     session = confirmed_plan_session()
     idea = proposal("p-meaning", "仅改布局和样式，不增加新功能")
     idea.update(kind="pending_interpretation", source_refs=[], valid_for_version=session.requirement_version)
-    session.pending_proposals = [idea]
-    install_session(app, session)
-    select(app, "p:p-meaning")
-    assert str(app._conversation_buttons["adopt_requirement"]["state"]) == "normal"
-    assert app.widgets["conversation_requirements_tree"].item("p:p-meaning", "values")[-1] == "待确认解释"
-    before = len(session.requirements)
-    app._conversation_buttons["adopt_requirement"].invoke()
-    assert len(session.requirements) == before + 1
-    assert session.confirmed_requirements_version is None
-    target = session.requirements[-1]
+    target = session.requirements[0]
     replacement = proposal("p-replace", "按参考图改进视觉层级", "replace", target["item_id"])
     replacement.update(source_refs=[], valid_for_version=session.requirement_version)
-    session.pending_proposals = [replacement]
-    app.refresh()
-    select(app, "p:p-replace")
-    assert str(app._conversation_buttons["adopt_requirement"]["state"]) == "normal"
-    assert "accept_requirement" not in app._conversation_buttons
-    app._conversation_buttons["adopt_requirement"].invoke()
-    assert any(row["text"] == "按参考图改进视觉层级" for row in session.requirements)
-    assert not any(row["item_id"] == target["item_id"] for row in session.requirements)
-    assert session.confirmed_requirements_version is None
+    session.pending_proposals = [idea, replacement]
+    install_session(app, session)
+    controller = WorkspaceController(app)
+    controller.install_native_bridge()
+    before = deepcopy(session.requirements)
+    for key, edited in (("p-meaning", "只调整视觉样式"), ("p-replace", "优化页面布局")):
+        controller.dispatch("requirement_row", {"id": "p:" + key}, view_stamp(app))
+        snapshot = controller.snapshot()
+        assert snapshot["buttons"]["edit_requirement"]["enabled"]
+        assert snapshot["buttons"]["remove_requirement"]["enabled"]
+        assert "adopt_requirement" not in snapshot["buttons"]
+        assert "accept_requirement" not in snapshot["buttons"]
+        assert next(row for row in snapshot["requirement_rows"] if row["id"] == "p:" + key)["status"] == "待确认解释"
+        controller.dispatch("button", {"key": "edit_requirement"}, view_stamp(app))
+        editor = controller.snapshot()["editor"]
+        controller.dispatch("editor_save", {"id": editor["id"], "values": {"text": edited}}, view_stamp(app))
+        assert next(row for row in session.pending_proposals if row["proposal_id"] == key)["text"] == edited
+        controller.dispatch("requirement_row", {"id": "p:" + key}, view_stamp(app))
+        controller.dispatch("button", {"key": "remove_requirement"}, view_stamp(app))
+        assert not any(row["proposal_id"] == key for row in session.pending_proposals)
+        assert session.requirements == before
     assert not app.dialogs

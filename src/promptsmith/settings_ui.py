@@ -7,7 +7,7 @@ from pathlib import Path
 from tkinter import filedialog, ttk
 
 from .debug_console import load_debug_preference
-from .preferences import FIELDS, LoadedSettings, load_settings, normalize_value, save_preferences, update_debug_preference, validate_preferences
+from .preferences import FIELDS, LoadedSettings, load_settings, normalize_value, save_preferences, save_desktop_preferences, update_debug_preference, validate_preferences
 from .typography import ui_font
 
 
@@ -274,6 +274,7 @@ class SettingsMixin:
         logging.getLogger(__name__).info("Settings defaults staged: category=%s", category)
 
     def save_settings(self, *, model_only=False, confirm_model=False):
+        self._last_settings_save_error = None
         try:
             values = dict(self.preferences)
             if model_only:
@@ -286,20 +287,48 @@ class SettingsMixin:
             # when saving unrelated desktop preferences.
             if self.api_key_var.get().strip() and self.api_model_var.get().strip():
                 self._draft_api_config()
+            window_changed = values["window_width"] != self.preferences["window_width"]
             connection = self._public_model_connection()
             save_preferences(self._preferences_path, values, connection, api_key=self.api_key_var.get(),
                              model_confirmed=confirm_model or self._model_settings_confirmed(),
                              model_ids=tuple(self.widgets["api_model_combo"].cget("values")))
         except (ValueError, OSError) as exc:
+            self._last_settings_save_error = exc
             logging.getLogger(__name__).exception("Cannot save settings")
             self.settings_status_var.set(f"设置未保存：{exc} 请修改后重试。")
             self.status_var.set(self.settings_status_var.get())
             self._show_error("设置未保存", str(exc), parent=self.root)
             return False
-        changed = [key for key, value in values.items() if value != self.preferences[key]]
-        self.preferences = values
         self._capture_provider_profile(confirmed=confirm_model or self._model_settings_confirmed())
         self._settings_load_warning = ""
+        self._apply_saved_preferences(values, model_only=model_only)
+        logging.getLogger(__name__).info("Settings saved; encrypted API Key present=%s deferred_window_size=%s", bool(self.api_key_var.get().strip()), window_changed)
+        if getattr(self, "_automatic_model_settings", False):
+            model_status = "有效模型配置可直接使用。" if self._model_settings_confirmed() else "补齐有效模型配置后即可使用。"
+        else:
+            model_status = "已确认的模型设置下次启动自动恢复。" if self._model_settings_confirmed() or confirm_model else "模型参数需点击“确认”。"
+        window_notice = "启动窗口大小下次启动生效。" if window_changed else ""
+        self.settings_status_var.set(f"设置已保存。{model_status}{window_notice}")
+        if model_only and not getattr(self, "_automatic_model_settings", False):
+            self.settings_status_var.set("模型设置已保存。")
+        return True
+
+    def save_desktop_settings(self, changes):
+        """Persist ordinary preferences independently of the active API draft."""
+        values = validate_preferences(dict(self.preferences, **changes))
+        save_desktop_preferences(self._preferences_path, changes)
+        for key, value in changes.items():
+            if key != "extra_skill_roots":
+                self.preference_vars[key].set(values[key])
+        if "extra_skill_roots" in changes:
+            roots = self.widgets["setting_extra_skill_roots"]
+            roots.delete("1.0", "end")
+            roots.insert("1.0", values["extra_skill_roots"])
+        self._apply_saved_preferences(values)
+
+    def _apply_saved_preferences(self, values, *, model_only=False):
+        changed = [key for key, value in values.items() if value != self.preferences[key]]
+        self.preferences = values
         self.skill_search_timeout = values["search_timeout"]
         if "skill_search_url" in changed:
             self.skill_search_url_var.set(values["skill_search_url"])
@@ -309,18 +338,13 @@ class SettingsMixin:
             self.debug_console.apply_preferences(values)
         if not model_only:
             self.set_debug_console_enabled(persist=False)
-        logging.getLogger(__name__).info("Settings saved; changed fields=%s; encrypted API Key present=%s", changed, bool(self.api_key_var.get().strip()))
-        model_status = "已确认的模型设置下次启动自动恢复。" if self._model_settings_confirmed() or confirm_model else "模型参数需点击“确认”。"
-        self.settings_status_var.set(f"设置已保存。{model_status}启动窗口大小下次启动生效。")
-        if model_only:
-            self.settings_status_var.set("模型设置已保存，其它分类的编辑需单独保存。")
-        else:
+        logging.getLogger(__name__).info("Settings applied; changed fields=%s", changed)
+        if not model_only:
             roots = self.widgets["setting_extra_skill_roots"]
             roots.edit_modified(False)
         if not model_only:
             self.status_var.set("设置已保存。")
             self.refresh()
-        return True
 
     def _apply_visual_preferences(self):
         size = self.preferences["font_size"]

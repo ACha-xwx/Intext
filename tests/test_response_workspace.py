@@ -163,7 +163,7 @@ def test_completion_save_waits_for_all_stream_metadata_without_flushing_animatio
     assert not app._response_deliveries
 
 
-def test_all_inline_questions_allow_out_of_order_answers_and_one_model_call(app, monkeypatch):
+def test_inline_send_submits_all_filled_answers_then_waits_for_remaining_question(app, monkeypatch):
     app.widgets["task_text"].insert("1.0", "重做UI")
     app._sync_input()
     app.session.pending_questions = questions()
@@ -172,17 +172,16 @@ def test_all_inline_questions_allow_out_of_order_answers_and_one_model_call(app,
     calls = []
     monkeypatch.setattr(app, "start_analysis", lambda: calls.append(build_m1_input(app.session, "combined")))
     app._question_inputs["q1"].insert("1.0", "尚未提交的第一题")
-    for key, value in [("q3", "第三题"), ("q2", "第二题"), ("q1", "尚未提交的第一题")]:
-        if key != "q1":
-            app._question_inputs[key].insert("1.0", value)
-        app.root.update()
-        app._conversation_buttons["submit:"+key].invoke()
-        if key != "q1":
-            assert not calls
-            assert app._question_inputs["q1"].get("1.0", "end-1c") == "尚未提交的第一题"
+    app._question_inputs["q3"].insert("1.0", "第三题")
+    app.root.update()
+    app._conversation_buttons["submit:q3"].invoke()
+    assert not calls and set(app._question_inputs) == {"q2"}
+    app._question_inputs["q2"].insert("1.0", "第二题")
+    app.root.update()
+    app._conversation_buttons["submit:q2"].invoke()
     assert len(calls) == 1
     assert [(a["question_id"], a["answer_text"]) for a in calls[0]["state"]["question_history"]] == [
-        ("q3", "第三题"), ("q2", "第二题"), ("q1", "尚未提交的第一题")]
+        ("q1", "尚未提交的第一题"), ("q3", "第三题"), ("q2", "第二题")]
     assert app.session.confirmed_requirements_version is None
 
 

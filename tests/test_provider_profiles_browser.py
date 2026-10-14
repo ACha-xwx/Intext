@@ -22,7 +22,10 @@ def test_provider_switch_submits_source_draft_and_uses_restored_profile(page):
     payload = page.evaluate("calls.find(c=>c.action==='settings_provider').data")
     assert payload["target"] == "OpenAI"
     assert payload["connection"]["provider"] == "DeepSeek"
-    assert payload["key_action"] == "replace" and payload["key"] == "disposable-browser-draft"
+    saved = page.evaluate("calls.find(c=>c.action==='settings_autosave').data")
+    assert saved["connection"]["provider"] == "DeepSeek"
+    assert saved["key_action"] == "replace" and saved["key"] == "disposable-browser-draft"
+    assert payload["key_action"] == "keep" and payload["key"] == ""
     assert page.get_by_label("接口地址", exact=True).input_value() == "https://saved.example.invalid/v1"
     assert page.get_by_label("API Key", exact=True).input_value() == ""
     assert "已配置" in page.get_by_label("API Key", exact=True).get_attribute("placeholder")

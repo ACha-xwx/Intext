@@ -13,7 +13,7 @@ from .runtime_log import RuntimeLog
 
 def main(argv: list[str] | None = None) -> int:
     startup_started = time.perf_counter()
-    parser = argparse.ArgumentParser(description="PromptSmith 需求引导式提示构建助手")
+    parser = argparse.ArgumentParser(description="Intext 需求引导式提示构建助手")
     parser.add_argument("--smoke-test", action="store_true", help="创建窗口、处理一次刷新后退出")
     parser.add_argument("--renderer", choices=("auto", "web", "tk"), default="auto", help="对话渲染引擎（Windows 默认 WebView2）")
     parser.add_argument("--verify-release-chain", metavar="DIR", help=argparse.SUPPRESS)
@@ -50,7 +50,7 @@ def main(argv: list[str] | None = None) -> int:
                     logging.getLogger(__name__).warning("WebView2 preflight failed: %s", exc, exc_info=True)
                     if args.renderer == "web":
                         from tkinter import messagebox
-                        messagebox.showerror("PromptSmith 启动提示", str(exc))
+                        messagebox.showerror("Intext 启动提示", str(exc))
                         return 1
                     logging.getLogger(__name__).info("Continuing startup with Tk renderer after WebView2 preflight failure")
         import tkinter as tk

@@ -158,7 +158,7 @@ def test_custom_source_type_draft_restores_after_switching_to_builtin(app):
     submit(view, "settings_provider", target="麻豆科技")
     assert view.settings_snapshot()["connection"]["model_provider"] == "Anthropic"
     assert view.settings_snapshot()["connection"]["protocol"] == "Anthropic Messages"
-    assert not view.settings_snapshot()["confirmed"]
+    assert view.settings_snapshot()["confirmed"]  # Supported family and valid configuration are sufficient.
 
 
 def test_delete_write_failure_keeps_custom_profile_and_credential_for_retry(app, monkeypatch):

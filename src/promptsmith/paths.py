@@ -22,7 +22,7 @@ def resource_root() -> Path:
     override = os.environ.get("PROMPTSMITH_RESOURCE_ROOT")
     if override:
         return Path(override).expanduser().resolve()
-    raise FileNotFoundError("找不到PromptSmith资源目录。")
+    raise FileNotFoundError("找不到 Intext 资源目录。")
 
 
 def m1_asset_dir() -> Path:

@@ -65,7 +65,7 @@ class DebugConsole:
         style = ttk.Style(self.window)
         for name in ("TLabel", "TButton", "TCheckbutton", "TCombobox", "Muted.TLabel"):
             style.configure("DebugConsole."+name, font=font)
-        self.window.title("PromptSmith · Debug 控制台")
+        self.window.title("Intext · Debug 控制台")
         width = min(1120, max(400, parent.winfo_screenwidth() - 80))
         height = min(640, max(300, parent.winfo_screenheight() - 140))
         self.window.geometry(f"{width}x{height}")

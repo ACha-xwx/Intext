@@ -99,7 +99,7 @@ def test_multiline_anchor_survives_trimming_inside_one_record(debug_page):
     page.locator("#debug-scroll").evaluate("e=>e.scrollTop=240")
     def row_top():
         return page.locator(".log-error").evaluate("""el=>{
-          const text=el.firstChild,index=text.data.indexOf('multi-15');
+          const text=el.querySelector('.log-message').firstChild,index=text.data.indexOf('multi-15');
           const range=document.createRange();range.setStart(text,index);range.setEnd(text,index+8);
           return range.getBoundingClientRect().top;
         }""")

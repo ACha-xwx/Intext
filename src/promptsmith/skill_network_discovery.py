@@ -317,19 +317,22 @@ def search_network_skill_candidates(
         raise SkillSearchError("network", "；".join(errors))
     if progress:
         progress(f"已收集 {len(discovered)} 个不同的 Skill 信息，正在让 AI 综合筛选…")
-    from .skill_recommendation import recommendation_score, shortlist_candidates
+    from .skill_recommendation import defensible_fallback_candidates, recommendation_score, shortlist_candidates
     ai_review_error = None
+    fallback_rejected_count = 0
     review_diagnostics: dict[str, Any] = {}
     try:
         selected = select_skill_candidates_with_ai(
             client, discovered, task_text=task_text, key_works=works, progress=progress,
             diagnostics=review_diagnostics,
-            **dict(review_options or {}),
+            **{**dict(review_options or {}), "summary_only": True},
         )
     except SkillAiSelectionError as exc:
         logging.getLogger(__name__).warning("Network Skill AI review unavailable; using shortlist", exc_info=True)
         ai_review_error = str(exc)
-        selected = shortlist_candidates(discovered, task_text=task_text, key_works=works,
+        fallback = defensible_fallback_candidates(discovered, task_text=task_text, key_works=works)
+        fallback_rejected_count = len(discovered) - len(fallback)
+        selected = shortlist_candidates(fallback, task_text=task_text, key_works=works,
                                          limit=(review_options or {}).get("shortlist_limit", 12))
         for row in selected:
             row["ai_review_status"] = "unavailable"
@@ -338,7 +341,7 @@ def search_network_skill_candidates(
             row["recommendation_basis"] = "名称/描述粗筛，AI 尚未核验"
             row.setdefault("match_reason", "已收集公开 Skill 信息，AI 筛选暂未完成，可先查看来源后自行判断。")
         if progress:
-            progress("AI 筛选暂不可用，已保留公开信息候选供参考")
+            progress(f"AI 筛选暂不可用，保留 {len(selected)} 项相关线索；排除 {fallback_rejected_count} 项缺少用途依据的候选")
     diagnostics = {
         "queries": queries,
         "query_plan_cached": query_plan_cached,
@@ -353,9 +356,12 @@ def search_network_skill_candidates(
         "source_diagnostics": source_diagnostics,
         "ai_review_status": "failed" if ai_review_error else "completed",
         "ai_review_error": ai_review_error,
+        "fallback_rejected_count": fallback_rejected_count,
         "ai_review": review_diagnostics,
         "http": http.diagnostics(),
     }
+    logging.getLogger(__name__).info("Network Skill relevance summary: collected=%s selected=%s review=%s fallback_rejected=%s",
+                                   len(discovered), len(selected), diagnostics["ai_review_status"], fallback_rejected_count)
     return SkillSearchResult(
         query="; ".join(queries), status="ok" if selected else "no_match",
         candidates=selected, batch_id=f"batch-network-{uuid4().hex}",

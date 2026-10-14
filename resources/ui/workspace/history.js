@@ -1,7 +1,7 @@
 "use strict";
 // History metadata is independent of SessionState; all business progress lives in Python.
 (()=>{
-  let catalogue=null,signature=null,dialog=null,dialogKind=null,returnFocus=null,lastError=null;
+  let catalogue=null,signature=null,dialog=null,dialogKind=null,returnFocus=null;
   let draftTimer=null,draftSequence=0,draftChain=Promise.resolve();
   let collapsed=innerWidth<1000;
   try{const saved=localStorage.getItem("promptsmith.sidebar.collapsed");if(saved!==null)collapsed=saved==="true";}catch{}
@@ -30,7 +30,7 @@
     clearTimeout(draftTimer);draftTimer=null;
     if(!state||!catalogue||!window.pywebview?.api)return Promise.resolve();
     const pending=new Set(state.cards.filter(c=>c.kind==="question").map(c=>c.question.question_id));
-    const payload={session:state.session,sequence:++draftSequence,message:message.value,answers:Object.fromEntries([...drafts].filter(([id])=>pending.has(id))),scroll:viewport.scrollTop};
+    const payload={session:state.session,answer_restore_id:state.drafts?.answer_restore_id,sequence:++draftSequence,message:message.value,answers:Object.fromEntries([...drafts].filter(([id])=>pending.has(id))),scroll:viewport.scrollTop};
     const stamp=state.stamp;
     draftChain=draftChain.catch(()=>{}).then(async()=>{
       const result=await window.pywebview.api.dispatch("drafts",payload,stamp);
@@ -38,9 +38,10 @@
     });
     return draftChain;
   }
-  function scheduleDraft(){clearTimeout(draftTimer);draftTimer=setTimeout(()=>flushDrafts().catch(error=>diagnostic("error","history draft failed",error.stack||String(error))),220);}
+  function draftFailure(error){window.promptsmithNotifications.sync("history:draft","会话草稿暂未保存，请重试。",{variant:"error",action:{label:"重试保存",run:()=>flushDrafts().then(()=>window.promptsmithNotifications.sync("history:draft","")).catch(draftFailure)}});diagnostic("error","history draft failed",error.stack||String(error));}
+  function scheduleDraft(){clearTimeout(draftTimer);draftTimer=setTimeout(()=>flushDrafts().then(()=>window.promptsmithNotifications.sync("history:draft","")).catch(draftFailure),220);}
   viewport.addEventListener("scroll",scheduleDraft,{passive:true});
-  window.addEventListener("blur",()=>{flushDrafts().catch(error=>diagnostic("error","history blur draft failed",String(error)));});
+  window.addEventListener("blur",()=>{flushDrafts().catch(draftFailure);});
 
   function row(entry){
     const el=node("div","history-row"+(entry.id===catalogue.active?" active":""));el.dataset.id=entry.id;
@@ -63,13 +64,12 @@
   function update(next,restored=false){
     catalogue=next;if(!catalogue){list.replaceChildren(node("p","history-empty","历史会话正在准备…"));return;}
     const key=JSON.stringify(next);if(key===signature)return;signature=key;
-    if(next.error&&next.error!==lastError)toast(next.error);lastError=next.error||null;
+    window.promptsmithNotifications.sync("history:save",next.error||"",{variant:"error",action:{label:"重试保存",run:()=>command("history_retry")}});
     const scroll=list.scrollTop,focusedId=document.activeElement?.closest(".history-row")?.dataset.id;
     list.replaceChildren();
     for(const group of ["置顶","今天","昨天","七天内","30天内","更早"]){const entries=next.entries.filter(r=>r.group===group);if(!entries.length)continue;const section=node("section","history-group");section.append(node("h2","",group));for(const entry of entries)section.append(row(entry));list.append(section);}
     if(!next.entries.length)list.append(node("p","history-empty","你的对话会自动保存在这里。"));
     list.scrollTop=scroll;if(focusedId&&!restored)list.querySelector(`[data-id="${focusedId}"] .history-select`)?.focus({preventScroll:true});
-    const status=$("#history-status");status.hidden=!next.error;status.replaceChildren();if(next.error){status.append(node("span","",next.error),button("重试保存",()=>command("history_retry")));}
     if(dialogKind==="search")renderSearch();
   }
 
@@ -82,15 +82,14 @@
     dialog.addEventListener("keydown",event=>{if(event.key==="Escape"){event.stopPropagation();closeDialog();}if(event.key==="Tab"){const focusable=[...box.querySelectorAll("input,button")].filter(e=>!e.disabled);if(event.shiftKey&&document.activeElement===focusable[0]){event.preventDefault();focusable.at(-1)?.focus();}else if(!event.shiftKey&&document.activeElement===focusable.at(-1)){event.preventDefault();focusable[0]?.focus();}}});
     return box;
   }
-  function errorLine(box){const error=node("div","dialog-error");error.setAttribute("role","alert");box.append(error);return error;}
   function rename(entry){
     const box=makeDialog("rename","重命名会话"),input=node("input");input.value=entry.title;input.maxLength=100;input.setAttribute("aria-label","会话名称");box.append(input);
-    const actions=node("div","actions"),cancel=button("取消",closeDialog),save=button("保存",async()=>{const title=input.value.trim();if(!title){error.textContent="请输入会话名称。";input.focus();return;}if(await command("history_rename",{id:entry.id,title}))closeDialog();else error.textContent="名称未保存，请重试，原名称仍然保留。";});
-    actions.append(cancel,save);box.append(actions);const error=errorLine(box);sendOnEnter(input,()=>save.click());input.focus();input.select();
+    const actions=node("div","actions"),cancel=button("取消",closeDialog),save=button("保存",async()=>{const title=input.value.trim();if(!title){toast("请输入会话名称。","warning",{key:"history:name"});input.focus();return;}if(await command("history_rename",{id:entry.id,title}))closeDialog();});
+    actions.append(cancel,save);box.append(actions);sendOnEnter(input,()=>save.click());input.focus();input.select();
   }
   function remove(entry){
     const box=makeDialog("delete","删除会话"),text=node("p","",`确定删除“${entry.title}”吗？本地历史中的工作记录将被删除。`);box.append(text);
-    const actions=node("div","actions"),cancel=button("取消",closeDialog),confirm=button("删除",async()=>{if(await command("history_delete",{id:entry.id}))closeDialog();else error.textContent="删除未完成，请重试。";},"danger");actions.append(cancel,confirm);box.append(actions);const error=errorLine(box);cancel.focus();
+    const actions=node("div","actions"),cancel=button("取消",closeDialog),confirm=button("删除",async()=>{if(await command("history_delete",{id:entry.id}))closeDialog();},"danger");actions.append(cancel,confirm);box.append(actions);cancel.focus();
   }
   function search(){
     if(!catalogue)return;const box=makeDialog("search","搜索历史会话"),input=node("input");input.type="search";input.placeholder="搜索会话名称…";input.setAttribute("aria-label","搜索会话名称");input.id="history-search-input";box.append(input);

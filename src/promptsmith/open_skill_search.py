@@ -172,8 +172,9 @@ def generate_skill_search_queries(
         "你是 AI Agent Skill 检索查询规划器。根据用户任务和关键工作，生成 3 到 6 个互补的短查询。"
         "检索目标是供 AI Agent 加载并遵循的 Skill 指令包，通常以 SKILL.md 或 Skill 索引条目发布；"
         "普通教程、普通方法文章、普通网站、在线工具和一般 GitHub 仓库都不是 Skill，只能作为发现真实 Skill 文件的线索。"
-        "每个查询覆盖不同任务能力，并包含 AI Agent Skill、agent skill、SKILL.md 等语义；"
-        "优先使用中英文任务关键词，不要把搜索目标改成泛泛的方法或工具。"
+        "每个查询用1到3个简短英文能力词（如technical writing、documentation、pdf），再加一个SKILL.md标记；"
+        "不同查询覆盖不同任务能力，不要堆叠AI Agent Skill/agent skill等同义标记或完整任务句子。"
+        "文档任务可涵盖文档写作、校对、格式交付，不要改成泛泛的方法或工具。"
         '只返回 JSON 对象 {"queries":["..."]}，不要返回解释。'
     )
     schema = {
@@ -607,6 +608,15 @@ def search_open_web_skills(
     seen_results: set[str] = set()
     attempted_engines: list[str] = []
     unavailable_engines: set[str] = set()
+    per_query_limit = max(1, MAX_SEARCH_RESULTS // len(search_terms))
+    from .skill_recommendation import rank_discovery_sources
+
+    def rank_links(links):
+        ranked = rank_discovery_sources(
+            [{"url": url, "name": unquote(urlsplit(url).path), "description": label} for url, label in links],
+            task_text=context_text or "", key_works=works)
+        return [(row["url"], row["description"]) for row in ranked]
+
     for term in search_terms:
         if time_remaining(deadline) <= 0:
             errors.append("开放网络搜索超过时间限制。")
@@ -637,11 +647,13 @@ def search_open_web_skills(
                         links = _urls_from_json(payload, base=endpoint)
                     except SkillSearchError:
                         links = _urls_from_html(raw, base=endpoint)
-                for url, label in links:
+                added = 0
+                for url, label in rank_links(links):
                     if url and url not in seen_results:
                         seen_results.add(url)
                         result_links.append((url, label))
-                        if len(result_links) >= MAX_SEARCH_RESULTS:
+                        added += 1
+                        if added >= per_query_limit:
                             break
                 # Continue with the other engines so a narrow or partial
                 # endpoint does not hide public search results. Once an engine
@@ -660,12 +672,13 @@ def search_open_web_skills(
             break
     skill_urls = _source_urls_from_result(
         opener,
-        result_links[:MAX_SEARCH_RESULTS],
+        rank_links(result_links)[:MAX_SEARCH_RESULTS],
         deadline=deadline,
         progress=progress,
     )
     candidates: list[dict[str, Any]] = []
-    for source_url, label in skill_urls[:max_verified_candidates]:
+    logging.getLogger(__name__).debug("Open-web Skill sources ranked before reads: discovered=%s budget=%s", len(skill_urls), max_verified_candidates)
+    for source_url, label in rank_links(skill_urls)[:max_verified_candidates]:
         if time_remaining(deadline) <= 0:
             errors.append("开放网络搜索超过时间限制。")
             break

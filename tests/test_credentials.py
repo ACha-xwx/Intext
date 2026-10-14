@@ -81,8 +81,10 @@ def test_unsupported_system_cannot_downgrade_to_plaintext(tmp_path, monkeypatch)
     save_preferences(path, defaults(), CONNECTION)
     previous = path.read_bytes()
     monkeypatch.setattr("promptsmith.credentials.sys.platform", "unsupported")
-    with pytest.raises(CredentialProtectionError, match="DPAPI"):
+    from promptsmith.preferences import SettingsPersistenceError
+    with pytest.raises(SettingsPersistenceError, match="DPAPI") as error:
         save_preferences(path, {**defaults(), "font_size": 15}, CONNECTION, api_key="temporary-disposable-key")
+    assert isinstance(error.value.__cause__, CredentialProtectionError)
     assert path.read_bytes() == previous
     assert not list(tmp_path.glob("*.tmp"))
 

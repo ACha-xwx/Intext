@@ -1,5 +1,9 @@
 # 团队交接进度
 
+2026-10-14 S3启动：捕获6文件增量基线，沿用diagnosing-bugs/tdd/拆解/code-review和planning-with-files。公开测试边界为search_network_skill_candidates、外部HTTP/model、Session/Controller与生产DOM。先记录简介/JSON包裹/局部坏行反馈，再实施；完成后执行用户之前授权的三项组合回归，不恢复暂停的完整逐页审查。
+
+2026-10-14 S2完成：阶段按钮均分整行玻璃布局、指定按钮删减及附注只添加已实施。12个生产Chrome DOM布局/操作节点、5个需求Tk/Controller节点、1个真实Controller→Web附注编辑保存/保留语气/重开节点、2个浅深Tk附注节点，最新20个不同节点通过。旧采用UI测试1失败因已删除控件而更新为可编辑/移除规格；初版CSS选择器被flex覆盖已修正，完整红绿归因记录在[action_rows维护](action_rows_20261014.md)。增量Spec/Standards各0发现；4文件AST、JS语法、5已有+1新增文件空白及新增维护链接通过；空白脚本两次将CRLF警告误判，最终以命令局部safecrlf=false校准，无代码修改。CodeGraph同步5文件current（290/7103/21315）。完整回归待S3、全量审查仍暂停，无真实模型/个人数据/EXE/提交推送。
+
 ## 2026-10-10：前期提问全面性
 
 - 用户明确要求前面提问更全面，减少后续漏问与反复生成，不采用简单禁止晚期提问的改法。继续 planning-with-files，不派子对话/子代理，不调用真实模型。
@@ -791,3 +795,151 @@ A3静态收尾：CodeGraph同步7文件后current（230files/5770nodes/18084edge
 发布静态检查：40个暂存文件未包含私人/运行产物路径或常见真实密钥格式。新增未跟踪旧补答回归暂存后暴露EOF空行警告，已仅去掉末尾多余空行；不重复业务回归。正式发布包括前轮已完成成果，保持main正常推送、不强制覆盖。
 
 功能提交d1bdbd3推送成功：origin/main由b3f4953更新为d1bdbd3，git ls-remote完整SHA与HEAD一致，工作树无未提交改动。A1–A3已完成；收尾仅补此交付记录和状态，随后文档提交/普通推送再次核对远端，应用无新增变化。
+
+2026-10-13 本轮恢复：前轮启动模型列表已提交并推送，当前main干净，固定点53997def。已读参考TSX、设置业务与五技能及前端/动画辅助；新增S1–S5任务，尚未修改应用。规划首次无效匹配未写入，已正确追加。沿用已授权测试边界。
+
+S1公开DOM红→绿：输入焦点移交箭头时，Chromium在focusin前已执行focusout微任务，菜单先blur关闭再toggle打开。pointerdown保留输入焦点后只关闭一次。S2 Controller有效编辑/DPAPI重启红→绿；首个DOM autosave测试的Playwright赋值表达式被自动作为函数执行，修正为显式函数后在53997def独立资产基线得到正确timeout红灯，当前自动保存green。S3菜单/卡片布局2项正确red后实现中；布局/动画辅助不引入自定义字体或第三方运行库。
+
+2026-10-13 恢复继续：读技能/交接/维护与现有差异，保留全部未提交成果。新增顶部全宽响应式要求已通过720/1440及第六类别DOM回归。普通设置独立保存先得到URL验证红灯，新增选择性原子更新后13项（5Controller+8DOM）通过。迁移旧原生select、显式确认及独立目录展示测试到新合同，保持加密/切换/失败/焦点检查，相邻两批运行中。
+
+原生WebView2 21项隔离检查通过：浅深/宽窄导航全宽、浮层、图标、自动保存、跨服务恢复/删除、离页flush；仅1次localhost GET、0 POST、无自动日志。初次验收未等桥接页面渲染产生卡片计数假红，已等待可见修正。浏览器77项初合跑76绿1项旧快照模拟不反映autosave，改回已保存公开快照后绿。Python130项127绿3项旧save_button断言，53997def独立副本三项均复现，保留基线差异。双轴发现忙时Debug及慢保存切服务混身份，已各自公开DOM红→绿；CSS整理旧布局/品牌/导航重复规则。
+
+Spec复审新增残余路径：仅typing服务名未blur也会进入autosave，已固定autosave使用current源provider且排除provider dirty（仅settings_provider负责换身份）；不完整URL草稿被当写盘失败阻止切换，公开DOM各自red。桥接新增validation/persistence错误种类，自动保存按原因显示修正/重试，磁盘错误保留原exception，切换只因持久化失败阻止。两个slice修复后检查中。失败注入最初误用Path.replace，实际原子写为os.replace，已修测试正确边界通过。
+
+2026-10-13 收尾恢复：DPAPI系统失败探针已red（CredentialProtectionError误归validation），保存加密边界用SettingsPersistenceError包装并保留cause后green。一次中断丢失了进程句柄，已重新取得单节点green结果，不计重复。提交大小失败探针首次输入超过单字段16384限制命中错误边界，缩短fixture后正确red到_write_document；大小拒绝归persistence，输入数值校验仍归validation。仅运行该修改影响的加密/保存相邻回归，准备双轴增量复审。CodeGraph explore首次无效--no-tests选项未读取/修改文件，去掉选项成功。一次复合进度补丁带空hunk未写入，已拆分正确补记。
+
+最后保存/凭据相邻58项全绿（79.511s）；DPAPI公开Controller单节点green。补充480px真实换行及各行均分；初次补查720px固定单行是假设错误，实际第六类别可自动换行，去掉错误固定布局条件后480/720/1440三项全部green（8.442s），持久化error_kind重试DOM单节点green。浅深原生截图已核对，22项native结果全部passed。Spec/Standards最终独立各0待修，Python23文件AST、两JS语法及diff空白通过；S1–S4关闭，S5正在文档/索引收尾。
+
+设置改造最终交付：S1–S5全部关闭，维护/交接同步。CodeGraph同步25文件后status确认up to date，234files/5861nodes/18687edges；184项正式交接相对链接有效。工作树保留所有本轮源代码/测试/文档修改，临时验收记录在忽略的local_artifacts。未接触个人设置、发收费请求、验证EXE或再次提交推送；3项旧Tk断言失败已在基线证实并单列。
+
+2026-10-13 Debug内部任务开始：读当前交接/规划、用户TSX与CodeGraph日志路径，保留前轮成果；新增D1–D3，六个相关文件工作树before副本作为本轮审查固定点。未改应用，首先从公开DebugApi/生产DOM建立真实记录分栏和完整错误的红灯。
+
+D1/D2逐slice红绿：公开DebugApi首先time字段KeyError red，记录短时间/源/message并保留text后green；生产DOM缺log-time red，分栏/等宽/换行后green；常见消息原长文本red，有限已知事件中文精简后green。错误与cause/迟注册secret、复制原文检查通过。四模块初合跑39green/1旧DOM测试firstChild结构断言失败，迁移为公开.log-message文字Range后裁剪锚点与长Unicode换行阅读2项green；产品滚动按可见字符Range定位，避免固定行数假设。生命周期精简继续红绿，原文保存仍不变。查询debug文档时PowerShell通配路径rg参数失败，已改用具体文件，不影响应用。
+
+D3审查：Spec 0待修，Standards发现复制全缓存违反“复制可见内容”。公开DOM新增显示3行与INFO筛选回归已正确red（复制多了header/first）；复制改为复用实际渲染选择集合，未裁剪记录保留完整原文，被裁剪记录只复制可见尾部。保存完整归档合同不变。先前五模块合跑58项通过，隔离WebView2内部呈现/长错误/脱敏/筛选/历史位置/手动保存13项通过；本次只复验复制修改及相关行为，不重复全部已绿检查。
+
+Debug收尾：复制2项green，复制/异常/换行/错误恢复相邻10项green，XML按classname/name去重取最新共60 passed、0 failed/skipped。Spec/Standards增量复审各0待修，原生13项结果与浅深截图已核对；D1–D3及维护/交接说明已关闭。最后仅静态、文档链接与CodeGraph同步，无新业务改动，不重复已绿回归。
+
+Debug最终静态：debug.js语法、5个相关Python文件AST、git diff --check通过（仅正常LF/CRLF提示），4份交接/本轮报告188项相对链接均有效。CodeGraph同步6个变化文件，status确认current：236files / 5904nodes / 18654edges。当前工作树仍包含前轮设置与本轮Debug成果，无提交推送；完整交付边界见debug_log_view_20261013.md。
+
+2026-10-13 通知任务开始：已读用户参考/交接/维护与日志/Controller/设置/编辑/历史路径，添加N1–N4。复用planning-with-files、planning-and-task-breakdown、tdd、diagnosing-bugs、code-review，动画用web-animation-design。保留前轮成果，先生产DOM红灯验证多通知及右上位置/关闭，而非只测试DOM数量。所有验证使用隔离配置和模拟公开桥接，无真实模型。
+
+通知恢复：消息迁移、清单及原生14项已完成，前批相关pytest全部通过（数量以XML核对）；最新5秒要求尚未实现，新增N5。按已授权生产DOM边界逐slice先红后绿，随后仅重验计时影响项；保留前轮设置/Debug成果，不提交推送或发付费请求。
+
+N5首个生产DOM red正确复现5秒通知仍不关闭；共享组件独立timeout及关闭焦点保护已实现。第一次green运行遇到测试用标题/段落inner_text单换行的错误假设，改为断言用户实际正文，不改产品排版。
+
+N5独立关闭slice已green。底部计时条浅深两项先red（没有计时条），新增3px绝对定位CSS scaleX/左锚点/5秒linear后两项green，四分之一间隔核对可见宽度及布局不变。补充同key替换/手动清计时、modal自动关闭焦点、减少动态效果及无逐帧日志回归。
+
+用户追加动画底部滚动条，N6生产DOM先red（386px横向内容/384px视口，overflow-x:auto）。共享通知容器单行修复只裁剪横向、继续纵向auto；进出动画10%/50%/90%帧验证，不改动画时长或关闭逻辑。
+
+倒计时首批四模块45项全绿；此前通知迁移12模块168项全绿（XML已核对）。N6初次green碰到追加测试插入位置把减少动态效果测试尾部两行误移到N6，已移回正确函数；与产品修复无关。
+
+Standards增量0项；Spec发现modal迁移重启CSS条而timeout不重启，生产DOM补red（条74%→96%），保存首显performance时间并在rehost后恢复Animation.currentTime。原生替换生命周期两次在2300ms窗口未等到移除，正在检查后台窗口计时节流与退出动画时间，不放宽产品计时或虚称通过。
+
+最终通知DOM18项全绿，含modal开/关/删除时进度连续、滚动条、独立5秒/替换/焦点/快照/减少动画。原生后台非活动页面的短expect两次失败，bring_to_front激活被验收页面后21项全部通过；产品计时未改或放宽。新增原生modal迁移2项，需针对新检查再运行，随后双轴复审/交接与索引收尾。
+
+原生modal追加2项通过（总23项）；结束时WebView2异步Promise在销毁窗口后回调产生ObjectDisposedException，仅验收脚本退出阶段，检查已完成，无产品操作失败。用户新增上移补位N7：生产DOM先red（前条移除后后条y直接从原位置跳到16），FLIP测当前视觉位置/取消旧位移/移除空位/240ms仅transform动画后green；连续关闭和减少动态效果补充回归中。N5/N6双轴复审最终各0待修。
+
+N7通知DOM最终21项全部通过，连续关闭视觉不跳、条不重置及减少动画立即补位已覆盖。原生浅深上移新增验收第一次使用动态.first定位导致删除后定位到下一条而等不到0，改以data-key固定原通知身份；脚本退出先断隔离桥并等待进行中poll排空，避免销毁后Promise回调。产品无额外改动。
+
+原生上移第二次定位已正确，但expect的递增轮询读到的是240ms补位终点，不能用其断言中间帧；与既有DOM回归保持一致，改5ms轮询观察原通知移除瞬间，并在浅深验收前激活窗口。没有调整产品动画或放宽中间位置断言。
+
+用户追加N8，上移纵向滚动条生产DOM正确red（scrollHeight159/clientHeight74）。改通知区域稳定视口高度，保持透明/空白点击穿透和真实纵向滚动；测试所有补位时间点无溢出。隔离双窗口原生替换短计时偶尔受桌面失焦节流影响，验收运行库增加仅测试用的禁后台节流参数，生产启动不改；不把背景计时精度当成已验证能力。
+
+N8最终通知DOM23项通过，浅深原生倒计时/补位/横纵溢出及modal均通过；原生后续设置失败检查误把尚存的editor错误卡当成settings失败卡而提前断言重试按钮，按具体“模拟磁盘写入失败”正文及可见重试等待公开UI状态。失败退出也排空桥接回调，避免pythonnet销毁噪声。两轴N8最后各0待修。
+
+通知最终收尾：原生改为5ms观察closing并独立断言替换后4950–5800ms期限，不把expect递增轮询的2300ms短窗口当精确计时；最后30项全部通过，设置草稿/重试、完整异常脱敏及手动保存正常。181个不同本地节点最新均通过（含最终通知DOM23项），两轴最终各0待修。交接/架构/UI与完整文案清单同步。用户随后明确“暂时不要回归，另外四个问题修完再一起验证”，已停止后续验证，只记录现有结果与待办N9；不提交推送，不访问个人数据或收费模型。
+
+暂停后的收尾仅更新维护状态和CodeGraph索引：sync成功，20个变化文件（新增5/修改15）；没有再运行回归或原生验收。后续四个问题待用户逐条提供，修复完成后再统一验证。
+
+四项待修第1项：用户要求问题框Enter/发送一次提交当前轮所有已填回答，空题保留。已开始定位，回归暂停仍有效；用公开Session/Controller动作与当前DOM范围实现并记录待验收场景。CodeGraph explore首次误用不支持的--depth参数，未修改文件；改先读取实际CLI帮助。
+
+本批批量回答实现收尾：Web/Tk统一一次批量动作、Session工作副本原子记录、各题独立来源/同提交组、成功清已提交草稿、整批收齐最多整理一次。Spec首次发现同缺口解释被连带删除后的重复拒绝，修正候选存在检查并补回归后Spec/Standards各0待修。只检查AST/JS语法和diff，测试仅编写，没有运行回归或模型。
+
+本批第2/3项：自定义供应商重命名和Skill表格工具栏已实现。用户最新位置要求落实为服务名称下拉框右侧按钮，自定义字段缩短，内置隐藏。DPAPI按新身份重加密/验证可恢复，原有效确认和目录迁移后原子写入；失败留旧档案，成功才更改Tk状态/退役旧目录请求。表格来源筛选/显示全部共框，补updateEnabled防止重建后永久禁用。Debug新增生命周期/中文投影，完整异常及只手动保存继续保留；通知清单重新生成F35/B223/D68/G17/E93/S5。双轴首轮各0待修，最后加密恢复保护小增量复审中。
+
+静态记录：两个JS语法、13个相关Python文件AST、git diff --check通过（仅正常LF/CRLF提示）。新增回归覆盖重命名/目录/失败/IME/布局/工具栏及批量回答，但一个也未执行。补新测试时写盘失败段一度移入新解密失败用例，静态读回及时纠正；没有把此误放场景宣称为通过。CodeGraph查询使用错误类名及不存在启动方法未找到，改查实际SettingsMixin后确认_saved_connection仅用于启动恢复，本次运行时无需更新该启动副本。
+
+本批第4项实现完成，用户四项一起验证的条件已满足：短能力索引查询、预算前排序和GitHub相关路径优先、低分排除及可信失败降级、空结果细分与进度内联已写入；开始统一回归。先在隔离before副本执行新增公开复现，再测当前四项；不访问个人配置或付费接口。
+
+2026-10-13 四项统一验收收尾：核心45项通过；广批234项通过并发现一条联网测试未设置本地前置，修正后该用例/相邻22项通过；失败分支/Debug14项、最后能力预留排序46项通过。按具体节点去重共275个通过，清单存local_artifacts/network_relevance_20261013/verified_nodes.json。生产WebView2隔离合成浅深22项全部通过，无模型动作和自动PromptSmith日志；第一次脚本误判WebView2数据库.log，改为检查PromptSmith/logs目录。前三项浏览器替身误执行回调或拦截草稿请求已修正，不调整生产行为。
+
+最终旧版14项复现均红；两条预算用例起初HTTP替身缺噪声正文而KeyError，补足后两条明确以video-0与pdf差异失败，修复版2项通过。开放搜索两处提前截断的Spec发现均关闭，需求/规范两轴最终0待修。真实公开documentation/docx/pdf索引GET各100项与相关前列已确认，未访问个人配置或调用Gemini/DeepSeek。
+
+N9/Q3/R1–R4/W1–W4及三个专题均已标完成；HANDOFF/architecture/ui-handoff补最新验收与网络合同。通知文案盘点修正进行中搜索排除，重新生成F35/B221/D71/G17/E93/S7。保留实现阶段延期事实并补后续验收，不声称全仓库/真实模型/EXE通过；本轮仍不提交或推送。收尾仅静态、链接与CodeGraph同步。
+
+最终收尾完成：51个变化/新增Python文件AST、workspace/settings JS语法与diff空白检查通过；9份交接/维护/清单700项相对链接有效。CodeGraph sync同步25文件（新增8、修改17），status确认current：249files/6182nodes/18919edges。测试去重数量与原生结果文件已核对，原有未提交成果保留，没有继续重复已绿回归。
+
+2026-10-13 返回语义新任务：用户明确提交回答后返回应停止模型并恢复该轮未提交输入，需求阶段同样返回末轮，方案返回需求核对起点，Skill返回方案要恢复确认入口并可重新推进；删关键工作复核按钮。已复用五技能、读取当前交接与结构索引，增加B1–B4；公开测试边界沿用现有授权，不读个人配置、不发真实模型请求。首先建立回答恢复红灯，不以旧只读阶段浏览当作符合新规格。
+
+B1 首个公开回归旧版红（无 previous）→绿；部分批提交、保存重开及生成思考隐藏第二条红（after-answers 仍呈现）→绿。证据保留在Session，仅呈现隐藏。本轮其余边界仍未完成。
+
+本轮当前8个业务场景/1个DOM场景分片红绿进行；B1回答回退和保存/迟到草稿防护，B2同会话Web/Tk输入恢复、隐藏生成思考已实现；B3两个确认入口/继续取消搜索已修，待更多端到端与双轴验收。
+
+B1–B3审查修复：恢复记录字段/类型白名单并在副本原子落地，损坏记录完整异常及用户提示；旧会话按trace轮边界恢复分批回答、重建合法gap，尾部补充/换目标/未提交草稿边界已覆盖。追加公开Controller联网取消后continue使用真实搜索管线＋模拟HTTP/模型，新请求一次且旧结果隔离通过；返回confirmed方案直接生成也通过，无请求且隐藏旧方案。联网用例最初误用search_online按钮键被正确拒绝，改实际find_online键，不调整生产合同。结构CLI没有context命令，改explore；一次猜测不存在test_requirements_stop路径，改已存在requirements_inline/request_stop边界。
+
+Spec末项草稿时间顺序：先提交q1再修改q2/填写q3红；Controller携带未flush文本红、生产DOM缺answer_drafts红，均最小修复后绿。返回桥接在原身份/阶段/stamp验证后携带当前题目输入，立即取消不等待draftChain；恢复副本合并旧/最新本轮草稿及已提交答案，保留明确清空、排除其他轮。Tk同一入口捕获实时输入。额外清空及Tk场景绿，最新相邻全批进行中。原生浅深共28项通过，合成bridge＋生产页面，无真实API或自动诊断落盘。首轮原生用例错误期望删除Shift+Enter末尾换行，改为保留原文后通过；新增DOM替身evaluate一度隐式执行返回的永不完成函数，终止该测试进程并改显式不返回的块后确认实际目标红灯。
+
+B4最终验收：相关大批165个节点164绿/1旧断言红，因新行为保留q2/q3空输入；校正断言后该节点单独复验绿，最新165个不同节点全通过。逐节点XML来源已去重保存verified_nodes.json；没有重复整批已绿检查。原生浅深13+13及两全局共28项通过。Spec与Standards对最后实时草稿入口复审各0待修。14个相关Python AST、workspace/history两JS语法、diff空白检查通过；只有正常LF/CRLF提示。交接、专题和B1–B4已标完成，通知清单同步F35/B221/D71/G17/E95/S7（新增恢复损坏与实时草稿格式提示）。仍无真实模型/个人配置/EXE或提交推送；准备最后链接和CodeGraph同步。
+
+本轮最终收尾：8份交接/维护/通知文档719项相对链接有效。CodeGraph sync新增3/修改10共13文件，status为current（252files/6257nodes/19229edges）。最终增量diff刷新保留工作树before比较；通知盘点仅新增可见恢复错误，不列内部cause当用户消息。没有遗留本轮中止测试进程的子进程，B1–B4全部完成；原有未提交成果完整保留，未提交或推送。
+
+## 2026-10-13 教程任务开始
+
+接续前轮完成状态，已读用户教程组件、交接、相关设置/Controller/偏好代码与五技能。保存教程工作树before，追加T1–T5。本轮首次自动展示、关闭/完成记忆与设置界面分类重看；准备公开边界首个红灯，然后逐slice实现。完整回归将覆盖全仓库与前几轮原生脚本，不把先前165项当全套。
+
+教程基础版本曾8绿/1键盘红，显式Tab边界修复后发现全局reduced-motion !important覆盖局部，局部禁动画规则修正并单项绿。用户澄清操作式教程，转为状态驱动引导，不以旧介绍版结果宣称完成。通知盘点新增tutorial时缺context映射触发KeyError，待补映射。
+
+2026-10-13 操作教程收尾：已补真实输入→最后保存快照→无后续变化的三个DOM场景，配置/模型选择/供应商切换均明确红灯。根因为 saving/switching 清除后未刷新教程；最小修复为设置就绪状态事件，仅刷新教程按钮，不改业务/请求或新增刷屏日志。追加首目标失败与新会话不得沿用发送状态用例。全仓库回归继续运行中，尚不能报告全绿。
+
+操作教程17个定向节点通过；原生重看时发现界面分类隐藏模型字段，新增真实重看DOM明确红灯后，在推进配置步骤时切换模型分类，单项已绿。首次原生已通过加密配置、获取、模型保存、发送一次和最终completed等，后半重看因该缺陷失败；第二次原生执行中。
+
+最终操作原生14项全绿；前五套原生22+30+13+22+28=115项全绿，共129项。Debug通知脚本收尾仍有pywebview控件销毁期间ObjectDisposed日志，断言和进程均成功，与功能断言失败区分。窄窗说明可读性两项追加红绿，三项含末步长目标全绿。全仓库1829节点：1746通过/82失败/1跳过；失败清单正在本轮前副本投影复现；本机流式/Stop/自动目录21项单独复验全绿，用于区分整套状态或时序影响。
+
+完整回归归因最终：原82失败在before投影72失败/10通过；当前HTTP/Stop/目录相邻21全绿和目录变更单项绿，10个原不稳定节点全部当前复验通过，根因未完全定位，不能称稳定性已修。最后教程/设置34全绿（教程20+相邻14）；latest-node-results.json逐项去重1764过/72失败/1跳过、1837不同节点。报告full_regression_20261013.md保留全部82表格及release子进程根目录投影限制。两轴最后窄窗复审各0待修。
+
+教程最终收尾完成：T1–T5均complete；静态/9资源/259相对链接与diff检查通过，CodeGraph 256files/6326nodes/19414edges current。最后增量diff已刷新，所有本轮测试进程已结束。教程34相关检查/129原生通过，完整回归保留72原失败及10孤立复验绿的不稳定项。没有提交或推送。
+
+2026-10-13 Intext Hero开始：已读三份组件/图标和当前交接、五技能及规划；确认Orange Juice已安装并可用fontTools离线转轮廓。保存本轮工作树before供增量两轴审查；H1–H5明确启动/跳过/完成、动画与品牌兼容边界。首次CLI误用search已改query；首次PowerShell heredoc语法失败无文件修改，后续使用here-string。
+
+用户追加整个标题合成SVG，指出Orange Juice缺中文；询问中文风格后，用户回复「我先去找找吧，这个任务先暂时搁置在这里」。按明确指示暂停全部Hero工作，记录待选字体，尚未修改生产应用代码；只有维护文档、before检查点、忽略目录里的shader参考包和首个测试草稿。不新增请求/实现/回归或提交推送。
+
+用户继续「你先做别的」，恢复非字体范围。已运行的首个测试因缺少加载入口而明确红，1失败为新功能TDD预期，并非新增业务故障；继续实现启动/动画/品牌，整体SVG待字体。
+
+2026-10-13 非字体实现检查点：H1启动门、参考MorphingSquare、本地Paper液态金属按钮、教程衔接及H3品牌更名已实现；整体标题仍系统文字占位，等待中文字体。Hero/教程30节点及新增Debug保存边界1节点通过。两路只读审查Standards 0，Spec 1个P2：涟漪未裁剪、WebGL降级悬停背景覆盖。两个生产DOM用例均明确红（overflow=visible、backgroundImage=none），最小CSS修复后绿。当前环境无.venv，先前一次命令未启动测试；改实际Python3.11继续。接下来原生隔离入口/教程及品牌相邻验收。
+
+2026-10-13 非字体收尾：175个不同相关本地节点最新全绿，原生Hero三入口36项、实际Controller操作教程15项通过。AST16、JS5、HTML12、spec资源67、文档链接304、diff检查通过。增量生成误读PNG一次，改bytes比较/仅解码文本；文档patch首次标题不匹配已改实际标题，无部分修改。用户随后提供中文手绘图并要求组合，追加整体SVG制作与接入；此后最终状态不再是等待中文字体。
+
+2026-10-13 字标构建：用户提供3840×2160「意织」图已离线去白底/提取轮廓，保留手绘排线；Orange Juice英文和中点转路径，中文高度170、英文164、中点22、两侧34间距，合为1062.56×182单SVG。字体浮点坐标精简到0.01单位，资源由644KB降至345KB，不丢可见细节；浅深预览已人工核对。首次单SVG生产DOM测试明确红，接入后绿。正在补标题就绪屏障，避免资源未解码即离开启动页；运行无字体/位图/在线依赖，许可原文随brand/NOTICE保留。
+
+
+2026-10-13恢复收尾：读取交接/三份维护文件和五技能。39项用户通知差异与备份仍在local_artifacts且未覆盖用户文件。追加A1–A5，先尺寸红绿，再逐文案和教程视觉切片；原来通过的175节点只作为前修改检查点。
+
+Hero/教程41个定向节点全绿；原生三分支38项、实际Controller教程15项通过，第五步不发送也完成。39/39通知盘点与用户新文案精确一致，原清单bytes未动。隔离生成首次误用OUT表达式触发保护断言，无写用户文件；改实际with_name赋值后成功。暗色像素测试基准最初误取9，按实际#171717修正独立预期17，非放宽阈值。用户追加保存提示/双圈，进入A6–A7。
+
+2026-10-13 Hero最终收尾：A6仅实际window_width变更提示下次启动；A7删除额外内圈，单层玻璃边框保留扫光及焦点。新增Debug投影三项先红后绿，最终13项通过且WARNING/多行异常仍完整。Spec与Standards最后复审各0待修，固定before增量已刷新。七份最终相关XML按classname/name去重199节点均通过；Hero38＋真实Controller教程16＝54项实际WebView2检查通过，未访问个人配置或调用真实模型。原通知清单bytes与备份一致。AST31、JS7、19个本地HTML引用、spec递归22资源通过；CodeGraph同步28个变更文件、current为261文件/6417节点/19717边。H1–H5及A1–A7全部complete，维护/交接已同步；前轮72旧失败及10整套不稳定保持单列。
+
+2026-10-13全量审查续接：当前分母57 PAGE/64 DEF/630 CMP已落盘并sync 5272检查；全部初始not_checked。29前端测试模块正在执行，生产DOM逐页与边界脚本运行中；首次Hero真实WebView2检查通过（本轮证据，不继承旧结论）。原测试选择不存在test_trace_visibility.py导致未执行，已换实际test_trace_timer.py重新启动；旧源码及未提交改动保持不动。
+
+Q2补证脚本已完成：3个通知遮挡前置重取、教程缩窗/模态快捷键/历史规模测量；8个timer及1个busy取消原断言在修正Hero测试前置后9/9通过。原328个节点319过/9失败保留，9失败归为测试夹具与新Hero前置不兼容，修复计划需要修原测试但本轮不改。Q3新增凭据/偏好/日志/导出/Stop/保存失败隔离测试进行中。用户明确先审查后修复，四修复技能仅登记下一阶段，本轮仍audit_plan。
+
+2026-10-14审查续接：原328节点319过/9前置红，Hero前置隔离9/9过；结构197/197、平台88/88过。实际WebView2 Hero38、Controller教程16、Tk专项21过；47页DOM及68字段探针保存。83应用源SHA与基线一致。七发现六confirmed/一needs_validation，未实施。结构/方案true，覆盖/发布false。不重跑inventory/build_ledger清零已有证据。维护补丁首次因尾段整行匹配失败而未写入，改定点状态替换及追加记录。
+
+2026-10-14补证：47截图结构人工核对完成，六接触表和visual-inspection.md保存；字体清晰度、长内容底部/交互仍不能由缩略图证明。真实Controller模态17观察/10操作完成；Ctrl+K堆叠、Ctrl+S真实save确认，合法取消离页恢复。FND-007未证实可达。脚本起初漏DesktopApi的version/state封套导致Hero/设置等待超时，修替身合同；第三次因已确认的历史overlay阻挡返回，补先记录后关闭overlay，最终完成，不改产品代码。
+
+2026-10-14用户暂停：停止逐页审查，下一项工作按用户随后提供的三个问题确定。EV-021至EV-026已合并；workspace-actions、workspace-actions-recheck、navigation-actions及运行输出已保留，按(area,name)校准后的70项通过结果尚未合并台账。报告与维护中的旧统计不能作为最终审查结论。本次仅记录暂停状态，没有改动应用源码或原测试，没有启动新检查。
+
+
+2026-10-14 S1 started: preserve current conversation.py as incremental before baseline; continue with a focused public-interface symptom test, not a full audit or combined regression.
+
+
+2026-10-14 S1 completed: two exact visibility red tests; final focused feedback 5 passed (13.39s), including public state, save/reopen and Tk Controller + light/dark production Chrome DOM. First UI attempt failed from an invented catalog fixture (3 passed/2 failed), replaced with existing real built-in fixture without relaxing source validation. Shared stage projection and deduplicated Debug updated. Spec/Standards each 0 findings. Combined regression and S2/S3 still pending; full audit paused. Documentation first patch failed atomically on wrong UI header anchor and was corrected.
+
+
+2026-10-14 S2 started: read supplied glass TSX as visual reference, captured incremental baseline after completed S1. No demonstration content treated as user instructions. Focused tests will exercise public DOM and existing Controller; no full audit/combined regression yet.
+
+2026-10-14 S3 resumed: summary scoring implementation and 11 distinct focused nodes were green individually before compaction. First neighboring run 46 passed/2 fixture failures (obsolete full-source expectation and missing score); corrected discovery fixtures 18 passed. DOM run 7 passed/2 fixture failures lacked the local-search prerequisite; both themes then green without loosening the product gate. Standards reported empty matches as a false completed review; added public search test ran red, then green after recording counts and rejecting zero valid scores. Three Controller outcomes (low scores, empty scores, service failure) passed. Incremental Spec/Standards now each 0 outstanding. S1–S3 plus adjacent 30-module combination is running; full audit remains paused. One attempted maintenance patch used a task-plan sentence against findings.md and failed atomically; corrected by using its actual S2 anchor.
+
+2026-10-14 S3 cancellation: public summary search late-success green, late-error red (cancelled task entered fallback); check_cancelled before exception wrapping made both green. Actual owner→Controller Stop green after correcting fixture to current stop/stop_scope contract. Both incremental review axes cleared cancellation change. Broad 30-module run finished 323 nodes: 322 passed, one old cancellation test used hidden Skill integration after valid result, expected removed inline cancel. Updated it to public back_stage→integrate before cancelling, preserving data/late-result assertions. Final affected six modules are running to cover latest cancel guard and corrected public flow; broad failures are not called full success.
+
+2026-10-14 S1–S3 complete: final affected six modules 61/61 passed; original broad report 322/323 passed remains preserved. Latest-node-results.json merges both reports by classname/name: 326 distinct latest nodes passed, zero skipped/failed. Both axes cleared final public back-stage fixture correction, no outstanding findings. AST12 plus final cancel test AST, workspace.js syntax, final 10-file incremental whitespace and 308 relative documentation links passed. CodeGraph sync succeeded for 9 changed files (1 added/8 modified); status confirmed current. Maintenance, HANDOFF, architecture, ui-handoff, task plan and tasks updated; all earlier work and paused audit preserved. No live model/paid API, personal credentials/session access, actual WebView2/EXE, commit or push. A final output poll after the process had already closed returned Unknown process id; successful XML/result had already been inspected, no test was restarted.

@@ -1,10 +1,10 @@
 <!doctype html>
 <html lang="zh-CN">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PromptSmith · Debug 控制台</title><link rel="stylesheet" href="workspace.css"><link rel="stylesheet" href="debug.css"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Intext · Debug 控制台</title><link rel="stylesheet" href="workspace.css"><link rel="stylesheet" href="debug.css"><link rel="stylesheet" href="notifications.css"></head>
 <body class="debug-page">
-  <header><div class="debug-heading"><div class="brand">PromptSmith</div><strong>Debug 控制台</strong></div><div class="debug-header-tools"><div id="log-legend" role="group" aria-label="日志类型筛选"></div><span id="count"></span></div></header>
+  <header><div class="debug-heading"><div class="brand">Intext</div><strong>Debug 控制台</strong></div><div class="debug-header-tools"><div id="log-legend" role="group" aria-label="日志类型筛选"></div><span id="count"></span></div></header>
   <div class="debug-toolbar"><label for="level">日志级别</label><select id="level"><option value="10">全部</option><option value="20">INFO 及以上</option><option value="30">WARN 及以上</option><option value="40">ERROR 及以上</option><option value="50">CRITICAL</option><option value="custom" disabled>自定义</option></select><label class="debug-check"><input type="checkbox" id="autoscroll" checked>自动滚动</label><button id="copy">复制日志</button><button id="clear">清空显示</button><button id="save">保存日志</button><button id="directory" disabled>打开日志目录</button></div>
   <main id="debug-scroll" tabindex="0" aria-label="运行日志"><div id="log-lines" role="log" aria-live="off"></div></main>
-  <footer><p id="save-status" role="status">未保存</p><p id="debug-error" role="alert" hidden></p></footer>
-  <script src="debug.js"></script>
+  <footer><p>运行日志保留在内存中，点击“保存日志”才写入文件。</p></footer>
+  <script src="notifications.js"></script><script src="debug.js"></script>
 </body></html>

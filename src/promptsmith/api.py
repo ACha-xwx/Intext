@@ -143,6 +143,14 @@ class ModelListResult:
     model_ids: list[str]
     latency_ms: int | None
 
+    def __post_init__(self):
+        from .model_catalog import callable_model_ids
+        ids = callable_model_ids(self.model_ids)
+        removed = len(self.model_ids) - len(ids)
+        if removed:
+            logging.getLogger(__name__).debug("Model directory filtered: removed=%s", removed)
+        object.__setattr__(self, "model_ids", list(ids))
+
 
 def _validate_output_limit(value: int) -> None:
     if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= 4096:

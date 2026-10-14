@@ -1,4 +1,4 @@
-# PromptSmith
+# 意织 · Intext
 
 需求引导式提示构建助手：将模糊想法整理为明确需求、执行方案和可交给其他 AI 使用的提示，并按任务选配 Agent Skill。
 
@@ -33,7 +33,9 @@ python -m venv .venv
 
 界面中填写服务、协议、接口地址、模型 ID 和自己的 API Key。支持 OpenAI Chat Completions、OpenAI Responses、Anthropic Messages。连接测试通过只说明探测请求成功，正式结构化生成仍需验证服务支持。
 
-每个供应商分别保存接口、加密 API Key 和模型列表。以后启动会自动在后台刷新所有已保存密钥的供应商列表，刷新期间可以使用之前的列表；失败时保留缓存并提示重试。“获取模型”按钮仍可随时手动刷新，获取列表不会代替模型设置的“确认”。
+每个供应商分别保存接口、加密 API Key 和模型列表。修改自动保存，有效配置自动生效。以后启动会在后台刷新所有已保存密钥的供应商列表，刷新期间可以使用之前的列表；失败时保留缓存并提示重试。“获取模型”按钮仍可随时手动刷新。
+
+程序启动先显示「意织 · Intext」与加载动画。首次使用点击圆形开始按钮进入操作式教程；完成或跳过教程后，之后启动会在加载结束自动进入工作区。设置页可重新查看教程。完整标题以透明 SVG 显示，中文手绘与 Orange Juice 英文一起保存为路径，不依赖电脑字体。教程前四步操作完成才解锁，第五步可直接完成；非操作区域压暗25%，当前步骤首次完成播放礼花。
 
 ```powershell
 .venv/Scripts/python.exe run_promptsmith.py --smoke-test
@@ -42,7 +44,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1
 
 `--smoke-test` 仅检查 Tk 构造，不代表 WebView2 启动验收。
 
-构建产物为 `dist/PromptSmith.exe`。EXE、虚拟环境、运行日志和个人会话不提交 Git；分发软件时使用 GitHub Release 或团队共享文件。默认用户数据在 `%LOCALAPPDATA%/PromptSmith/`，运行时密钥不随会话保存。
+构建产物为 `dist/Intext.exe`。EXE、虚拟环境、运行日志和个人会话不提交 Git；分发软件时使用 GitHub Release 或团队共享文件。为兼容原有设置和历史，默认用户数据继续位于 `%LOCALAPPDATA%/PromptSmith/`，运行时密钥不随会话保存。
 
 ## 仓库结构
 

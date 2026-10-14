@@ -3,7 +3,7 @@ $projectRoot = Split-Path -Parent $PSScriptRoot
 $python = Join-Path $projectRoot '.venv/Scripts/python.exe'
 $distRoot = [IO.Path]::GetFullPath((Join-Path $projectRoot 'dist'))
 $legacyDirectory = [IO.Path]::GetFullPath((Join-Path $distRoot 'PromptSmith'))
-$singleFile = Join-Path $distRoot 'PromptSmith.exe'
+$singleFile = Join-Path $distRoot 'Intext.exe'
 if (-not (Test-Path -LiteralPath $python)) {
     throw 'Missing .venv. Run: python -m venv .venv; .venv/Scripts/python.exe -m pip install -r requirements.txt'
 }

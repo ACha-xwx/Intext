@@ -10,21 +10,21 @@ window.promptsmithEditors=(()=>{
   function update(editor){
     if(!editor){dismissed=null;close();return;}
     if(editor.id===dismissed)return;
+    window.promptsmithNotifications.sync("action:editor_save",editor.error||"",{variant:"error"});
     if(current?.id===editor.id){
-      if(editor.error)dialog.querySelector(".editor-error").textContent=editor.error;
       return;
     }
     close();returnFocus=captureFocus();closePopup(true);current=editor;
     dialog=node("dialog","editor-dialog");dialog.setAttribute("aria-label",editor.title);
     const title=node("div","popup-title",editor.title),cancel=button("",cancelEditor,"popup-close");
     cancel.append(icon("close"));cancel.setAttribute("aria-label","关闭编辑");title.append(cancel);dialog.append(title);
-    const error=node("p","editor-error",editor.error||"");error.setAttribute("role","alert");
     if(editor.kind==="plan"){
-      renderPlan(dialog,editor);dialog.append(error);
+      renderPlan(dialog,editor);
       const controls=node("div","actions");controls.append(button("完成编辑",cancelEditor));dialog.append(controls);
       show();return;
     }
     const form=node("form","editor-form"),fields=node("div","editor-fields");
+    form.addEventListener("invalid",event=>{event.preventDefault();toast((event.target.getAttribute("aria-label")||"内容")+"不能为空。","warning",{key:"editor:validation"});},true);
     if(editor.message)form.append(node("p","notice",editor.message));
     for(const field of editor.fields){
       if(field.type==="choices"){
@@ -41,14 +41,13 @@ window.promptsmithEditors=(()=>{
     }
     const controls=node("div","actions");controls.append(button("取消",cancelEditor));
     const save=button(({step_delete:"删除",new:"新建",conflict:"确认可以并存"})[editor.kind]||"保存",()=>form.requestSubmit(),"editor-save");controls.append(save);
-    form.append(fields,error,controls);dialog.append(form);
+    form.append(fields,controls);dialog.append(form);
     form.addEventListener("submit",async event=>{
       event.preventDefault();const values=Object.fromEntries(new FormData(form));
       for(const group of fields.querySelectorAll(".editor-choices"))values[group.dataset.key]=[...group.querySelectorAll("input:checked")].map(input=>input.value).join("\n");
       const id=editor.id;save.disabled=true;
       try{
         if(await command("editor_save",{id,values})){dismissed=id;if(current?.id===id)close();}
-        else if(current?.id===id&&!error.textContent)error.textContent="修改未保存，请重试；详细原因可在 Debug 控制台查看。";
       }
       finally{save.disabled=false;}
     });

@@ -43,6 +43,12 @@ def load(view, kind="empty", **changes):
     state = json.loads(json.dumps(STATES[kind]))
     state.update(changes)
     view.evaluate("s=>promptsmithView.applySnapshot(s)", state)
+    # This helper enters a feature page. Startup tests use their own public
+    # snapshot publisher to inspect the gate before entering the workspace.
+    if view.evaluate("Boolean(window.promptsmithStartup&&!promptsmithStartup.entered)"):
+        if state.get("tutorial_status") == "not_started":
+            view.get_by_role("button", name="开始使用 Intext", exact=True).click()
+        view.wait_for_function("!window.promptsmithStartup||promptsmithStartup.entered")
     return state
 
 
@@ -78,19 +84,19 @@ def test_small_window_keeps_all_header_actions_visible(page, font, collapsed, th
 
 
 @pytest.mark.parametrize("category", ["模型", "Skill 搜索", "界面", "会话与导出", "诊断"])
-def test_small_settings_can_scroll_and_reach_save(page, category):
+def test_small_settings_can_scroll_and_reach_restore(page, category):
     page.set_viewport_size({"width": 720, "height": 440})
     load(page, page="settings", font_size=18)
     page.evaluate("promptsmithHistory.setCollapsed(false)")
     page.get_by_role("tab", name=category, exact=True).click()
     settle(page)
-    save = page.get_by_role("button", name="保存设置", exact=True)
+    save = page.get_by_role("button", name="恢复本类默认", exact=True)
     save.scroll_into_view_if_needed()
     box = save.bounding_box()
     assert box and box["y"] >= 0 and box["y"] + box["height"] <= 440
     assert page.locator(".settings-scroll").bounding_box()["height"] >= 80
     save.click()
-    page.wait_for_function("calls.some(c=>c.action==='settings_save')")
+    page.wait_for_function("calls.some(c=>c.action==='settings_autosave')")
 
 
 @pytest.mark.parametrize("font", [9, 12, 18])
@@ -248,14 +254,15 @@ def test_debug_recovery_clears_sync_error_but_retains_copy_error(page):
       }};
     }""")
     page.evaluate("promptsmithDebug.poll()")
-    assert page.locator("#debug-error").is_visible()
+    assert page.locator('.notification-error[data-key="debug:sync"]').is_visible()
     page.evaluate("failSync=false;promptsmithDebug.poll()")
-    assert page.locator("#debug-error").is_hidden()
+    page.wait_for_timeout(180)
+    assert page.locator('.notification-error[data-key="debug:sync"]').count() == 0
     page.evaluate("Object.defineProperty(navigator,'clipboard',{value:{writeText:async()=>{throw new Error('denied');}}})")
     page.locator("#copy").click()
-    assert page.locator("#debug-error").is_visible()
+    assert page.locator('.notification-error[data-key="debug:copy"]').is_visible()
     page.evaluate("promptsmithDebug.poll()")
-    assert "复制" in page.locator("#debug-error").inner_text()
+    assert "复制" in page.locator('.notification-error[data-key="debug:copy"]').inner_text()
 
 
 def test_rejected_requirement_selection_keeps_backend_selection_visible(page):
@@ -316,9 +323,10 @@ def test_small_settings_retains_draft_with_long_error_and_can_save(page):
     load(page, page="settings", font_size=18)
     field = page.locator("#settings-field-connection-model")
     field.fill("保留的模型草稿")
-    page.evaluate("document.querySelector('.settings-error').textContent='请更换目录后重试。'.repeat(60)")
+    page.evaluate("promptsmithNotifications.show('请更换目录后重试。'.repeat(60),{variant:'error'})")
+    page.get_by_role("button", name="关闭通知", exact=True).click()
+    page.wait_for_timeout(180)
     page.get_by_role("tab", name="诊断", exact=True).click()
-    page.get_by_role("button", name="保存设置").click()
-    page.wait_for_function("calls.some(c=>c.action==='settings_save'&&c.data.connection.model==='保留的模型草稿')")
+    page.wait_for_function("calls.some(c=>c.action==='settings_autosave'&&c.data.connection.model==='保留的模型草稿')")
     page.get_by_role("tab", name="模型", exact=True).click()
     assert field.input_value() == "保留的模型草稿"

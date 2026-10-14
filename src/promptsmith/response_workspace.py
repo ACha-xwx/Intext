@@ -153,7 +153,7 @@ class ResponseWorkspaceMixin:
         self._question_inputs[key] = answer
         token = self._conversation_render_token
         size = max(42,ui_font(card).metrics("linespace")+16)
-        submit = GlyphButton(row,text="提交回答",command=lambda:self._conversation_action(token,lambda:self._submit_inline_question(key)),
+        submit = GlyphButton(row,text="提交本轮已填写的回答",command=lambda:self._conversation_action(token,lambda:self._submit_inline_question(key)),
                              arrow=True,width=size,height=size,palette=THEMES[self.preferences["composer_theme"]],
                              state="normal" if self._question_drafts.get(key, "").strip() and not self._conversation_locked() else "disabled")
         submit.grid(row=0,column=1,padx=12)
@@ -168,7 +168,7 @@ class ResponseWorkspaceMixin:
             if answer.edit_modified():
                 text = answer.get("1.0", "end-1c")
                 self._question_drafts[key] = text
-                submit.configure(state="normal" if text.strip() and not self._conversation_locked() else "disabled")
+                self._update_inline_answer_buttons()
                 answer.edit_modified(False)
         answer.edit_modified(False)
         answer.bind("<<Modified>>", changed)
@@ -186,10 +186,21 @@ class ResponseWorkspaceMixin:
             answer.bind(sequence, submit_key)
         for sequence in ("<Shift-Return>", "<Shift-KP_Enter>"):
             answer.bind(sequence, newline)
-        logging.getLogger(__name__).debug("Inline answer shortcuts ready: task=%s question=%s Enter=submit Shift+Enter=newline",
+        logging.getLogger(__name__).debug("Inline answer shortcuts ready: task=%s question=%s Enter=submit-batch Shift+Enter=newline",
                                           self.session.task_id, key)
         self._bind_context_menu(answer)
         answer.configure(state="disabled" if self._conversation_locked() else "normal")
+        self._update_inline_answer_buttons()
+
+    def _update_inline_answer_buttons(self):
+        active = {row["question_id"] for row in self.session.questions_for_review()}
+        filled = any(widget.get("1.0", "end-1c").strip()
+                     for key, widget in self._question_inputs.items() if key in active)
+        state = "normal" if filled and not self._conversation_locked() else "disabled"
+        for key in self._question_inputs:
+            submit = self._conversation_buttons.get("submit:" + key)
+            if submit is not None:
+                submit.configure(state=state)
 
     def _fill_inline_question(self, key, text):
         widget = self._question_inputs[key]
@@ -198,18 +209,16 @@ class ResponseWorkspaceMixin:
         widget.focus_set()
 
     def _submit_inline_question(self, key):
-        row = next((q for q in self.session.questions_for_review() if q["question_id"] == key), None)
-        if row is None or self._conversation_locked():
+        active = self.session.questions_for_review()
+        if not any(row["question_id"] == key for row in active) or self._conversation_locked():
             return
-        text = self._question_inputs[key].get("1.0", "end-1c").strip()
-        if not text:
-            return
-        self._answer_target_id = key
-        self.answer_var.set(text)
-        logging.getLogger(__name__).info("Inline question submitted: task=%s question=%s chars=%s", self.session.task_id, key, len(text))
-        self.submit_guided_answer()
-        if not self.answer_var.get():
-            self._question_drafts.pop(key, None)
+        answers = [{"question_id": row["question_id"], "text": self._question_inputs[row["question_id"]].get("1.0", "end-1c")}
+                   for row in active if row["question_id"] in self._question_inputs]
+        try:
+            self.submit_guided_answers(answers)
+        except Exception:
+            logging.getLogger(__name__).exception("Inline answer batch failed; drafts retained: task=%s", self.session.task_id)
+            self._show_error("回答未提交", "本轮回答未提交，输入已保留。请查看当前问题后重试。", parent=self.root)
 
     def _skip_inline_question(self, key, disposition):
         self._answer_target_id = key

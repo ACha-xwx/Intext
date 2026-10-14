@@ -5,6 +5,11 @@ from playwright.sync_api import expect
 from tests.test_frontend_review_regressions import browser, page, load
 
 
+def choose_setting(page, label, option):
+    page.get_by_role("combobox", name=label, exact=True).click()
+    page.get_by_role("listbox", name=label + "预设", exact=True).get_by_role("option", name=option, exact=True).click()
+
+
 def custom_state(page, **changes):
     state = load(page, page="settings", **changes)
     settings = state["settings"]
@@ -29,9 +34,11 @@ def test_settings_groups_custom_services_by_selected_family_and_restores_source(
     page.wait_for_function("calls.some(c=>c.action==='settings_provider')")
     payload = page.evaluate("calls.find(c=>c.action==='settings_provider').data")
     assert payload["connection"]["provider"] == settings["connection"]["provider"]
-    expect(page.get_by_label("模型供应商", exact=True)).to_have_value("OpenAI")
+    expect(page.get_by_label("模型供应商", exact=True)).to_have_attribute("data-value", "OpenAI")
     expect(page.get_by_label("官网链接", exact=True)).to_have_value("https://gpt.example.invalid")
-    expect(page.get_by_role("region", name="已获取模型", exact=True)).to_contain_text("private-alias")
+    page.get_by_label("模型 ID", exact=True).click()
+    expect(page.get_by_role("option", name="private-alias", exact=True)).to_be_visible()
+    page.keyboard.press("Escape")
     assert page.get_by_label("API Key", exact=True).input_value() == ""
 
 
@@ -46,14 +53,12 @@ def test_custom_service_requires_family_before_saving_and_key_visibility_is_ephe
     assert key.get_attribute("type") == "text"
     page.get_by_role("button", name="隐藏密钥", exact=True).click()
     assert key.get_attribute("type") == "password"
-    page.get_by_role("button", name="保存设置", exact=True).click()
     expect(page.get_by_role("alert")).to_contain_text("请选择模型供应商")
-    assert not page.evaluate("calls.some(c=>c.action==='settings_save')")
-    page.get_by_label("模型供应商", exact=True).select_option("Anthropic")
-    expect(page.get_by_label("协议", exact=True)).to_have_value("Anthropic Messages")
-    page.get_by_role("button", name="保存设置", exact=True).click()
-    page.wait_for_function("calls.some(c=>c.action==='settings_save')")
-    data = page.evaluate("calls.find(c=>c.action==='settings_save').data")
+    assert not page.evaluate("calls.some(c=>c.action==='settings_autosave')")
+    choose_setting(page, "模型供应商", "Anthropic")
+    expect(page.get_by_label("协议", exact=True)).to_have_attribute("data-value", "Anthropic Messages")
+    page.wait_for_function("calls.some(c=>c.action==='settings_autosave')")
+    data = page.evaluate("calls.find(c=>c.action==='settings_autosave').data")
     assert data["connection"]["model_provider"] == "Anthropic"
     assert data["key"] == "disposable-typed-key"
     assert key.get_attribute("type") == "password"
@@ -79,7 +84,7 @@ def test_switching_to_builtin_preserves_custom_source_family_draft(page):
     settings = custom_state(page)
     settings["connection"].update(provider="GPT中转", model_provider="OpenAI")
     load(page, page="settings", settings=settings)
-    page.get_by_label("模型供应商", exact=True).select_option("Anthropic")
+    choose_setting(page, "模型供应商", "Anthropic")
     page.get_by_role("button", name="服务名称预设", exact=True).click()
     page.get_by_role("listbox", name="服务名称预设", exact=True).get_by_role("option", name="DeepSeek", exact=True).click()
     page.wait_for_function("calls.some(c=>c.action==='settings_provider')")

@@ -138,7 +138,8 @@ def test_failed_auto_fetch_keeps_cache_and_explains_how_to_retry(start_app, dire
     assert load_settings(tmp_path / "settings.json").model_ids == ("cached-model",)
     assert "获取模型" in view.settings_snapshot()["directory_status"]
     assert not app.busy and view.settings_snapshot()["confirmed"]
-    assert view.snapshot()["notifications"] == []  # startup failure does not open a modal
+    assert any("自动获取模型列表失败" in row["body"] and row["level"] == "error"
+               for row in view.snapshot()["notifications"])  # closable feedback, no modal
     content = "\n".join(row.text for row in app.runtime_log.entries_after())
     assert "Startup model directory failed" in content and "Traceback" in content
     assert "disposable-startup-key" not in content
@@ -166,16 +167,15 @@ def test_key_edit_discards_delayed_old_directory(start_app, directory_server, tm
     wait_for(app.root, directory_server.entered.is_set)
     app.api_key_var.set("disposable-new-draft-key")
     directory_server.release.set()
-    wait_for(app.root, lambda: bool(app.completions.qsize()))
-    # Pump the queued stale completion through the ordinary owner-thread loop.
-    for _ in range(10):
-        app.root.update()
-        time.sleep(.01)
+    # Observe the public diagnostic outcome after the owner consumes the result;
+    # the completion queue can already be empty by the time root.update returns.
+    wait_for(app.root, lambda: any("Startup model directory result discarded" in row.text
+                                 for row in app.runtime_log.entries_after()))
     assert view.snapshot()["models"] == []
     assert load_settings(tmp_path / "settings.json").model_ids == ("cached-model",)
     assert load_settings(tmp_path / "settings.json").api_key == "disposable-startup-key"
     assert view.settings_snapshot()["directory_status"] == ""
-    assert not view.settings_snapshot()["confirmed"]
+    assert view.settings_snapshot()["confirmed"]  # Valid edited key is usable, but not saved by directory refresh.
 
 
 def test_auto_failure_can_be_retried_with_existing_button(start_app, directory_server, tmp_path):
@@ -257,4 +257,5 @@ def test_startup_directory_uses_saved_protocol_and_auth(start_app, directory_ser
     app, view = start_app()
     wait_for(app.root, lambda: bool(view.snapshot()["models"]))
     assert directory_server.calls == [(path, auth)]
-    assert not view.settings_snapshot()["confirmed"]  # acquiring a list never confirms settings
+    assert view.settings_snapshot()["confirmed"]  # Valid configuration is usable without a confirmation button.
+    assert not load_settings(tmp_path / "settings.json").model_confirmed  # GET does not write confirmation.

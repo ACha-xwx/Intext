@@ -369,7 +369,7 @@ class SessionState:
         self.updated_at = _now()
 
     def workspace_navigation(self) -> dict[str, Any]:
-        """Read-only review position; revisiting never revokes confirmations."""
+        """Read-only review position, including the last submitted answer round."""
         confirmed = self.confirmed_requirements_version == self.requirement_version
         review_ready = (self.last_next_action == "review_requirements" or self.plan.get("content")) and not self.questions_for_review() and not any(
             q.get("assessment_status") == "pending" and q.get("disposition") == "answered" for q in self.question_history)
@@ -381,7 +381,10 @@ class SessionState:
             if self.plan.get("status") == "confirmed":
                 route.append("skills")
                 if self.final_result.get("canonical_body") and self.final_result.get("status") in {"draft", "confirmed"}:
-                    if self.skill_state.get("status") == "skipped" and not self.skill_state.get("bindings"):
+                    search = self.skill_state.get("search_state") or {}
+                    saved_stage = (self.control.get("workspace_navigation") or {}).get("stage")
+                    if (self.skill_state.get("status") == "skipped" and not self.skill_state.get("bindings")
+                            and search.get("status") not in {"local_running", "network_running"} and saved_stage != "skills"):
                         route.remove("skills")
                     route.append("result")
         basis = [self.requirement_version, self.confirmed_requirements_version,
@@ -394,20 +397,193 @@ class SessionState:
         if stage not in route:
             stage = natural
         index = route.index(stage)
+        checkpoint = self.control.get("answer_round_checkpoint")
+        can_restore = (bool(checkpoint.get("submitted") and not checkpoint.get("restored")) if isinstance(checkpoint, dict)
+                       else any(row.get("field") != "supplement" for row in self.question_history))
+        previous = route[index-1] if index else "interview" if can_restore else None
+        if stage == "plan" and not self.plan.get("content") and can_restore:
+            previous = "interview"
         return {"stage": stage, "natural": natural, "revisiting": stage != natural,
-                "previous": route[index-1] if index else None,
-                "next": route[index+1] if index+1 < len(route) else None, "basis": basis}
+                "previous": previous,
+                "next": route[index+1] if index+1 < len(route) else None, "basis": basis, "stages": route}
 
-    def navigate_workspace(self, direction: str) -> str:
+    def focus_workspace_stage(self, stage: str) -> None:
+        navigation = self.workspace_navigation()
+        if stage not in navigation["stages"]:
+            raise SessionStateError("当前步骤尚不可用。")
+        self.control["workspace_navigation"] = {"stage": stage, "basis": navigation["basis"]}
+        self.touch()
+
+    def navigate_workspace(self, direction: str, *, answer_drafts: dict[str, str] | None = None) -> str:
         navigation = self.workspace_navigation()
         if direction not in {"previous", "next"} or not navigation.get(direction):
             raise SessionStateError("当前没有可返回或继续的步骤。")
         stage = navigation[direction]
+        checkpoint = self._answer_round_checkpoint()
+        if (direction == "previous" and stage == "interview" and isinstance(checkpoint, dict)
+                and checkpoint.get("submitted") and not checkpoint.get("restored")):
+            self._restore_answer_round(checkpoint, answer_drafts=answer_drafts)
+            return "interview"
         self.control["workspace_navigation"] = {"stage": stage, "basis": navigation["basis"]}
         self.touch()
         logging.getLogger(__name__).info("Workspace review navigation; task=%s from=%s to=%s direction=%s results_preserved=True model_requests=0",
                                         self.task_id, navigation["stage"], stage, direction)
         return stage
+
+    def _answer_round_checkpoint(self) -> dict[str, Any] | None:
+        saved = self.control.get("answer_round_checkpoint")
+        if isinstance(saved, dict):
+            return saved
+        # Older records have no pre-submit snapshot. Recover the last recorded
+        # batch, retaining independent facts but retiring facts derived from its
+        # answers. Those answers must be assessed again after resubmission.
+        history = self.question_history
+        end = len(history)
+        while end and history[end-1].get("field") == "supplement":
+            end -= 1
+        if not end:
+            return None
+        last = history[end-1]
+        group = last.get("submission_group_id")
+        start = end - 1
+        counts = [r["history_count"] for r in self.control.get("response_traces", [])
+                  if type(r.get("history_count")) is int and 0 <= r["history_count"] < end]
+        if counts:
+            start = max(counts)
+        elif group:
+            while start and history[start-1].get("submission_group_id") == group:
+                start -= 1
+        else:
+            # Legacy per-question submissions: an analysis trace marks the
+            # boundary of a question round; never consume earlier rounds.
+            start = 0
+            while start < end-1 and history[start].get("field") == "supplement":
+                start += 1
+        rows = history[start:end]
+        if any(row.get("field") == "supplement" for row in rows):
+            return None
+        excluded = {"schema_version", "task_id", "created_at", "updated_at", "runtime_api_key", "pending_requests", "api_runs", "control"}
+        state = {name: deepcopy(getattr(self, name)) for name in self.__dataclass_fields__ if name not in excluded}
+        sources = {row.get("answer_source_id") for row in history[start:]} - {None}
+        removed = {r["item_id"] for r in self.requirements if any(ref.get("source_id") in sources for ref in r.get("source_refs", []))}
+        while True:
+            dependents = {r["item_id"] for r in self.requirements if set(r.get("depends_on", [])) & removed}
+            if dependents <= removed:
+                break
+            removed |= dependents
+        state["requirements"] = [r for r in state["requirements"] if r["item_id"] not in removed]
+        state["sources"] = [r for r in state["sources"] if r["source_id"] not in sources]
+        state["current_source_id"] = next((r["source_id"] for r in reversed(state["sources"]) if r.get("role") == "user"), None)
+        state["question_history"] = deepcopy(history[:start])
+        state["pending_proposals"], state["open_conflicts"], state["gaps"] = [], [], []
+        state["pending_review_item_ids"] = []
+        state["last_readiness"], state["last_model_judgment"], state["last_next_action"] = None, None, None
+        state["plan"], state["skill_state"], state["final_result"] = _default_plan(), _default_skill_state(), _default_final()
+        state["selected_skills"] = []
+        questions = [{key: deepcopy(value) for key, value in row.items() if key in {
+            "question_id", "gap_id", "field", "scope", "text", "clarification_scope", "clarification_key"}}
+            for row in rows]
+        # Recreate the unanswered unknowns: old analysis may have removed its
+        # resolved gaps, but the next request still needs valid question links.
+        original_gaps = {g["gap_id"]: g for g in self.gaps}
+        restored_gaps = {}
+        for question in questions:
+            gap_id = question.get("gap_id") or f"g-restored-{question['question_id']}"
+            gap = deepcopy(original_gaps.get(gap_id)) or {
+                "gap_id": gap_id, "field": question["field"], "scope": question["scope"],
+                "description": question["text"], "importance": "can_defer"}
+            gap.update(origin="ambiguous", source_refs=[], depends_on=[])
+            restored_gaps[gap_id] = gap
+            question["gap_id"] = gap_id
+            question.pop("clarification_key", None)
+            question.update(options=[], reason="恢复本轮未提交的回答。", depends_on=[])
+        state["gaps"] = list(restored_gaps.values())
+        state["pending_questions"] = questions
+        state["control"] = {key: deepcopy(value) for key, value in self.control.items()
+                            if key not in {"response_traces", "workspace_navigation", "answer_round_checkpoint"}}
+        return {"state": state, "questions": {q["question_id"]: q for q in questions},
+                "answers": {row["question_id"]: row.get("answer_text", "") for row in rows},
+                "round": self.control.get("interview_rounds_used", 0), "submitted": True, "restored": False,
+                "trace_ids": [r.get("id") for r in self.control.get("response_traces", []) if r.get("history_count", len(history)) <= start]}
+
+    def _checkpoint_answer_round(self, questions: list[dict[str, Any]]) -> dict[str, Any]:
+        """Keep one bounded business checkpoint; traces and API evidence stay separate."""
+        saved = self.control.get("answer_round_checkpoint")
+        question_map = {q["question_id"]: q for q in questions}
+        if (isinstance(saved, dict) and saved.get("round") == self.control.get("interview_rounds_used", 0)
+                and all(saved.get("questions", {}).get(key) == value for key, value in question_map.items())):
+            return saved
+        excluded = {"schema_version", "task_id", "created_at", "updated_at", "runtime_api_key", "pending_requests", "api_runs", "control"}
+        state = {name: deepcopy(getattr(self, name)) for name in self.__dataclass_fields__ if name not in excluded}
+        state["pending_questions"] = deepcopy(questions)
+        state["control"] = {key: deepcopy(value) for key, value in self.control.items()
+                            if key not in {"answer_round_checkpoint", "response_traces", "workspace_navigation"}}
+        saved = {"state": state, "questions": deepcopy(question_map), "answers": {},
+                 "round": self.control.get("interview_rounds_used", 0), "submitted": False, "restored": False,
+                 "trace_ids": [r.get("id") for r in self.control.get("response_traces", [])]}
+        self.control["answer_round_checkpoint"] = saved
+        return saved
+
+    def _restore_answer_round(self, checkpoint: dict[str, Any], *, answer_drafts: dict[str, str] | None = None) -> None:
+        try:
+            excluded = {"schema_version", "task_id", "created_at", "updated_at", "runtime_api_key", "pending_requests", "api_runs"}
+            state = checkpoint.get("state")
+            if not isinstance(state, dict) or set(state) != set(self.__dataclass_fields__) - excluded:
+                raise ValueError("Invalid answer checkpoint fields")
+            defaults = SessionState.new()
+            for name, value in state.items():
+                expected = getattr(defaults, name)
+                if isinstance(expected, (dict, list, int, str)) and type(value) is not type(expected):
+                    raise ValueError(f"Invalid answer checkpoint type: {name}")
+            if set(state["control"]) & {"answer_round_checkpoint", "response_traces", "workspace_navigation"}:
+                raise ValueError("Recursive answer checkpoint control")
+            questions, answers, trace_ids = checkpoint.get("questions"), checkpoint.get("answers"), checkpoint.get("trace_ids")
+            if (not isinstance(questions, dict) or not questions or not isinstance(answers, dict)
+                    or not isinstance(trace_ids, list) or not all(isinstance(key, str) for key in trace_ids)
+                    or any(not isinstance(key, str) or not isinstance(q, dict) or q.get("question_id") != key for key, q in questions.items())
+                    or any(key not in questions or not isinstance(text, str) for key, text in answers.items())):
+                raise ValueError("Invalid answer checkpoint questions or drafts")
+            if answer_drafts is not None and (not isinstance(answer_drafts, dict)
+                    or any(not isinstance(key, str) or not isinstance(text, str) for key, text in answer_drafts.items())):
+                raise ValueError("Invalid live answer drafts")
+            working = deepcopy(self)
+            working._restore_answer_round_in_place(checkpoint, answer_drafts=answer_drafts)
+            self.__dict__.update(working.__dict__)
+        except Exception as exc:
+            logging.getLogger(__name__).exception("Answer round restoration failed; current session preserved: task=%s", self.task_id)
+            raise SessionStateError("这轮回答的恢复记录不完整，当前内容已保留。可继续当前步骤，或从文件菜单重新打开会话。") from exc
+
+    def _restore_answer_round_in_place(self, checkpoint: dict[str, Any], *, answer_drafts: dict[str, str] | None = None) -> None:
+        state = deepcopy(checkpoint["state"])
+        # Drafts may have been edited after the first partial submission. Keep
+        # the latest inputs, including explicit empty strings, within this round.
+        live_answers = {**self.control.get("workspace_drafts", {}).get("answers", {}), **(answer_drafts or {})}
+        traces = self.control.get("response_traces", [])
+        version = self.requirement_version
+        for name, value in state.items():
+            setattr(self, name, value)
+        # A version must never be reused by an old request or queued UI command.
+        self.requirement_version = max(version, self.requirement_version)
+        self._content_changed(preserve_candidates=True)
+        checkpoint = deepcopy(checkpoint)
+        checkpoint["restored"] = True
+        self.control["answer_round_checkpoint"] = checkpoint
+        self.control["response_traces"] = traces
+        self.control["hidden_response_trace_ids"] = list(dict.fromkeys([
+            *self.control.get("hidden_response_trace_ids", []),
+            *(r["id"] for r in traces if r.get("id") not in checkpoint["trace_ids"]),
+        ]))
+        drafts = self.control.setdefault("workspace_drafts", {})
+        drafts["answers"] = {key: text for key, text in
+                             {**drafts.get("answers", {}), **live_answers, **checkpoint["answers"]}.items()
+                             if key in checkpoint["questions"]}
+        drafts["answer_restore_id"] = uuid4().hex
+        drafts.pop("reanswer", None)
+        navigation = self.workspace_navigation()
+        self.control["workspace_navigation"] = {"stage": "interview", "basis": navigation["basis"]}
+        self.touch()
+        logging.getLogger(__name__).info("Answer round restored: task=%s questions=%s answers=%s version=%s model_requests=0",
+                                        self.task_id, len(checkpoint["questions"]), len(checkpoint["answers"]), self.requirement_version)
 
     def active_gaps(self) -> list[dict[str, Any]]:
         from .clarification import without_skipped_unknowns
@@ -929,6 +1105,7 @@ class SessionState:
         self.open_conflicts = []
         self.gaps = []
         self.question_history = []
+        self.control.pop("answer_round_checkpoint", None)
         self.control["interview_rounds_used"] = 0
         self.control["interview_round_limit"] = 5
         self.gap_update_history = []
@@ -2212,6 +2389,7 @@ class SessionState:
             raise SessionStateError("回答不能为空。")
         # Materialize the current batch so answering the first plan question
         # can invalidate its plan without losing the remaining question cards.
+        checkpoint = self._checkpoint_answer_round(active) if question.get("field") != "supplement" else None
         self.pending_questions = active
         from .clarification import review_key
         gap = next((g for g in self.gaps if g["gap_id"] == question.get("gap_id")), None)
@@ -2268,6 +2446,10 @@ class SessionState:
             for row in self.pending_questions
             if row["question_id"] != question_id
         ]
+        if checkpoint is not None:
+            checkpoint["submitted"] = True
+            checkpoint["restored"] = False
+            checkpoint["answers"][question_id] = clean
         if question.get("clarification_scope") and disposition in {"skipped", "unsure"}:
             # Explicit deferral changes no requirement or plan content. It
             # permits a later confirmation, never performs one itself.
@@ -2280,6 +2462,57 @@ class SessionState:
         if disposition in {"skipped", "unsure"} and assessed_before:
             self.analysis_basis_version = self.requirement_version
         return source_id
+
+    def record_question_answers(
+        self, answers: list[dict[str, str]], *, context_gap_ids: list[str] | None = None,
+        reject_interpretation_ids: list[str] | None = None,
+    ) -> list[str]:
+        """Atomically record the filled answers in the current question batch."""
+        log = logging.getLogger(__name__)
+        try:
+            if not isinstance(answers, list):
+                raise SessionStateError("本轮回答格式不正确，请重新提交。")
+            active = {row["question_id"] for row in self.questions_for_review()}
+            filled = []
+            seen = set()
+            for row in answers:
+                if not isinstance(row, dict) or not isinstance(row.get("question_id"), str) or not isinstance(row.get("text"), str):
+                    raise SessionStateError("本轮回答格式不正确，请重新提交。")
+                key, text = row["question_id"], row["text"].strip()
+                if not text:
+                    continue
+                if key not in active or key in seen:
+                    raise SessionStateError("本轮问题已变化或重复，请查看当前问题；回答仍保留。")
+                filled.append((key, text))
+                seen.add(key)
+            if not filled:
+                return []
+            ids = [key for key, _ in filled]
+            log.debug("Question answer batch started: task=%s count=%s questions=%s chars=%s",
+                      self.task_id, len(ids), ids, sum(len(text) for _, text in filled))
+            working = deepcopy(self)
+            for proposal_id in reject_interpretation_ids or []:
+                # Rejecting one explanation removes its same-gap siblings.
+                if any(row["proposal_id"] == proposal_id for row in working.pending_proposals):
+                    working.decide_interpretation(proposal_id, "rejected")
+            history_start = len(working.question_history)
+            for key, text in filled:
+                working.record_question(key, "answered", text, context_gap_ids=context_gap_ids)
+            submitted = working.question_history[history_start:]
+            group = f"guided:{submitted[0]['answer_id']}"
+            for row in submitted:
+                row["submission_group_id"] = group
+            drafts = working.control.get("workspace_drafts", {}).get("answers", {})
+            for key in ids:
+                drafts.pop(key, None)
+            # Preserve the SessionState object held by both workflow instances.
+            self.__dict__.update(deepcopy(working.__dict__))
+            log.info("Question answer batch saved: task=%s count=%s questions=%s remaining=%s",
+                     self.task_id, len(ids), ids, len(self.questions_for_review()))
+            return ids
+        except Exception:
+            log.exception("Question answer batch rejected; no answers committed: task=%s", self.task_id)
+            raise
 
     def record_supplement(self, text: str, *, gap_ids: list[str] | None = None, context_gap_ids: list[str] | None = None) -> str:
         clean = text.strip()

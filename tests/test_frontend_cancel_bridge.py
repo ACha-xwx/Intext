@@ -18,13 +18,15 @@ def test_busy_web_cancel_unlocks_preserves_state_and_discards_late_result(delive
     app.widgets["skill_integrate_button"].invoke()
     _pump_until(window, lambda: not app.delivery_busy)
     previous = deepcopy(app.session.final_result)
+    controller = WorkspaceController(app)
+    # Generated prompts hide Skill controls; return before requesting another integration.
+    controller.dispatch("button", {"key": "back_stage"}, view_stamp(app))
     selected = deepcopy(app.session.skill_state)
     entered, release = Event(), Event()
     client.entered, client.release = entered, release
-    app.widgets["skill_integrate_button"].invoke()
+    controller.dispatch("button", {"key": "integrate"}, view_stamp(app))
     try:
         assert entered.wait(3)
-        controller = WorkspaceController(app)
         assert controller.snapshot()["buttons"]["cancel_request"]["enabled"]
         cancel = app._conversation_buttons["cancel_request"]
         parent = cancel.master

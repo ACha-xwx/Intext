@@ -15,7 +15,8 @@ const paths = {
   more:["M5 12h.01","M12 12h.01","M19 12h.01"],
   pencil:["m16 3 5 5-12 12-6 1 1-6Z","m14 5 5 5"],
   pin:["m16 3 5 5-4 1-4 4 1 4-2 2-7-7 2-2 4 1 4-4Z","m8 16-5 5"],
-  trash:["M3 6h18","M9 6V3h6v3","m5 6 1 15h12l1-15","M10 10v7","M14 10v7"]
+  trash:["M3 6h18","M9 6V3h6v3","m5 6 1 15h12l1-15","M10 10v7","M14 10v7"],
+  activity:["M3 12h4l3-8 4 16 3-8h4"],plug:["M8 3v5","M16 3v5","M6 8h12v4a6 6 0 0 1-12 0Z","M12 18v3"],sliders:["M4 7h5","M13 7h7","M4 17h11","M19 17h1","M9 4v6","M15 14v6"]
 };
 function icon(name) {
   const svg=document.createElementNS(SVG_NS,"svg");
@@ -28,11 +29,19 @@ function icon(name) {
 function node(tag, cls, text) {const n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined)n.textContent=text;return n;}
 function button(text, handler, cls="") {const n=node("button",cls,text);n.type="button";n.addEventListener("click",handler);return n;}
 function effortMeter(){const meter=node("span","effort-indicator");meter.setAttribute("aria-hidden","true");for(let i=0;i<4;i++){const bar=node("i");bar.style.height=(5+i*2.5)+"px";meter.append(bar);}return meter;}
-function actions(parent, keys) {
-  const box=node("div","actions");
+function actions(parent, keys, fullWidth=false) {
+  const box=node("div","actions"+(fullWidth?" stage-actions":""));
   for(const key of keys) {const spec=state.buttons[key];if(!spec)continue;
-    const b=button(spec.text,()=>key==="back_stage"?navigatePrevious():command("button",{key}),"flow-action");b.disabled=!spec.enabled;b.dataset.action=key;b.dataset.focusKey="action:"+key;box.append(b);
-  }parent.append(box);return box;
+    const label=key==="result_details"?"附注":spec.text;
+    const b=button(fullWidth?"":label,()=>key==="back_stage"?navigatePrevious():key==="result_details"?openReview("result"):command("button",{key}),"flow-action"+(fullWidth?" glass stage-action":""));
+    if(fullWidth){
+      for(const layer of ["shade-veil","light-band"]){const sheen=node("span","stage-action-"+layer);sheen.setAttribute("aria-hidden","true");b.append(sheen);}
+      b.append(node("span","stage-action-label",label));
+    }
+    b.disabled=!spec.enabled;b.dataset.action=key;b.dataset.focusKey="action:"+key;box.append(b);
+  }
+  if(fullWidth){box.style.setProperty("--action-count",String(box.childElementCount||1));box.dataset.count=String(box.childElementCount);diagnostic("debug","stage action row rendered","keys="+keys.filter(key=>state.buttons[key]).join(",")+" count="+box.childElementCount+" layout=equal-width");}
+  parent.append(box);return box;
 }
 function markdown(parent,text,fold=false) {
   const lines=String(text||"").split(/\r?\n/);let destination=parent;
@@ -56,7 +65,7 @@ function markdown(parent,text,fold=false) {
 let state=null, version=0, inFlight=false, session=null;
 let stopping=false, navigating=false;
 let choiceRunning=false, choiceQueue=[], optimisticEffort=null;
-let popup=null, popupKind=null, reviewKind=null, provider=null, toastTimer=null;
+let popup=null, popupKind=null, reviewKind=null, provider=null;
 let reviewSignature=null;
 let popupAnchor=null, popupObserver=null, popupLayoutFrame=null;
 let popupReturnFocus=null;
@@ -64,18 +73,22 @@ let refreshModelMenu=null;
 const rendered=new Map(), drafts=new Map(), traces=new Map();
 const viewport=$("#viewport"), timeline=$("#timeline"), message=$("#message");
 $("#send").append(icon("send"));
-function toast(text) {const t=$("#toast");t.textContent=text;t.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>{t.hidden=true;},6500);}
+function toast(text,variant="info",options={}) {return window.promptsmithNotifications.show(text,{variant,...options});}
 async function command(action,data={}) {
-  if(!state||inFlight)return false;
+  if(!state||inFlight||window.promptsmithStartup&&!window.promptsmithStartup.entered)return false;
   const owner=state.session,stamp=state.stamp;
   inFlight=true;document.body.classList.add("pending");updateEnabled();
   try {
+    if((window.promptsmithSettings?.open&&!action.startsWith("settings_"))||action==="settings_back"){
+      if(!await window.promptsmithSettings.flush())return false;
+    }
     await window.promptsmithHistory?.flushDrafts();
-    if(state.session!==owner||state.stamp!==stamp){toast("内容已变化，请查看当前内容再操作。");return false;}
+    if(state.session!==owner||state.stamp!==stamp){toast("内容已变化，请查看当前内容再操作。","warning");return false;}
     const result=await window.pywebview.api.dispatch(action,data,stamp);
-    if(!result.ok) {toast(result.error||"操作未完成，请重试。");return false;}
+    if(!result.ok) {toast(result.error||"操作未完成，请重试。","error",{key:"action:"+action});return false;}
+    if(action==="send")document.dispatchEvent(new CustomEvent("promptsmith-action-completed",{detail:{action,session:owner}}));
     return result.data||true;
-  } catch(error) {toast("暂时无法完成操作。请重试，或查看 Debug 控制台。");diagnostic("error","action failed: "+action,error?.stack||String(error));return false;}
+  } catch(error) {toast("暂时无法完成操作，请重试。","error",{key:"action:"+action});diagnostic("error","action failed: "+action,error?.stack||String(error));return false;}
   finally {inFlight=false;document.body.classList.remove("pending");updateEnabled();await poll();}
 }
 function sendOnEnter(textarea,send) {
@@ -83,18 +96,37 @@ function sendOnEnter(textarea,send) {
     if(event.key==="Enter"&&!event.shiftKey&&!event.isComposing&&event.keyCode!==229) {event.preventDefault();send();}
   });
 }
+function currentQuestionViews() {
+  if(!state||state.reanswer)return [];
+  return state.cards.filter(card=>card.kind==="question")
+    .map(card=>({id:card.question.question_id,view:rendered.get(card.key)}))
+    .filter(({id,view})=>view?.kind==="question"&&view.question?.question_id===id);
+}
+async function submitQuestionAnswers() {
+  if(!state||state.locked||inFlight)return;
+  const owner=state.session;
+  const answers=currentQuestionViews().map(({id,view})=>({id,text:view.input.value})).filter(row=>row.text.trim());
+  if(!answers.length)return;
+  const result=await command("answer",{answers});
+  if(result&&state.session===owner){
+    const submitted=new Set(result.submitted||answers.map(row=>row.id));
+    for(const row of answers)if(submitted.has(row.id)&&drafts.get(row.id)===row.text)drafts.delete(row.id);
+  }
+}
 function updateEnabled() {
   if(!state)return;
   const send=$("#send"),mode=state.locked?"stop":"send";
   if(send.dataset.mode!==mode){send.dataset.mode=mode;send.replaceChildren(icon(mode));
     send.classList.toggle("stop",mode==="stop");send.setAttribute("aria-label",mode==="stop"?"停止生成":"发送消息");}
   send.disabled=state.locked?stopping:inFlight||!message.value.trim();
-  for(const q of rendered.values())if(q.kind==="question") {
-    q.input.disabled=state.locked;q.send.disabled=state.locked||inFlight||!q.input.value.trim();q.skip.disabled=state.locked||inFlight;
+  const questions=currentQuestionViews(),hasAnswers=questions.some(({view})=>view.input.value.trim());
+  for(const {view:q} of questions) {
+    q.input.disabled=state.locked||inFlight;q.send.disabled=state.locked||inFlight||!hasAnswers;q.skip.disabled=state.locked||inFlight;
   }
   for(const selector of ["#model-button","#category-button","#depth-button"])$(selector).disabled=state.locked||inFlight;
   for(const b of document.querySelectorAll(".flow-action")) b.disabled=(b.dataset.action==="back_stage"?navigating||stopping:inFlight)||!state.buttons[b.dataset.action]?.enabled;
   for(const b of document.querySelectorAll(".requirement-select"))b.disabled=inFlight||state.locked;
+  for(const b of document.querySelectorAll(".skill-table-toolbar button"))b.disabled=inFlight||state.locked;
   window.promptsmithSettings?.refreshEnabled();
 }
 // Local model preferences animate immediately; serial writes keep backend
@@ -109,10 +141,10 @@ async function drainChoices() {
   try {
     while(choiceQueue.length){const item=choiceQueue.shift();
       if(item.session!==state.session)continue;
-      try{const result=await window.pywebview.api.dispatch(item.action,item.data,state.stamp);if(item.session!==state.session)continue;if(!result.ok)toast(result.error);
+      try{const result=await window.pywebview.api.dispatch(item.action,item.data,state.stamp);if(item.session!==state.session)continue;if(!result.ok)toast(result.error,"error",{key:"model:choice"});
         if(result.ok&&result.data){state.effort=result.data.effort;state.model=result.data.model;state.active_service=result.data.active_service;}
         await poll();syncEffort();}
-      catch(error){toast("选择未应用，请重试。");diagnostic("error","model choice failed",String(error));}
+      catch(error){toast("选择未应用，请重试。","error",{key:"model:choice"});diagnostic("error","model choice failed",String(error));}
     }
   }finally{optimisticEffort=null;choiceRunning=false;syncEffort();await poll();}
 }
@@ -138,9 +170,9 @@ async function stopGeneration() {
   try {
     // Stop bypasses draft flushing and ordinary command locks.
     const result=await window.pywebview.api.dispatch("stop",{session:owner,scope},state.stamp);
-    if(owner===state.session)toast(result.ok?"已停止处理，已有内容已保留。":result.error||"停止未完成，请重试。");
+    if(owner===state.session&&!result.ok)toast(result.error||"停止未完成，请重试。","error",{key:"action:stop"});
     diagnostic(result.ok?"info":"warn","generation stop",result.ok?"cancelled; retries disabled":result.error);
-  }catch(error){toast("停止未完成，请重试。");diagnostic("error","generation stop failed",error?.stack||String(error));}
+  }catch(error){toast("停止未完成，请重试。","error",{key:"action:stop"});diagnostic("error","generation stop failed",error?.stack||String(error));}
   finally{stopping=false;await poll();updateEnabled();}
 }
 async function navigatePrevious() {
@@ -149,9 +181,10 @@ async function navigatePrevious() {
   navigating=true;updateEnabled();
   try {
     // Like Stop, Back remains usable even if a queued draft write is pending.
-    const result=await window.pywebview.api.dispatch("navigate",{direction:"previous",session:owner,scope,stage},state.stamp);
-    if(owner===state.session&&!result.ok)toast(result.error||"返回未完成，请重试。");
-  }catch(error){toast("返回未完成，请重试。");diagnostic("error","workspace navigation failed",error?.stack||String(error));}
+    const answer_drafts=Object.fromEntries(currentQuestionViews().map(({id,view})=>[id,view.input.value]));
+    const result=await window.pywebview.api.dispatch("navigate",{direction:"previous",session:owner,scope,stage,answer_drafts},state.stamp);
+    if(owner===state.session&&!result.ok)toast(result.error||"返回未完成，请重试。","error",{key:"action:navigate"});
+  }catch(error){toast("返回未完成，请重试。","error",{key:"action:navigate"});diagnostic("error","workspace navigation failed",error?.stack||String(error));}
   finally{navigating=false;await poll();updateEnabled();}
 }
 function resizeMessage() {message.style.height="auto";message.style.height=Math.min(message.scrollHeight,parseFloat(getComputedStyle(message).lineHeight)*6)+"px";}
@@ -175,8 +208,8 @@ class TraceView {
     this.thoughtButton.setAttribute("aria-expanded","true");
     const thoughtClip=node("div","clip");this.thought=node("div","thought");this.thought.tabIndex=0;
     this.text=document.createTextNode("");this.thought.append(this.text);thoughtClip.append(this.thought);this.thoughtReveal.append(thoughtClip);
-    this.activities=node("div","activities");this.error=node("div","trace-error");
-    body.append(this.thoughtButton,this.thoughtReveal,this.activities,this.error);clip.append(body);this.outer.append(clip);
+    this.activities=node("div","activities");
+    body.append(this.thoughtButton,this.thoughtReveal,this.activities);clip.append(body);this.outer.append(clip);
     this.el.append(this.header,this.outer);this.update(record);
   }
   toggle(reveal,control) {
@@ -219,7 +252,7 @@ class TraceView {
     if(activityKey!==this.activityKey) {this.activityKey=activityKey;this.activities.replaceChildren();
       for(const [name,value] of record.activities||[]) {const row=node("div","activity");row.append(icon("file"),node("span","",name),node("span","",String(value)));this.activities.append(row);}
     }
-    this.error.textContent=record.error||"";
+    window.promptsmithNotifications.sync("trace:"+session+":"+record.id,record.error||"",{variant:"error"});
     if((this.pending||this.status==="working")&&this.frame===null)this.frame=requestAnimationFrame(t=>this.tick(t));
     else if(!this.pending&&this.status!=="working"&&this.frame!==null){cancelAnimationFrame(this.frame);this.frame=null;}
   }
@@ -266,19 +299,19 @@ function renderRequirements(box) {
     }table.append(body);const wrap=node("div","table-wrap");wrap.append(table);box.append(wrap,detail);
     if(state.conflicts.length)box.append(node("p","notice",state.conflicts.join("\n")));
     if(state.requirement_reason)box.append(node("p","notice","确认前请处理："+state.requirement_reason));
-    actions(box,["edit_requirement","remove_requirement","adopt_requirement","confirm_requirements","reanalyze_requirements"]);
+    actions(box,["edit_requirement","remove_requirement","confirm_requirements","reanalyze_requirements"],true);
   }
 function createCard(card) {
   const el=node("section","message"+(card.kind==="user"?" user":""));const view={el,kind:card.kind};
+  if(["requirements","plan","skills","result"].includes(card.kind))el.classList.add("stage-message");
   if(card.kind==="user") {
     if(card.question_id&&card.can_reanswer) {const b=button("",()=>command("reanswer",{id:card.question_id}),"glass reanswer");b.title="补答这个问题";b.setAttribute("aria-label","补答这个问题");b.append(icon("loop"));el.append(b);}
     el.append(node("div","bubble",card.text));
   } else if(card.kind==="question") {
     el.append(node("div","question-title",card.question.text));
     const row=node("div","answer-row"),input=node("textarea","answer-input");input.rows=2;input.setAttribute("aria-label","回答这个问题");input.value=drafts.get(card.question.question_id)||"";
-    const send=button("",submit,"send"),skip=button("跳过",()=>command("skip",{id:card.question.question_id}),"skip");send.append(icon("send"));send.setAttribute("aria-label","提交回答");skip.append(icon("close"));
-    async function submit(){const text=input.value;if(!text.trim()||state.locked||inFlight)return;if(await command("answer",{id:card.question.question_id,text}))drafts.delete(card.question.question_id);}
-    input.addEventListener("input",()=>{drafts.set(card.question.question_id,input.value);updateEnabled();window.promptsmithHistory?.scheduleDraft();});sendOnEnter(input,submit);
+    const send=button("",submitQuestionAnswers,"send"),skip=button("跳过",()=>command("skip",{id:card.question.question_id}),"skip");send.append(icon("send"));send.setAttribute("aria-label","提交本轮已填写的回答");send.title="提交本轮已填写的回答";skip.append(icon("close"));
+    input.addEventListener("input",()=>{drafts.set(card.question.question_id,input.value);updateEnabled();window.promptsmithHistory?.scheduleDraft();});sendOnEnter(input,submitQuestionAnswers);
     row.append(input,send,skip);el.append(row);Object.assign(view,{input,send,skip});
   } else if(card.kind==="navigation") {
     actions(el,["back_stage","continue_stage"]);
@@ -287,17 +320,18 @@ function createCard(card) {
   } else if(card.kind==="plan") {
     el.append(node("h2","",card.title),node("p","notice",{draft:"待确认",confirmed:"已确认",stale:"需求已变化，旧方案已过期"}[card.status]||card.status));
     const reading=node("div","reading");markdown(reading,card.text,true);el.append(reading);
-    actions(el,["edit_plan","review_plan","confirm_plan","find_skills"]);
+    actions(el,["edit_plan","confirm_plan","find_skills"],true);
   } else if(card.kind==="history_question") {el.append(node("div","question-title",card.text));}
   else if(card.kind==="result") {
     const reading=node("div","reading");markdown(reading,card.text);el.append(reading);
-    actions(el,["copy","export","save","confirm_final"]);
-    const b=button("语气和附注",()=>openReview("result"));b.disabled=!["draft","confirmed"].includes(card.status);el.append(b);
+    actions(el,["copy","export","result_details"],true);
   } else if(card.kind==="skills") {
     el.append(node("p","notice","Skill 可用于具体工作；你也可以直接跳过。"));
-    actions(el,["cancel_request","find_skills","find_online","integrate","direct_skills","skip_skills"]);
-    const filters=node("div","actions");for(const source of ["全部来源","本地","联网","内置","已选"]){const b=button(source,()=>command("source",{value:source}));b.classList.toggle("selected",source===state.source);filters.append(b);}
-    filters.append(button(state.show_all?"只显示推荐":"显示全部",()=>command("show_all")));el.append(filters);
+    const progress=node("p","notice skill-search-progress",card.progress||"");progress.setAttribute("role","status");progress.setAttribute("aria-label","Skill 搜索进度");progress.hidden=!card.progress;el.append(progress);
+    actions(el,["cancel_request","find_skills","find_online","integrate","direct_skills","skip_skills"],true);
+    const tableBox=node("div","skill-table"),filters=node("div","skill-table-toolbar");filters.setAttribute("role","toolbar");filters.setAttribute("aria-label","Skill 表格筛选");
+    const sources=node("div","skill-table-sources");for(const source of ["全部来源","本地","联网","内置","已选"]){const b=button(source,()=>command("source",{value:source}),"skill-filter");b.classList.toggle("selected",source===state.source);b.setAttribute("aria-pressed",String(source===state.source));b.disabled=state.locked||inFlight;sources.append(b);}
+    const showAll=button(state.show_all?"只显示推荐":"显示全部",()=>command("show_all"),"skill-table-display");showAll.setAttribute("aria-pressed",String(state.show_all));showAll.disabled=state.locked||inFlight;filters.append(sources,showAll);tableBox.append(filters);
     const wrap=node("div","table-wrap"),table=node("table"),head=node("thead"),tr=node("tr");
     for(const label of ["Skill","来源","推荐系数","操作"])tr.append(node("th","",label));head.append(tr);table.append(head);
     const tbody=node("tbody");for(const skill of card.rows||[]) {
@@ -305,19 +339,24 @@ function createCard(card) {
       const cell=node("td"),b=button(skill.selected?"已选中该 Skill":"选用此 Skill",()=>command("select_skill",{id:skill.id}));b.disabled=!skill.allowed||state.locked;cell.append(b);
       if(skill.bindings.length)cell.append(button("取消选用",()=>command("remove_skill",{ids:skill.bindings})));
       row.append(cell);tbody.append(row);const detail=node("tr"),d=node("td");d.colSpan=4;const fold=node("details");fold.append(node("summary","",skill.description||"查看用途与来源"),node("div","reading",skill.details));d.append(fold);detail.append(d);tbody.append(detail);
-    }table.append(tbody);wrap.append(table);el.append(wrap);
+    }table.append(tbody);wrap.append(table);tableBox.append(wrap);el.append(tableBox);
+    diagnostic("debug","skill table toolbar rendered","source="+state.source+" rows="+(card.rows||[]).length+" show_all="+Boolean(state.show_all));
   } else if(card.kind==="interview_unknowns") {el.append(node("p","notice",card.text));actions(el,["continue_interview","defer_interview_unknowns"]);}
   return view;
 }
 function applySnapshot(next) {
-  if(!next.stamp){if(next.sync_error)toast(next.sync_error);return;}
+  window.promptsmithNotifications.sync("workspace:sync",next.sync_error||"",{variant:"error"});
+  if(!next.stamp)return;
   const priorFocus=timeline.contains(document.activeElement)?captureFocus():null;
   const follow=viewport.scrollHeight-viewport.scrollTop-viewport.clientHeight<64;
   const priorStage=state?.navigation?.stage;
+  const priorRestore=state?.drafts?.answer_restore_id;
   const oldSession=session;state=next;session=state.session;
   if(oldSession!==null&&oldSession!==session) {choiceQueue=[];optimisticEffort=null;for(const t of traces.values())t.close();traces.clear();rendered.clear();drafts.clear();timeline.replaceChildren();message.value="";closePopup(true);}
   const restored=oldSession===null||oldSession!==session;
-  if(restored){message.value=state.drafts?.message||"";for(const [id,text] of Object.entries(state.drafts?.answers||{}))drafts.set(id,text);resizeMessage();}
+  const answersRestored=!restored&&priorRestore!==state.drafts?.answer_restore_id&&Boolean(state.drafts?.answer_restore_id);
+  if(restored||answersRestored){drafts.clear();for(const [id,text] of Object.entries(state.drafts?.answers||{}))drafts.set(id,text);}
+  if(restored){message.value=state.drafts?.message||"";resizeMessage();}
   document.documentElement.dataset.theme=state.theme;
   document.documentElement.style.fontSize=Number(state.font_size)*96/72*1.25+"px";
   document.documentElement.style.setProperty("--baseline",Number(state.font_size)*96/72+"px");
@@ -326,8 +365,7 @@ function applySnapshot(next) {
   for(const b of document.querySelectorAll("[data-panel]"))b.hidden=settingsOpen;
   window.promptsmithSettings?.update(state.settings,settingsOpen);
   window.promptsmithHistory?.update(state.history,restored);
-  for(const notice of state.notifications||[])if(notice.id>(window.promptsmithNoticeId||0)){toast(notice.text);window.promptsmithNoticeId=notice.id;}
-  if(state.sync_error)toast(state.sync_error);
+  for(const notice of state.notifications||[])if(notice.id>(window.promptsmithNoticeId||0)){toast(notice.body||notice.text,notice.level,{title:notice.title,key:notice.key});window.promptsmithNoticeId=notice.id;}
   window.promptsmithEditors?.update(state.editor);
   $("#hero").hidden=state.cards[0]?.kind!=="welcome";
   const keys=new Set();let position=0;
@@ -337,15 +375,18 @@ function applySnapshot(next) {
     if(card.kind==="trace") {
       if(!view){const trace=new TraceView(card.trace);traces.set(card.key,trace);view={el:trace.el,kind:"trace"};rendered.set(card.key,view);}else traces.get(card.key).update(card.trace);
     } else {
-      const signature=JSON.stringify([card,state.buttons,state.source,state.show_all,...(card.kind==="requirements"?[state.requirement_rows,state.requirement_selection,state.requirement_reason,state.conflicts]:[])]);
-      if(!view||view.signature!==signature) {
+      // Progress alone must not replace the table, its open details or scroll.
+      const {progress:skillProgress,...cardContent}=card;
+      const signature=JSON.stringify([card.kind==="skills"?cardContent:card,state.buttons,state.source,state.show_all,...(card.kind==="requirements"?[state.requirement_rows,state.requirement_selection,state.requirement_reason,state.conflicts]:[])]);
+      if(!view||view.signature!==signature||answersRestored&&card.kind==="question") {
         // Textareas retain their live draft and caret through unrelated trace updates.
-        if(view?.kind==="question"&&JSON.stringify(view.question)===JSON.stringify(card.question)) {view.signature=signature;}
+        if(!answersRestored&&view?.kind==="question"&&JSON.stringify(view.question)===JSON.stringify(card.question)) {view.signature=signature;}
         else {const previous=view,openSections=[...(previous?.el.querySelectorAll("details[open] summary")||[])].map(e=>e.textContent);
           view=createCard(card);view.signature=signature;view.question=card.question;
           for(const summary of view.el.querySelectorAll("details summary"))if(openSections.includes(summary.textContent))summary.parentElement.open=true;
           if(previous)previous.el.replaceWith(view.el);rendered.set(card.key,view);}
       }
+      if(card.kind==="skills"){const progress=view.el.querySelector(".skill-search-progress");const text=card.progress||"";if(progress.textContent!==text)progress.textContent=text;progress.hidden=!text;}
     }
     const existing=timeline.children[position];if(existing!==view.el)timeline.insertBefore(view.el,existing||null);position++;
   }
@@ -368,12 +409,18 @@ function applySnapshot(next) {
   if(popupKind==="review")renderReview();
   updateEnabled();if(priorFocus?.key&&!priorFocus.element.isConnected&&!restored)restoreFocus(priorFocus);
   const stageChanged=state.navigation&&priorStage!==state.navigation.stage;
-  if(stageChanged&&rendered.has("navigation"))requestAnimationFrame(()=>{
+  if(answersRestored)requestAnimationFrame(()=>{
+    const input=timeline.querySelector(".answer-input");
+    if(input){viewport.scrollTop+=input.getBoundingClientRect().top-viewport.getBoundingClientRect().top-100;input.focus({preventScroll:true});}
+  });
+  else if(stageChanged&&rendered.has("navigation"))requestAnimationFrame(()=>{
     const target=rendered.get("navigation")?.el;
     if(target?.isConnected){viewport.scrollTop+=target.getBoundingClientRect().top-viewport.getBoundingClientRect().top-12;
       const focus=target.querySelector("button:not(:disabled)");focus?.focus({preventScroll:true});}
   });
   else if(restored)requestAnimationFrame(()=>{viewport.scrollTop=state.drafts?.scroll||0;});else if(follow)requestAnimationFrame(()=>{viewport.scrollTop=viewport.scrollHeight;});
+  window.promptsmithStartup?.update(state);
+  window.promptsmithTutorial?.update(state);
 }
 function providerImage(name) {const src=state?.icons?.[state.theme]?.[name];if(!src)return null;const img=node("img","provider"+(name==="DeepSeek"?" deepseek":""));img.src=src;img.alt=name;return img;}
 function captureFocus(element=document.activeElement){
@@ -450,22 +497,22 @@ window.addEventListener("resize",schedulePopupLayout);
 function openReview(kind) {
   if(reviewKind===kind){closePopup();return;}
   makePopup("review",null,"review-panel");reviewKind=kind;
-  popup.setAttribute("aria-label",{summary:"当前任务摘要",result:"语气和附注"}[kind]);
+  popup.setAttribute("aria-label",{summary:"当前任务摘要",result:"附注"}[kind]);
   renderReview();command("panel",{kind});
 }
 function renderReview() {
   if(!popup||!state)return;
-  const signature=JSON.stringify([reviewKind,state.requirement_rows,state.requirement_selection,state.buttons,state.summary,state.cards.find(c=>c.kind==="plan"),state.tone,state.notes,state.requirement_reason,state.conflicts]);
+  const signature=JSON.stringify([reviewKind,state.requirement_rows,state.requirement_selection,state.buttons,state.summary,state.cards.find(c=>c.kind==="plan"),state.requirement_reason,state.conflicts]);
   if(signature===reviewSignature)return;reviewSignature=signature;
   const box=popup;const scroll=box.scrollTop,focused=box.contains(document.activeElement)?captureFocus():null;
   const openSections=new Set([...box.querySelectorAll("details[open]")].map(d=>d.querySelector("summary").textContent));
-  box.replaceChildren();const bar=node("div","popup-title",{summary:"当前任务摘要",result:"语气和附注"}[reviewKind]);
+  box.replaceChildren();const bar=node("div","popup-title",{summary:"当前任务摘要",result:"附注"}[reviewKind]);
   const close=button("",()=>closePopup(),"popup-close");close.dataset.focusKey="review-close";close.append(icon("close"));close.setAttribute("aria-label","关闭面板");bar.append(close);box.append(bar);
   if(reviewKind==="summary") {const reading=node("div","reading");markdown(reading,state.summary);box.append(reading);}
 
   if(reviewKind==="result") {
-    const select=node("select");select.setAttribute("aria-label","提示词语气");for(const value of ["中性","适度礼貌"]){const option=node("option","",value);option.value=value;select.append(option);}select.value=state.tone;select.addEventListener("change",()=>command("tone",{value:select.value}));box.append(node("p","notice","提示词语气"),select);
-    for(const row of state.notes)box.append(node("p","reading",row.text));if(!state.notes.length)box.append(node("p","notice","还没有附注。"));actions(box,["add_final_note"]);
+    actions(box,["add_final_note"],true);
+    diagnostic("debug","final notes panel rendered","tone_control=false");
   }
   for(const d of box.querySelectorAll("details"))d.open=openSections.has(d.querySelector("summary").textContent);box.scrollTop=scroll;updateEnabled();
   if(focused){if(focused.key||focused.id)restoreFocus(focused);else close.focus({preventScroll:true});}
@@ -528,12 +575,12 @@ document.addEventListener("keydown",event=>{if(event.key==="Escape")closePopup()
 let polling=false;
 async function poll() {
   if(polling||!window.pywebview?.api)return;polling=true;
-  try {const result=await window.pywebview.api.snapshot(version);if(result?.state){version=result.version;applySnapshot(result.state);}}
-  catch(error){diagnostic("error","workspace synchronization failed",error?.stack||String(error));}finally{polling=false;}
+  try {const result=await window.pywebview.api.snapshot(version);window.promptsmithNotifications.sync("workspace:connection","");if(result?.state){version=result.version;applySnapshot(result.state);}}
+  catch(error){window.promptsmithNotifications.sync("workspace:connection","页面同步暂未完成，程序会继续尝试。",{variant:"error"});diagnostic("error","workspace synchronization failed",error?.stack||String(error));}finally{polling=false;}
 }
 function diagnostic(level,event,detail){window.pywebview?.api?.diagnostic?.(level,event,detail).catch(()=>{});}
-window.addEventListener("error",e=>diagnostic("error","uncaught exception",e.error?.stack||e.message));
-window.addEventListener("unhandledrejection",e=>diagnostic("error","unhandled rejection",e.reason?.stack||String(e.reason)));
+window.addEventListener("error",e=>{toast("页面处理出现错误，请重试。","error",{key:"workspace:exception"});diagnostic("error","uncaught exception",e.error?.stack||e.message);});
+window.addEventListener("unhandledrejection",e=>{toast("页面操作未完成，请重试。","error",{key:"workspace:exception"});diagnostic("error","unhandled rejection",e.reason?.stack||String(e.reason));});
 window.addEventListener("pywebviewready",()=>{
   poll();setInterval(poll,100);diagnostic("info","workspace ready","Chromium presentation and requestAnimationFrame animation enabled");
   if(typeof PerformanceObserver!=="undefined") {let last=0;

@@ -41,7 +41,9 @@ class Client:
         elif schema.get("required") == ["candidate_ids"]:
             answer = {"candidate_ids": [item["candidate_id"] for item in payload["skills"]]}
         else:
-            answer = {"matches": [{"candidate_id": item["candidate_id"], "key_work_id": "lesson", "reason": "能用例子帮助初学者理解。"} for item in payload["skills"]]}
+            answer = {"matches": [{"candidate_id": item["candidate_id"], "key_work_id": "lesson",
+                                   "reason": "能用例子帮助初学者理解。", "recommendation_score": .9}
+                                  for item in payload["skills"]]}
         return SimpleNamespace(content=json.dumps(answer, ensure_ascii=False))
 
 
@@ -81,7 +83,10 @@ def test_network_discovery_combines_sources_and_ai_reviews_originals(monkeypatch
     assert by_source["github"]["include_github_supplement"] is True
     assert by_source["github"]["queries"] == by_source["index"]["queries"]
     assert by_source["web"]["queries"] == by_source["index"]["queries"]
-    assert any("source" in payload["skills"][0] for _, payload in client.calls if "skills" in payload)
+    reviews = [payload for _, payload in client.calls if "skills" in payload]
+    assert len(reviews) == 1
+    assert all(item["description"] == "Teaching skill" and "source" not in item for item in reviews[0]["skills"])
+    assert all(row["recommendation_score"] == .9 for row in result.candidates)
 
 
 def test_network_discovery_keeps_web_results_when_index_fails(monkeypatch, caplog):

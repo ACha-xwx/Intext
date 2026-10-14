@@ -25,6 +25,9 @@ class LogEntry:
     sequence: int
     level: int
     text: str
+    time: str = ""
+    source: str = ""
+    message: str = ""
 
 
 class _LogStream(io.TextIOBase):
@@ -97,6 +100,7 @@ class RuntimeLog(logging.Handler):
         self.started = False
         self.streams: list[_LogStream] = []
         self.previous_hooks = None
+        self.message_formatter = logging.Formatter("%(message)s")
         self.setFormatter(logging.Formatter(
             "[%(asctime)s.%(msecs)03d] [%(threadName)s/%(levelname)s] [%(name)s]: %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",
@@ -117,7 +121,9 @@ class RuntimeLog(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
         text = self.redact(self.format(record))
         self.sequence += 1
-        entry = LogEntry(self.sequence, record.levelno, text)
+        entry = LogEntry(self.sequence, record.levelno, text,
+                         datetime.fromtimestamp(record.created).strftime("%H:%M:%S"),
+                         self.redact(record.name), self.redact(self.message_formatter.format(record)))
         self.history.append(entry)
         self._archive.append(entry)
 
@@ -142,7 +148,7 @@ class RuntimeLog(logging.Handler):
                 with self.lock:
                     entries = tuple(self._archive)
                 self.directory.mkdir(parents=True, exist_ok=True)
-                name = f"PromptSmith_{datetime.now():%Y%m%d_%H%M%S_%f}_{uuid4().hex}.log"
+                name = f"Intext_{datetime.now():%Y%m%d_%H%M%S_%f}_{uuid4().hex}.log"
                 destination = self.directory / name
                 with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", errors="backslashreplace", newline="\n",
                                                  dir=self.directory, prefix=".snapshot-",

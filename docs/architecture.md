@@ -1,5 +1,23 @@
 # 架构与内在逻辑
 
+2026-10-13 启动入口：`workspace/startup.js` 是浏览器呈现门，首个有效工作区快照就绪后按已保存 `tutorial_status` 分流；not_started 点开始后打开操作教程，completed/skipped 自动进入。Hero 期间主表面 inert 且隐藏，快捷键和 command 同步阻止操作；SessionState/Tk 业务边界保持。`vendor/liquid-metal.js` 为本地 Paper shader，退出/pagehide 释放，减少动画时速度为零；不读取字体或请求模型。界面/窗口/导出/手动日志/EXE 名称改 Intext，包名/设置路径/DPAPI 身份兼容原数据。完整标题和侧栏英文为静态SVG路径，见[维护](maintenance/intext_hero_20261013.md)。
+
+2026-10-13 教程状态：preferences只原子更新settings.json顶层tutorial_status（not_started/skipped/completed），保留模型档案和加密凭据，不访问或改写会话业务。WorkspaceController投影状态；完成校验当前视图戳；第五步无需发送任务即可点击完成；状态写入失败保留原状态并完整Debug。tutorial.js使用manual popover非模态操作引导，前四步依赖生产快照及settings本地保存/切换就绪事件解锁，第五步直接就绪；不定时推进、不代用户调用模型。关闭只隐藏本次、首页跳过与末步完成分别持久化，界面设置可重看。窄窗工作区保留可滚动操作区域。见[维护](maintenance/tutorial_20261013.md)。
+
+2026-10-13 返回语义更新：SessionState在回答首次提交前保存一个有界answer_round_checkpoint，身份/Key/请求/API证据及trace不进入业务快照；整轮分批提交共用快照。返回interview在副本恢复，字段/类型白名单校验后原子落地，需求版本递增并重新核对；API证据完整保留，后续trace仅加入隐藏ID。workspace_drafts合并当前轮实时输入（含空串）与提交记录，answer_restore_id防止回退前迟到草稿覆盖；Web返回在原身份/stamp校验后直接携草稿，不等待flush，Tk取消前读取。旧会话以trace.history_count优先推断整轮并重建合法gap。其余阶段保持有效浏览位置；取消搜索resume_kind负责真实重启，focus_workspace_stage使新搜索退出旧结果。完整异常及恢复/重启生命周期同步Debug，无自动诊断落盘。165个不同本地节点最新均绿，原生合成28项通过，双轴0待修，未请求真实模型；详见[维护](maintenance/backtrack_answers_20261013.md)。
+
+2026-10-13 联网Skill检索：skill_search保留索引name/description并生成最多6条短能力查询；open_skill_search在单查询份额、合并48项和正文读取之前均按元数据排序，skill_recommendation为各关键工作预留正分来源。GitHub集合按任务相关目录选择；查询词/热度不作为适配证据。AI低于0.4排除，失败仅对用途可解释的候选降级并标未核验；ui保存收集/复核/降级诊断和空结果类型。WorkspaceController过滤逐项搜索状态通知，Skills卡独立投影progress；JS局部更新进度、不重建表格或关闭详情。Debug完整原因和手动保存合同保持。四项275个不同本地节点、22项隔离WebView2合成检查通过，真实模型未请求，见[维护](maintenance/network_relevance_20261013.md)。下述批量/重命名实现阶段的延期验收现已完成。
+
+2026-10-13 服务重命名：preferences.rename_provider_profile从保存档案构造新身份，活动顶层投影优先；先重新 DPAPI 加密/核对可恢复并迁移有效指纹，再原子写盘。WorkspaceController成功后在Tk owner线程退役旧目录任务并更新内存档案/连接版本，不走会清密钥的切服务回调。Web仅发送target/name/revision，密钥不进入浏览器。Skill工具栏只改变呈现，共用原source/show_all动作及忙态。实现与未执行验收边界见[维护](maintenance/provider_rename_skill_toolbar_20261013.md)。
+
+2026-10-13 当前轮回答：Web 从当前快照对应题卡采集所有非空输入，经原有 command/stamp/Tk-owner 队列一次 answer；旧 id/text 协议保留。GuidedFlowMixin.submit_guided_answers 调用 SessionState.record_question_answers，以工作副本原子记录独立来源、同组历史和成功草稿清理，保留 SessionState 对象供两条 workflow 共用；一次刷新后仅在无剩余题时开始一次整理。Tk 回退复用同一入口；Debug 生命周期与精简投影同步，异常保留完整脱敏链。回归暂缓，见[维护](maintenance/batch_answers_20261013.md)。
+
+2026-10-13 用户反馈：WorkspaceController在Tk owner线程捕获既有消息框/状态，通过有界notification序列和操作key投影；按操作合并派生重复、过滤草稿和目录标记。共享notifications.js/CSS为主窗口及Debug提供纯文本、脱敏、右上top-layer卡片，快照记忆与卡片生命周期分离以避免关闭后重放。每张独立5秒timeout，关闭/替换清计时；modal迁移按首显时间恢复CSS条。删除空位时读取当前视觉位置并以240ms transform补位，连续关闭衔接；固定可视区域防止临时滚动条且不拦空白点击。生命周期Debug不含正文或逐帧事件，完整异常和手动归档不变。详见[维护](maintenance/notifications_20261013.md)及[文案源清单](maintenance/notification_messages_20261013.md)。
+
+2026-10-13 Debug展示投影：RuntimeLog的LogEntry保留完整text归档，并派生短time/source/message；DebugApi二次脱敏，仅对已知单行普通事件生成中文概要，警告及以上/未知/多行保持。Web以分栏和正文字符Range维护换行阅读锚点，复制使用实际渲染选择集合而非全部缓存；save仍独立读取完整内存归档，仅用户触发落盘。线程所有权与业务状态不变，详见[维护](maintenance/debug_log_view_20261013.md)。
+
+2026-10-13 设置边界更新：Web配置使用串行settings_autosave和Tk owner原子写入，完整有效配置即可调用；显式Tk回退仍保留确认合同。changed_fields区分普通偏好，选择性保存不修改model_profiles/credentials/connection投影。Debug开关保留settings_debug独立忙时动作。目录获取仍只GET，不隐式保存模型草稿；过滤codex-auto-review贯穿协议目录、缓存和菜单。详见[维护](maintenance/settings_redesign_20261013.md)。
+
 2026-10-13 自动目录：ModelDirectoryRefresh在PromptSmithApp初始化完成后读取已加载的保存档案，使用独立最多2线程池和每服务TaskScope获取目录；worker仅HTTP和入完成队列。Tk owner回写时验证scope/档案/连接/Key，复用save_model_directory再次核对保存身份，既不保存草稿也不确认模型或切换活动服务。手动获取、接口/Key变更、删除与关闭可取消旧目录请求；Web/Tk状态独立于对话busy，失败保留缓存并可手动重试。见[维护](maintenance/auto_models_20261013.md)。
 
 2026-10-13 思考显隐：TraceView/ResponseTrace依据现有reasoning的实际非空内容派生内层入口/正文显隐，首片恢复而不重建writer或重置展开选择；不新增业务、模型能力或请求字段。无内容保留计时/活动/错误；隐藏时焦点交回可见标题，Debug只在显隐变化记录ID与布尔值。验证边界见[维护](maintenance/trace_visibility_20261013.md)。
@@ -19,7 +37,7 @@
 
 2026-10-12 阶段呈现：conversation_cards 仅在方案核对阶段呈现已确认方案，过期历史保留；返回仍由 SessionState 导航管理。整合取消沿用原回调，放在 Skill 卡操作区，Web recovery 不重复收集；Debug 新增去重控件状态。见[维护](maintenance/stage_cleanup_20261012.md)。
 
-2026-10-12 阶段返回：`SessionState.workspace_navigation()` 只读推导实际路线和有效浏览位置，`navigate_workspace()` 持久化 control 中的位置/业务版本依据。返回不撤销确认，修改仍走原失效链；非法/陈旧位置退回自然阶段。方案核对改内联，需求确认后隐藏；Web返回绑定会话/操作/阶段/stamp且忙态先Stop，普通命令固定入口stamp并在draft flush后校验。Tk回退同步，Debug按动作和方案版本去重。见[维护](maintenance/plan_inline_20261012.md)与[验收](../verification/plan_inline_20261012/results.md)。
+2026-10-12 阶段返回（历史；回答撤回以2026-10-13记录为准）：`SessionState.workspace_navigation()` 只读推导实际路线和有效浏览位置，`navigate_workspace()` 持久化 control 中的位置/业务版本依据。返回不撤销确认，修改仍走原失效链；非法/陈旧位置退回自然阶段。方案核对改内联，需求确认后隐藏；Web返回绑定会话/操作/阶段/stamp且忙态先Stop，普通命令固定入口stamp并在draft flush后校验。Tk回退同步，Debug按动作和方案版本去重。见[维护](maintenance/plan_inline_20261012.md)与[验收](../verification/plan_inline_20261012/results.md)。
 
 2026-10-12 整理/停止：`workflow.invoke_m1()` 单次模型请求、本地规范化与安全恢复，不再隐式纠正调用。`SessionState.edit_proposal()` 本地保存来源和版本，仅在原分析当前时延续分析依据。Tk所属线程仍拥有业务状态；每次session-scoped `_submit()` 生成独立 `_active_stop_token`，Web Stop核对会话与操作token、绕过草稿flush，取消TaskScope并隔离迟到回调。已有响应体通过socket.shutdown/close唤醒读；响应头前即时中断有界限。搜索来源恢复/持久化cancelled，trace取消终态关闭动画；首次恢复cancelled静态显示全文。思考预算耗尽且正文为空采用准确失败说明，完整参数与证据保留。详见[维护](maintenance/requirements_stop_20261012.md)与[验收](../verification/requirements_stop_20261012/results.md)。
 
@@ -164,9 +182,9 @@ flowchart LR
 
 `local_skill_index.py` 在应用数据目录 `cache/skill_index/` 持久化名称、短描述、开头片段及哈希；启动后台预热，搜索时枚举文件并按路径、mtime_ns/size/ctime_ns 更新变化项。未变化文件不重读元数据，缓存损坏或不可写可降级。`local_skill_search.py` 按元数据排序后最多读 24 项正文构造来源候选，文件变化或删除时跳过该项并保留其它结果。
 
-`skill_recommendation.py` 按名称/短描述及关键工作筛到最多 12 项，为明确的任务能力保留名额。`skill_ai_selection.py` 首次只送名称/短描述，第二次最多核验 8 项正文；本地完整文件重读并验证哈希，但长于 4,000 字符的正文仅向模型发送首尾节选且说明未读全文，去除重复的 source 字段。每轮适配筛选最多两次请求、累计系统提示与业务 JSON 最多 60,000 字符，任务上下文最多 6,000 字符；超过预算停止追加请求并保留未核验候选。字符预算不是 token 预算，也不覆盖联网检索词生成与后续 M3/M4。
+`skill_recommendation.py` 按名称/短描述及关键工作筛到默认最多 12 项，为明确的任务能力保留名额。本地 `skill_ai_selection.py` 在大于正文复核名额时先按元数据 AI 初筛，之后默认最多核验 8 项正文；本地完整文件重读并验证哈希，但长于 4,000 字符的正文仅向模型发送首尾节选且说明未读全文，去除重复的 source 字段。联网则使用 `summary_only=True`，直接发送独立 description、有界 brief、任务与关键工作，一次 AI 请求为候选给出 0～1 评分、理由和用途，不再执行额外元数据 AI 初筛，最终默认最多推荐 8 项。简介最长 1,600 字符、brief 最长 2,000 字符，不重复发送完整正文。每轮适配筛选累计系统提示与业务 JSON 默认最多 60,000 字符，任务上下文最多 6,000 字符；超过预算停止追加请求并保留未核验候选。字符预算不是 token 预算，也不覆盖联网检索词生成与后续 M3/M4。
 
-合并结果按 0～1 推荐系数排序，默认 6 项推荐名额在来源间分配，额外带出已选项，可筛选来源或展开全部。分数是相对推荐强度，不是成功概率；节选证据最高 0.85，仅元数据最高 0.69。模型失败回退到有限的名称/描述粗筛结果，并标注尚未核验。完整正文哈希和业务绑定的来源校验仍保留。早期离线测量见 [Skill 搜索验证](../verification/skill_search_20261009/results.md)，当前表格已在本批回归中验证。
+合并结果按 0～1 推荐系数排序，默认 6 项推荐名额在来源间分配，额外带出已选项，可筛选来源或展开全部。分数是相对推荐强度，不是成功概率；本地节选证据最高 0.85，仅元数据最高 0.69；联网简介评分保留模型原分并明确标注未阅读全文。低于 0.4 排除。JSON 代码块、数字字符串和个别坏行可恢复；简介模式零有效评分明确失败，与有效低分无匹配区分。模型失败回退到有限且有用途依据的名称/描述粗筛结果，并标注尚未核验、显示脱敏原因；用户取消不触发降级。完整正文哈希和业务绑定的来源校验仍保留。当前合同及验证见 [简介评分维护](maintenance/skill_summary_scoring_20261014.md)，早期离线测量见 [Skill 搜索验证](../verification/skill_search_20261009/results.md)。
 
 网络三路并行，各自默认 45 秒发现预算。查询词生成、正文补充与 AI 筛选的时间另计；网站限流、人机验证、接口不可达可能产生部分结果。普通网页或普通仓库不能仅凭主题相关就冒充 Skill；明确的 Skill 索引条目或 `SKILL.md` 身份用于准入。
 
@@ -195,7 +213,7 @@ Skill 整合内容不再需要先通过完整性审查。内部状态仍保护�
 
 `main.py` 在导入 UI 前建立 `RuntimeLog`，绑定根 logging handler 并将级别设为 DEBUG。日志包括时间、线程、级别和模块；同时采集 stdout/stderr、Python warnings、未捕获进程/线程异常及 unraisable 清理异常。启动记录 Python、系统、解释器、工作目录与冻结状态；后台 `_submit()` 记录操作、任务 ID、耗时和完整异常链，Tk 完成队列与回调错误在主线程记录。现有信息/警告/错误对话框经统一包装写入日志后继续显示。Skill 文件、缓存和网络降级也记录完整错误，API 包装保留底层 cause。
 
-运行记录只驻留内存，构造、启动、采集和退出均不创建或修改运行日志文件。Debug 控制台“保存日志”调用 `RuntimeLog.save()`：先 flush 未换行 stdout/stderr，锁内取得完整记录快照，锁外逐条脱敏写 UTF-8 临时文件，完成后原子更名为 `%LOCALAPPDATA%/PromptSmith/logs/PromptSmith_<时间戳>_<唯一编号>.log`；不存在该环境变量时沿用 `.promptsmith/logs`。每次保存完整快照，不覆盖旧文件；保存后的新增记录留在内存，后续点击再保存。保存故障清理未完成文件，保留错误及完整堆栈供重试。密钥变量和环境 token 注册到脱敏器，凭据字段与 Bearer 形式也统一屏蔽；保存时再次脱敏，不把请求正文另行打印到运行日志。`RunEvidenceWriter` 仍按原有机制保存结构化请求/模型响应证据，并在运行日志记录请求身份、校验结果与文件位置。
+运行记录只驻留内存，构造、启动、采集和退出均不创建或修改运行日志文件。Debug 控制台“保存日志”调用 `RuntimeLog.save()`：先 flush 未换行 stdout/stderr，锁内取得完整记录快照，锁外逐条脱敏写 UTF-8 临时文件，完成后原子更名为 `%LOCALAPPDATA%/PromptSmith/logs/Intext_<时间戳>_<唯一编号>.log`；不存在该环境变量时沿用 `.promptsmith/logs`。每次保存完整快照，不覆盖旧文件；保存后的新增记录留在内存，后续点击再保存。保存故障清理未完成文件，保留错误及完整堆栈供重试。密钥变量和环境 token 注册到脱敏器，凭据字段与 Bearer 形式也统一屏蔽；保存时再次脱敏，不把请求正文另行打印到运行日志。`RunEvidenceWriter` 仍按原有机制保存结构化请求/模型响应证据，并在运行日志记录请求身份、校验结果与文件位置。
 
 Windows Web模式由 `WebDebugConsole` / `DebugApi` 向独立WebView2窗口投影脱敏增量日志；JS未捕获异常与操作失败通过窄diagnostic入口记录。`--renderer tk` 回退的 `DebugConsole` 是只读 `Toplevel`，通过 Tk `after(150ms)` 从有序内存日志读取增量；handler 不接触 Tk 控件。显示缓存默认 1,500 条、窗口约 6,000 行；独立完整内存记录用于保存，较早记录不会因显示缓存上限而丢失。筛选、清屏和关窗只影响显示。完整内存记录随日志量增长，未保存内容在进程退出或崩溃后不可恢复，手动文件没有自动轮转/清理。INFO 白色、WARNING 黄色、ERROR 红色、DEBUG 蓝色、CRITICAL 亮红色。开启偏好统一保存于 `settings.json`；关闭窗口取消该偏好，应用正常退出保留偏好用于下次恢复。窗口显示未保存、已保存记录数/文件路径或保存失败。应用关闭先等待后台、恢复 Tk/进程入口，再解除 handler。验证边界见 [运行日志验证](../verification/runtime_log_20261009/results.md)。
 
@@ -208,3 +226,6 @@ Windows Web模式由 `WebDebugConsole` / `DebugApi` 向独立WebView2窗口投�
 自主实现包括需求/方案状态管理、AI 交互流程、Skill 发现与关联、最终交接生成和异常处理。外部语言模型、公开 Skill 及第三方库标明来源。既有论文提供提示研究基础，软件新增机制的效果须另测。
 
 当前架构可用于画技术方案图，但“多模型智能路由”“自动下载安装 Skill”“已完成全网遍历”“跨平台全面验证”等不属于现有已证实能力。
+
+
+2026-10-13最新教程呈现：非操作区域用黑色25%透明SVG遮罩压暗，控件留洞原亮度、遮罩不拦点击；滚动/尺寸/快照更新跟随，关闭释放观察器和动画。每步首次满足条件时一次礼花替代绿色完成提示；重复快照不重放，减少动画时只解锁下一步。前四步仍按真实操作解锁，第五步直接可完成、无需发送目标。仅点击完成保存completed，中途关闭不写完成，首页skip保持独立。

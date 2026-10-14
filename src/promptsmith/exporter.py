@@ -35,7 +35,7 @@ def _markdown(session: SessionState, *, mode: str) -> str:
     prompt = render_task_prompt(body, result.get("tone", "neutral")) if body else ""
     basis = result.get("basis") or {}
     lines = [
-        f"# PromptSmith 最终交付（{marker}）",
+        f"# Intext 最终交付（{marker}）",
         "",
         f"- 任务：{session.task_text}",
         f"- 结果状态：{status}",

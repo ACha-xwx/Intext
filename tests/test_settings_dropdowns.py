@@ -3,12 +3,15 @@
 import pytest
 
 from tests.test_frontend_review_regressions import browser, page as browser_page, load
+from tests.test_custom_provider_browser import choose_setting
 
 
 @pytest.fixture
 def page(browser_page):
     browser_page.evaluate("""() => {pywebview.api.dispatch=async(action,data)=>{
       calls.push({action,data});
+      if(action==='settings_autosave')return {ok:true,data:{settings:{...promptsmithSettings.current,
+        connection:data.connection,values:data.values,revision:'autosaved'}}};
       if(action==='settings_provider'){
         const current=promptsmithSettings.current;
         return {ok:true,data:{settings:{...current,
@@ -43,24 +46,27 @@ def test_filled_provider_opens_all_presets_and_protocol_remains_clickable(page):
     page.keyboard.press("Escape")
     expect(protocol).to_be_focused()
     protocol.press("Home")
-    protocol.press("Tab")
-    assert protocol.input_value() == "OpenAI Chat Completions"
+    protocol.press("Enter")
+    assert protocol.get_attribute("data-value") == "OpenAI Chat Completions"
 
 
 @pytest.mark.parametrize("theme", ["light", "dark"])
-def test_settings_suggestions_do_not_cover_protocol_and_support_custom_input_and_keyboard(page, theme):
+def test_settings_suggestions_float_without_reflow_and_support_custom_input_and_keyboard(page, theme):
     from playwright.sync_api import expect
 
     page.set_viewport_size({"width": 720, "height": 500})
     state = load(page, page="settings", theme=theme)
     provider = page.get_by_label("服务名称", exact=True)
+    following = page.get_by_label("模型供应商", exact=True)
+    before = following.bounding_box()
     provider.click()
     choices = page.get_by_role("listbox", name="服务名称预设", exact=True)
     protocol = page.get_by_label("协议", exact=True)
-    assert choices.bounding_box()["y"] + choices.bounding_box()["height"] <= protocol.bounding_box()["y"]
-    protocol.click()
+    assert abs(following.bounding_box()["y"] - before["y"]) < 1
     page.keyboard.press("Escape")
     expect(choices).not_to_be_visible()
+    protocol.click()
+    page.keyboard.press("Escape")
     expect(protocol).to_be_focused()
     provider.focus()
     provider.press("ArrowUp")
@@ -115,11 +121,12 @@ def test_model_suggestions_refresh_without_overwriting_custom_drafts_or_changing
     expect(choices.get_by_role("option", name="custom-model", exact=True)).to_be_visible()
     model.fill("my-model")
     model.press("Tab")
+    page.wait_for_function("!promptsmithSettings.saving&&!promptsmithSettings.dirty.size")
+    state["settings"] = page.evaluate("promptsmithSettings.current")
     load(page, page="settings", settings=state["settings"])
     assert model.input_value() == "my-model"
-    page.get_by_role("button", name="保存设置", exact=True).click()
-    page.wait_for_function("calls.some(c=>c.action==='settings_save')")
-    payload = page.evaluate("calls.find(c=>c.action==='settings_save').data")
+    page.wait_for_function("calls.some(c=>c.action==='settings_autosave'&&c.data.connection.model==='my-model')")
+    payload = page.evaluate("calls.find(c=>c.action==='settings_autosave'&&c.data.connection.model==='my-model').data")
     assert payload["connection"]["model"] == "my-model"
     assert payload["key_action"] == "keep"
     assert not any(word in page.evaluate("JSON.stringify(calls.filter(c=>c.action==='diagnostic'))")
@@ -133,11 +140,9 @@ def test_clicking_exact_typed_preset_applies_linked_fields_without_clearing_same
     page.get_by_role("listbox", name="服务名称预设", exact=True).get_by_role("option", name="DeepSeek", exact=True).click()
     assert page.get_by_label("模型 ID", exact=True).input_value() == "deepseek-flash"
     assert page.get_by_label("接口地址", exact=True).input_value() == "https://api.deepseek.com"
-    page.get_by_role("button", name="保存设置", exact=True).click()
-    page.wait_for_function("calls.some(c=>c.action==='settings_save')")
     # The new provider has its own empty credential; keep no longer means reuse
     # the old provider's key. The source profile was preserved by the switch.
-    assert page.evaluate("calls.find(c=>c.action==='settings_save').data.key_action") == "keep"
+    assert page.evaluate("calls.find(c=>c.action==='settings_provider').data.key_action") == "keep"
 
     # A fresh form with a saved preset must not invalidate its credential just
     # because the same preset is selected again.
@@ -146,9 +151,9 @@ def test_clicking_exact_typed_preset_applies_linked_fields_without_clearing_same
     load(page, page="settings", settings=state["settings"])
     page.get_by_role("button", name="服务名称预设", exact=True).click()
     page.get_by_role("listbox", name="服务名称预设", exact=True).get_by_role("option", name="OpenAI", exact=True).click()
-    page.get_by_role("button", name="保存设置", exact=True).click()
-    page.wait_for_function("calls.some(c=>c.action==='settings_save')")
-    assert page.evaluate("calls.find(c=>c.action==='settings_save').data.key_action") == "keep"
+    page.wait_for_timeout(550)
+    assert not page.evaluate("calls.some(c=>c.action==='settings_autosave'||c.action==='settings_provider')")
+    assert page.evaluate("promptsmithSettings.current.has_key") == state["settings"]["has_key"]
 
 
 @pytest.mark.parametrize("theme,font,width", [("light", 12, 1440), ("dark", 12, 1440),
@@ -158,7 +163,7 @@ def test_settings_dropdown_arrows_stay_centered_for_native_and_editable_choices(
     state = load(page, page="settings", theme=theme, font_size=font)
     for category in ["模型", "界面", "会话与导出", "诊断"]:
         page.get_by_role("tab", name=category, exact=True).click()
-        choices = page.locator(".settings-form:not([hidden]) select,.settings-form:not([hidden]) input[role=combobox]")
+        choices = page.locator('.settings-form:not([hidden]) [role="combobox"]')
         for choice in choices.all():
             choice.scroll_into_view_if_needed()
             arrow = choice.locator("..").locator(".settings-choice-arrow")
@@ -169,10 +174,8 @@ def test_settings_dropdown_arrows_stay_centered_for_native_and_editable_choices(
             assert field_box["x"] < arrow_box["x"] < arrow_box["x"] + arrow_box["width"] < field_box["x"] + field_box["width"]
             assert arrow.get_attribute("aria-hidden") == "true"
             assert arrow.evaluate("e=>getComputedStyle(e).pointerEvents") == "none"
-            if choice.evaluate("e=>e.tagName") == "SELECT":
-                assert choice.evaluate("e=>getComputedStyle(e).appearance") == "none"
     load(page, page="settings", theme=theme, font_size=font, settings=state["settings"])
-    assert page.locator(".settings-choice-arrow").count() == page.locator(".settings-form select,.settings-form input[role=combobox]").count()
+    assert page.locator(".settings-choice-arrow").count() == page.locator('.settings-form [role="combobox"]').count()
 
 
 def test_settings_choice_wrappers_keep_custom_inputs_presets_keyboard_and_save_payload(page):
@@ -186,12 +189,12 @@ def test_settings_choice_wrappers_keep_custom_inputs_presets_keyboard_and_save_p
     protocol.focus()
     protocol.press("Home")
     protocol.press("ArrowDown")
-    protocol.press("Tab")
-    assert protocol.input_value() == "OpenAI Responses"
+    protocol.press("Enter")
+    assert protocol.get_attribute("data-value") == "OpenAI Responses"
     provider.fill("自建中转服务")
     provider.press("Tab")
     page.wait_for_function("!inFlight&&promptsmithSettings.current.connection.provider==='自建中转服务'")
-    page.get_by_label("模型供应商", exact=True).select_option("OpenAI")
+    choose_setting(page, "模型供应商", "OpenAI")
     page.get_by_label("接口地址", exact=True).fill("https://gateway.example.invalid/v1")
     model = page.get_by_label("模型 ID", exact=True)
     model.fill("custom-model-v2")
@@ -199,9 +202,8 @@ def test_settings_choice_wrappers_keep_custom_inputs_presets_keyboard_and_save_p
     updated = page.evaluate("promptsmithSettings.current")
     load(page, page="settings", settings=updated)
     assert provider.input_value() == "自建中转服务" and model.input_value() == "custom-model-v2"
-    page.get_by_role("button", name="保存设置", exact=True).click()
-    page.wait_for_function("calls.some(c=>c.action==='settings_save')")
-    payload = page.evaluate("calls.find(c=>c.action==='settings_save').data")
+    page.wait_for_function("calls.some(c=>c.action==='settings_autosave'&&c.data.connection.model==='custom-model-v2')")
+    payload = page.evaluate("calls.find(c=>c.action==='settings_autosave'&&c.data.connection.model==='custom-model-v2').data")
     assert payload["connection"]["provider"] == "自建中转服务"
     assert payload["connection"]["model"] == "custom-model-v2"
     assert payload["connection"]["protocol"] == "OpenAI Responses"

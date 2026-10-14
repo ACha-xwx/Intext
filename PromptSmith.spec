@@ -101,7 +101,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name="PromptSmith",
+    name="Intext",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

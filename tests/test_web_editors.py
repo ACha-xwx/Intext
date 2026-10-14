@@ -276,10 +276,10 @@ def test_small_web_editor_validation_keyboard_and_failure_keep_controls_usable(p
     page.wait_for_function("calls.some(c=>c.action==='editor_save') && !document.body.classList.contains('pending')")
     assert field.input_value()=="未提交草稿👩🏽‍💻\n"
     assert dialog.get_by_role("button",name="保存",exact=True).is_enabled()
-    assert "修改未保存" in dialog.get_by_role("alert").inner_text()
+    assert "模拟保存失败" in dialog.get_by_role("alert").inner_text()
     state["editor"]["error"]="保存失败，请修改后重试。"
     page.evaluate("s=>promptsmithView.applySnapshot(s)",state)
-    assert dialog.get_by_role("alert").inner_text()=="保存失败，请修改后重试。"
+    assert dialog.locator(".notification-body").last.inner_text()=="保存失败，请修改后重试。"
     for _ in range(10):
         page.keyboard.press("Tab")
         assert dialog.evaluate("e=>e.contains(document.activeElement)")

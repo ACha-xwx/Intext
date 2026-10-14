@@ -1,5 +1,9 @@
 # 本次交接发现
 
+2026-10-14 S3启动：用户要求将Skill简介交AI进行0–1评分推荐。现有“AI筛选暂不可用”只在SkillAiSelectionError后出现，表示调用/解析/预算/来源核验等失败后降级，不能据此认定没有调用AI或锁定其远端失败原因。当前联网沿用本地全文复核：超8项先无评分粗筛、再全文节选复核；最终输入没有顶层description，简介仅可能藏在source/metadata中；json.loads严格接收裸JSON，单条格式错误会使整批抛错。目标将联网改简介一次评分、容忍包裹与个别坏行，同时保留真失败说明及来源身份/取消边界。
+
+2026-10-14 S2结论：通用actions按内容宽flex造成右侧510.5px留白；结果附注按钮另置一行、面板混有语气。新增阶段等宽grid并用`.actions.stage-actions`避免后置flex覆盖，按卡片宽度响应式铺满。Tk操作字典和选中更新器必须一起删adopt以免KeyError；旧采用测试依新规格更新，后台业务保留。真实Web附注编辑保存/正文写入/旧tone保留及保存重开通过，最新20个不同定点节点均绿；Spec/Standards各0发现，详见[维护](action_rows_20261014.md)。完整回归等第三项。
+
 ## 2026-10-10：前期提问全面性
 
 - 用户明确纠正最初的阶段截止解读：希望前期提问更全面，减少后续漏问和重复生成；不以直接隐藏晚期问题作为完成标准。
@@ -596,3 +600,99 @@ CodeGraph CLI explore不支持--depth，定位class成功后已直接读取确�
 启动模型列表：当前初始化仅恢复saved_model_ids，并只暖本地Skill索引；fetch_models由手动按钮/设置action调用，且占全局busy。自动刷新不能直接复用手动忙态，否则启动网络慢会锁住对话；采用独立目录后台工作和Tk队列回写。save_model_directory已按保存连接/Key身份验证并原子更新，可复用且不会保存草稿或改变活动供应商。当前工作树包含前轮成果，清理和提交必须一并保留。
 
 自动目录实现：独立最多2线程后台队列，仅对可解密保存Key请求目录；每服务TaskScope保护配置修改、手动获取、删除和关闭，所有档案/Tk/目录写回在owner线程。状态独立于业务busy、设置草稿和模型确认；协议/auth由原API客户端负责。新增14项检查及实际WebView2 8项验证通过，后台只GET且不保存运行日志。双轴审查各0发现。清理以可重建缓存/临时产物为准，保留开发索引、正式文档/测试和已跟踪基线证据；不删除用户的LOCALAPPDATA数据。
+
+2026-10-13 设置页新规格：用户要求复刻所给TSX，示例人物/组织/分类仅作外观参考。原示例Save changes按钮按用户要求删除；系统默认字体/浅深主题保留。旧页面仍有原生select、确认门槛、单独已获取目录标签。需公开DOM红灯确认开合症状，不先认定根因。
+
+本轮焦点探针：仅改button.type无变化；捕获事件顺序pointerdown→focusout(activeElement暂时body)→blur close→focusin→click→open，证实焦点微任务是根因。箭头pointerdown.preventDefault保护焦点，不延时隐藏或去掉动画。自动保存独立串行桥接不占全局inFlight，不逐键锁输入；450ms合并、change即时、离页flush，回包只清与提交值相同的字段，保留新编辑。key仍仅前端输入内存→Python→DPAPI，不加入快照或浏览器存储。
+
+设置页恢复发现：空模型接口导致主题设置自动保存也被拒绝。已在公开Controller边界复现，按明确changed_fields把普通偏好与模型草稿分开保存，保留已加密凭据/档案原投影。顶部均分/新增类别、浮层不重排等8项DOM及5项保存检查通过。启动删除单节点重跑通过，继续相邻合跑检查。
+
+原生WebView2 21项隔离检查通过：浅深/宽窄导航全宽、浮层、图标、自动保存、跨服务恢复/删除、离页flush；仅1次localhost GET、0 POST、无自动日志。初次验收未等桥接页面渲染产生卡片计数假红，已等待可见修正。浏览器77项初合跑76绿1项旧快照模拟不反映autosave，改回已保存公开快照后绿。Python130项127绿3项旧save_button断言，53997def独立副本三项均复现，保留基线差异。双轴发现忙时Debug及慢保存切服务混身份，已各自公开DOM红→绿；CSS整理旧布局/品牌/导航重复规则。
+
+Spec复审新增残余路径：仅typing服务名未blur也会进入autosave，已固定autosave使用current源provider且排除provider dirty（仅settings_provider负责换身份）；不完整URL草稿被当写盘失败阻止切换，公开DOM各自red。桥接新增validation/persistence错误种类，自动保存按原因显示修正/重试，磁盘错误保留原exception，切换只因持久化失败阻止。两个slice修复后检查中。失败注入最初误用Path.replace，实际原子写为os.replace，已修测试正确边界通过。
+
+DPAPI加密错误继承ValueError，不能按其父类认定为输入不完整。已在具体加密边界改为SettingsPersistenceError（OSError），保留原cause供Debug；提交大小拒绝同归持久化，避免切换时丢失未保存输入。前端继续按validation允许暂存不完整草稿、按persistence留源服务并重试。最终原生结果文件确认22项全部通过，浅色截图和用户全宽要求目视一致；测试环境仅一次性本地服务与隔离配置。
+
+Debug内部样式：参考组件的行是flex gap-2、时间tabular、级别缩写、灰色source、white-space:pre-wrap与hover背景，不应照搬外部toolbar/演示成功日志。现有屏幕把完整原始text直接放一行，包含日期/线程/任务UUID导致宽泛噪声；归档原文须保留，先分离公开呈现字段再改DOM。旧阅读锚点依赖固定行高，换行后需要按实际正文行定位验证。
+
+Debug复制范围：紧凑显示后不能直接复制entries缓存。复制应复用render的级别筛选、清空边界和debug_lines裁剪结果；完整可见记录复制原始text，裁剪记录复制可见正文尾部。手动保存独立使用RuntimeLog完整归档，不能受显示裁剪影响。
+
+统一通知参考：TSX给出success/info/warning/error四种Lucide图标、16px内边距/12px间距、8px圆角/边框/轻阴影、标题与正文及右侧X关闭。示例付款/配额不是产品需求。现有通知分别在底部toast、设置status/error/footer、history-status、editor-error、trace-error、Debug footer；状态快照轮询需防止同一消息关闭后复活，原生dialog top-layer会盖住普通fixed节点，需要popover层或同一dialog内可见承载。
+
+工具记录：读取model_directory.py/history.py猜测路径失败，真实模块为model_directory_refresh.py/history_workspace.py；后续按索引定位，不重复猜路径。当前规格是功能迁移，diagnosing-bugs红灯针对错误通知位置/轮询重复等可观察缺陷，非付费模型调用。
+
+通知迁移已通过相关回归和隔离原生14项检查，文案清单包含F34/B220/D68/G17/E78/S5项；此前双轴各0待修。用户最新要求覆盖不自动关闭的旧决策：每张独立5秒自动关闭及右端向左linear计时条。计时仅单个timeout，动画只用CSS transform，不每帧写日志；关闭/同key替换需清理旧timeout，自动关闭复用手动焦点保护和快照去重。
+
+动画底部滚动条根因已在生产DOM复现：收回translateX使通知区域scrollWidth=386大于clientWidth=384，而容器双轴overflow:auto，产生横向滚动条。最小修复仅设置overflow-x:hidden、overflow-y:auto；保持CSS收回动画及长通知纵向滚动，不隐藏有用正文。
+
+上移补位纵向滚动条也已复现：容器auto高度随移除立刻收缩到74px，而剩余卡片旧视觉位置导致scrollHeight=159px。通知浮层设稳定视口高度（100dvh-32px），不随消息数量伸缩；背景透明、空白区域pointer-events:none，卡片可点击且实际超窗时overflow-y:auto保留。CSS单行消除补位临时溢出，不用隐藏所有滚动条或裁掉正在移动的卡片。
+
+本批静态定位：Skill 来源筛选原用流程 actions 样式，与查找/继续按钮混淆；新工具栏与表格共用外框、浅背景及分隔线。检查发现重建时可能继承 inFlight 禁用且没有后续同步，已在 updateEnabled 统一更新工具栏忙态，防止操作结束仍不可点击。用户追加重命名入口应紧邻服务名称下拉框，自定义时缩短字段，内置时保持全宽。
+
+自定义供应商重命名必须迁移 DPAPI 身份及模型确认/目录指纹：凭据绑定服务名，普通 switch 回调会清 Key/目录。因此先在持久层构造新档案并原子写入，成功才同步 Tk owner 状态与退役旧目录请求。加密/写盘失败保留原配置；无效确认不能被重命名转为有效。批量回答已完成双轴静态审查，两个已知候选解释的连带移除边界已修。所有新回归场景仅编写，继续延期执行。
+
+第4项用户证据：DeepSeek查询规划和筛选两次共6.3秒，筛选实际只看到agent-browser/ai-video-generation/find-skills/twitter-automation，空matches属于对这批候选的合理排除，不能仅据此认定模型偷懒。Gemini列表显示frontend-slides/microsoft-foundry/skill-creator/find-skills，评分0.03–0.05；需定位检索候选偏移、低分展示及进度状态→toast映射。用户关于相关报告Skill的判断是查找目标，不是允许把普通网页当Skill。诊断和TDD即时执行按用户“四项修完后再回归”顺延，先保持可执行复现用例。
+
+网络相关性静态根因确认：skills.sh元数据丢弃、查询前6项被长通用词占满、正文读取前按发现顺序截断、GitHub仓库取目录首个Skill、AI低于0.4仍展示和失败时无条件降级。按真实任务元数据优先修复；进度从toast投影改搜索区，过程日志仍保留。第四项实现已完成，统一验收开始。
+
+真实公开索引只读检查（非模型请求）：skills.sh的documentation、docx、pdf三个短词均返回100条，前列分别包括documentation-writer、docx、pdf，证实相关Skill确实存在于索引。没有请求个人API或付费模型；这仅证明索引检索，不代表Gemini/DeepSeek最终筛选质量已复测。另为不同关键工作预留初排来源，避免大量文档结果挤掉PDF交付候选。
+
+本批统一回归已完成：275个不同本地节点与22项隔离原生WebView2合成检查通过，Spec/Standards最终各0待修。开放搜索单查询份额/合并48项两处提前截断在Spec审查后关闭，并覆盖后续查询和同查询第25项。低分排除不增加模型重试，失败降级保持未核验状态与用途依据；不修改用户思考强度。
+
+复现及验收边界：旧版14项红灯中两条原先因HTTP替身缺视频正文而KeyError，补足后旧版明确误推video-0、修复版两条通过，其余红灯直接对应目标缺陷。批量DOM回调等待、重命名/表格请求替身过宽、联网UI本地前置、原生把WebView2数据库.log误当程序日志均属验收环境问题，已修正而非放宽产品合同。右上清单当前F35/B221/D71/G17/E93/S7，明确逐项搜索进度不弹通知。没有真实Gemini日志证明具体失败原因，也未发真实模型调用。
+
+本轮B1/B2公开反馈确认三层缺陷：会话仅导航、恢复后的Tk/DOM沿用旧空输入、回退前草稿可迟到覆盖；已逐项红绿。B3确认状态卡缺按钮以及旧导航basis未退出，取消搜索continue只浏览，无请求；两条红灯已修绿。补历史兼容、恢复世代、完整异常与简明Debug。首次后台验收等待误包含应用级索引预热（5秒），改只等待取消scope，不改生产逻辑。
+
+回答回退最终边界：checkpoint记录首次提交前状态，不能用其中旧workspace_drafts覆盖提交后新输入。恢复要在工作副本合并当前轮实时/已同步草稿（含空串）与提交记录；Web返回绕过排队flush时直接携带当前题目的input.value，由Controller原身份/stamp校验后交业务恢复，旧draft世代继续拒绝。
+
+本轮最终证据边界：165个不同本地节点最新均通过（大批164绿，旧空草稿断言校正后单节点绿），原生合成28项通过；Spec/Standards末项均关闭。没有访问个人配置或真实模型/EXE验收。停止模型仍遵循原TaskScope合同，服务端算力是否立即撤回不由离线证据保证。
+
+## 2026-10-13 教程参考与实现边界
+
+用户组件为React/Embla轮播视觉参考，演示CLI文案不属需求。复刻384px最大宽卡片、12px圆角、24px内边距、56px圆图标、6px进度条300ms动画、上一步/下一步/完成。替换为模型设置→目标→问题→核对→Skill→交付。内部tutorial_seen状态独立于会话/模型；置于settings.json顶层，读写不解密凭据，普通/模型保存保留。教程对话框采用原生dialog/top-layer，关闭不丢草稿，忙态无需修改模型配置。生产DOM旧fixtures没有tutorial_seen时不触发首次弹窗。
+
+教程新要求：覆盖页面操作而非阅读卡片；模态dialog会使设置/输入不可操作，因此改manual popover非模态引导卡，下一步按生产快照及已保存状态校验，避免用计时器/假完成。保留关闭入口、未填数据和正在运行请求。已记录原介绍版红绿证据，只能说明基础组件，不算最终需求验收。
+
+2026-10-13 操作教程收尾：已补真实输入→最后保存快照→无后续变化的三个DOM场景，配置/模型选择/供应商切换均明确红灯。根因为 saving/switching 清除后未刷新教程；最小修复为设置就绪状态事件，仅刷新教程按钮，不改业务/请求或新增刷屏日志。追加首目标失败与新会话不得沿用发送状态用例。全仓库回归继续运行中，尚不能报告全绿。
+
+操作教程17个定向节点通过；原生重看时发现界面分类隐藏模型字段，新增真实重看DOM明确红灯后，在推进配置步骤时切换模型分类，单项已绿。首次原生已通过加密配置、获取、模型保存、发送一次和最终completed等，后半重看因该缺陷失败；第二次原生执行中。
+
+最终操作原生14项全绿；前五套原生22+30+13+22+28=115项全绿，共129项。Debug通知脚本收尾仍有pywebview控件销毁期间ObjectDisposed日志，断言和进程均成功，与功能断言失败区分。窄窗说明可读性两项追加红绿，三项含末步长目标全绿。全仓库1829节点：1746通过/82失败/1跳过；失败清单正在本轮前副本投影复现；本机流式/Stop/自动目录21项单独复验全绿，用于区分整套状态或时序影响。
+
+完整回归归因最终：原82失败在before投影72失败/10通过；当前HTTP/Stop/目录相邻21全绿和目录变更单项绿，10个原不稳定节点全部当前复验通过，根因未完全定位，不能称稳定性已修。最后教程/设置34全绿（教程20+相邻14）；latest-node-results.json逐项去重1764过/72失败/1跳过、1837不同节点。报告full_regression_20261013.md保留全部82表格及release子进程根目录投影限制。两轴最后窄窗复审各0待修。
+
+教程最终收尾完成：T1–T5均complete；静态/9资源/259相对链接与diff检查通过，CodeGraph 256files/6326nodes/19414edges current。最后增量diff已刷新，所有本轮测试进程已结束。教程34相关检查/129原生通过，完整回归保留72原失败及10孤立复验绿的不稳定项。没有提交或推送。
+
+Intext Hero参考：加载组件是40px圆角方块，2秒easeInOut旋转并变形；银边按钮直接使用@paper-design/shaders的Liquid Metal，4次重复、scale8、angle45和0.6/1/2.4速度、按压及600ms涟漪。字体Orange Juice内置名称为orange juice；只生成Intext固定轮廓，非运行时字库。skipped保持跳过、completed保持完成，首次教程自动弹出必须延后到Hero点开始。旧数据根目录与DPAPI用途不可机械替换品牌。
+
+以上字体方案以用户后续澄清为准：完整「意织 · Intext」必须一起转为单个SVG，中文另选字体；用户正在自行找字体，明确暂停整个任务，尚未实现。恢复时先读取intext_hero_20261013.md，不沿用早期中文系统字体决定。
+
+2026-10-13 Hero审查根因：按钮自身未设置overflow:hidden，而全局button:hover背景优先级覆盖静态银边。真实生产DOM两项分别复现，补按钮局部裁剪及共享银边背景变量/hover覆盖后通过；不改变业务调用。Standards首审无发现，完整标题SVG仍明确等待字体。
+
+2026-10-13 字标已解除字体等待：以用户新提供中文手绘PNG为中文轮廓来源，整体SVG只含paths，不嵌入位图/字体。原图黑色笔触由160阈值分离、80px以下散点排除，evenodd保持镂空和排线；英文/中点使用Orange Juice字形路径，线条风格相匹配。共345323bytes；不新增应用运行依赖。用本轮浅深PNG预览核对线条，原图hash和字体内置许可保留。
+
+
+2026-10-13追加：用户澄清高亮是非操作区域亮度减少25%，原tutorial-target只有outline而无背景减亮。礼花替代当前步完成绿色提示，仅首次条件满足播放，不通过重复快照重放。使用非模态顶层可穿透SVG遮罩，真实控件留洞，保留设置列表可操作；沿用生产DOM测实际视觉和交互。Hero小窗比例失败为img整数width/height舍入，改测DOM真实小数边界。
+
+追加保存提示根因：save_settings及普通偏好autosave固定附带窗口大小提示。改保存前比较唯一现有window_width字段（高度按16:9派生），日志记录deferred_window_size布尔值。首次实现误列不存在的window_height，公开fixture报KeyError，已修正并15项回归通过。玻璃双圈根因为::before额外7px内缩、50%白色锐线；独立像素读数149/42/42明确红，移除内圈后绿，保留外缘/扫光及focus-visible。
+
+2026-10-13收尾复核：本轮相关XML按节点身份去重199项最新均绿，原生Hero38项和真实Controller教程16项全部通过；Spec和Standards最终各0待修。普通保存/教程完成的Debug仅投影短中文，原始归档、Warning及以上、多行异常不变。用户39项通知改稿未覆盖。当前标题和英文标识为纯路径SVG；运行不生成字体文件。CodeGraph current为261文件/6417节点/19717边；全库历史72失败与10项整套不稳定不纳入本轮通过声明。
+
+2026-10-13全量审查补证：47个Web记录中3个因5秒通知遮挡测试点击而超时，补充脚本关闭通知后3页均成功。真实缺陷另列：历史搜索Ctrl+S背景save被派发；自定义供应商删除dialog同样穿透Ctrl+S；最终Markdown代码围栏内# comment被变成h1；教程在已展开侧栏的1440→720×440缩窗时工作区右边界789.67px，设置目标在窗外。前三者为生产DOM+模拟bridge，未声称真实文件写入。强制settings离页删除modal仍存在只为合成投影风险，真实可达路径待证。9个原测试失败在正确Hero前置下原断言全部通过，未改应用或仓库原测试。30/1000历史行同步渲染三样本约1.4–2.4ms/28.3–33.6ms，不代表实际180Hz或用户滚动体验。
+
+2026-10-14审查边界：FND-001教程侧栏展开后缩窗阻断设置；002模态全局快捷键穿透/堆叠；003围栏内注释误作标题；004浅色日期分组对比度；005九个旧测试Hero前置；006通知去重Map退役键保留均confirmed。FND-007删除供应商弹窗离页残留只有强制快照证据，需合法Controller路径补证。不得把九测试前置当产品Stop/计时故障，也不把Map保留夸大为已测内存/FPS问题。
+
+2026-10-14范围变更：用户停止本轮审查，要求后续直接修改新提出的三个问题。已有七项发现保留原证据与确认状态；暂停不代表修复授权覆盖全部旧发现，也不代表完整审查完成。恢复全量审查时从既有台账续接，禁止重新生成初始台账而覆盖人工补证。
+
+
+2026-10-14 S1 diagnosis: both valid draft and confirmed prompt reproduce an unwanted Skill card via the public conversation_cards boundary. Ranked hypotheses: (1) shared card visibility includes the result stage; (2) navigation does not advance; (3) DOM retains retired cards. Existing navigation derives result from valid canonical_body; production DOM removes absent keys. Fix shared projection to emit Skill only at skills stage; preserve all business data. Extend the existing deduplicated stage Debug event with skills_visible. Focused red: 2 failures at the exact visibility assertion. A standalone Python inspection failed because pytest-only pythonpath was absent; use pytest public seams instead.
+
+
+2026-10-14 S1 final: only stage == skills emits Skill card. Valid generated draft/confirmed prompt hides it; previous restores and next hides again, persisted state preserved. Focused 5 checks passed, two independent diff reviews clear. No changes to workflow/API/schema/navigation business logic.
+
+
+2026-10-14 S2 source map: generic actions() creates content-sized wrapped flex buttons. Requirements includes adopt_requirement; result renders copy/export/save/confirm_final plus a detached review button; result review includes a tone select. Shared Tk owner produces those controls for Web snapshot and has a separate selection updater that references adopt_requirement. Remove that updater dependency with the button, rather than only hiding the DOM. Reuse existing glass effect without reintroducing the extra inner ring removed at user request.
+
+2026-10-14 S3: the quoted warning is a genuine AI-review fallback, not the normal recommendation path. Public search reproduces omitted independent description, a second metadata model pass above eight candidates, fenced JSON failure and whole-batch rejection of numeric strings/one bad reference. Network now sends bounded description/brief plus task/key works through one summary scoring call; local source review remains. Scores and uses appear in Controller details, and failure text includes a redacted reason. Standards found empty matches wrongly treated as completed/no_match: public search red reproduced completed instead of failed; zero valid summary scores now record scored/unscored counts and fail explicitly. Valid low scores still mean successful no match. Both review axes cleared the incremental correction. No exact remote cause can be claimed without the user's exception, and no paid model request was made.
+
+2026-10-14 S3 final: cancelled scoring followed by an OSError previously entered coarse fallback; the public search red/green loop now checks cancellation before wrapping exceptions. Desktop Stop immediately unlocks and ignores late scored candidates. The broad cancellation fixture needed public previous-stage navigation after S1 hides Skill controls; preserving its original data/late-result assertions produced green without changing production navigation. Final 326 distinct related nodes latest passed, two-axis incremental review clear. Real provider relevance/availability remains unverified; local success does not establish the cause of the user's original service failure.

@@ -1,5 +1,7 @@
 # 开发、检查与打包
 
+2026-10-13 Intext 启动：新增启动 Hero，加载就绪后按教程状态分流；本地液态金属 shader 和 Apache 许可随 workspace 整目录打包，运行不需要 Node/CDN。修改入口同时检查 `tests/test_startup_hero_browser.py`、tutorial、Debug/导出/偏好/历史相邻用例；原生隔离验收脚本为 `maintenance/intext_hero_webview_check_20261013.py` 与已适配 Hero 的 `maintenance/tutorial_webview_check_20261013.py`。这些检查不调用真实模型。EXE 名称现为 Intext，包名、旧设置/会话/加密上下文保持兼容；完整标题与侧栏英文SVG已就绪，本轮没有重新构建EXE，见[维护](maintenance/intext_hero_20261013.md)。
+
 2026-10-12 团队启动修复：`run.bat` 固定项目目录、优先 `.venv/Scripts/python.exe`、默认传入 `--renderer web`，并保留参数、失败信息和退出码。缺 pywebview 时错误给出当前解释器的安装命令；不再通过此入口静默退回旧界面。直接 Python 的 auto 模式和显式 `--renderer tk` 仍保留。详见[跨机启动与 GPT 400 修复](maintenance/startup_responses_20261012.md)。
 
 2026-10-12 GPT Responses：业务输出 Schema 中的可选属性、开放对象及不支持的组合关键字，在发送前选择 `text.format.type=json_object`，完整 Schema 放入 instructions，由原有本地解析处理；兼容 Schema 保留原生 strict 模式。仅当服务明确拒绝输出格式时允许一次无原生格式兼容请求，其他400不重试。GPT 原始思考不可见不影响正文；不向 GPT 添加 DeepSeek 的 thinking 参数。验证为本地 HTTP 合成服务，无真实模型调用。
@@ -41,7 +43,7 @@ python -m venv .venv
 
 桌面设置现在按五类保存，公开偏好集中在 `preferences.py`，UI 由 `settings_ui.py` 管理。新增设置同时补字段范围/默认、真正的运行接线、请求快照、确认失效、Debug 与定向验证；`settings.json` 存普通偏好、公开连接与 DPAPI 加密的 API Key，禁止明文或弱加密回退。加解密由 `credentials.py` 负责，日志只记录凭据是否存在和系统错误码，启动密钥先注册脱敏后使用。测试用 `evidence_root=tmp_path / "runs"` 或 `diagnostics_root=tmp_path` 隔离配置，避免污染生产目录；原生凭据测试仅用合成密钥。完整清单见 [设置盘点](maintenance/settings_audit_20261009.md)，安全边界见 [凭据保护](maintenance/settings_security_20261009.md)。
 
-通过右上角“设置”选择协议、填写 Base URL/模型 ID/API Key，再点击模型设置中的“确认”。“测试连接”只探测接口，成功也不自动确认；修改配置后需重新确认。普通启动和确认配置不自动调用付费 API，真实分析、搜索查询/筛选、生成需要已确认的模型配置。GitHub Token 是搜索增强项，使用者自行配置；不要把账号密码或 Token 写入代码。
+通过右上角“设置”选择服务与协议、填写 Base URL/API Key、获取并选择模型 ID。修改自动保存，有效配置自动生效；“测试连接”仅探测接口，启动后台模型目录刷新仅获取列表。普通启动不调用付费生成 API，真实分析、搜索查询/筛选及生成使用已生效配置。GitHub Token 是搜索增强项，使用者自行配置；不要把账号密码或 Token 写入代码。
 
 环境选项以代码实际读取为准，如 `PROMPTSMITH_GITHUB_TOKEN`、`PROMPTSMITH_RESOURCE_ROOT`；后一项用于资源目录定位，不需要普通用户设置。会话 JSON 和运行记录位于 `%LOCALAPPDATA%/PromptSmith/` 或用户选定位置，可能含用户输入，不作为默认 Git 素材。
 
@@ -69,8 +71,8 @@ python -m venv .venv
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1
-dist/PromptSmith.exe --smoke-test
-Get-FileHash -LiteralPath dist/PromptSmith.exe -Algorithm SHA256
+dist/Intext.exe --smoke-test
+Get-FileHash -LiteralPath dist/Intext.exe -Algorithm SHA256
 ```
 
 单文件 EXE 包含 Python、Tk、依赖和 spec 列出的运行资源，AI 模型仍通过网络服务调用。首次运行会解包到临时目录。构建不上传产物；源码仓库忽略 `build/` 与 `dist/`。

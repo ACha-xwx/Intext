@@ -139,3 +139,24 @@ D1统一select及input+datalist的箭头、间距和焦点；D2验证原生键�
 追加D3/D4：用户实际要求是预设切换和下方协议可点击。生产DOM测试应从已填DeepSeek展开完整预设、选择另一个服务、再选择协议，覆盖自定义输入/草稿/保存与弹层生命周期；之后用隔离WebView2验证，记录Debug并做增量双轴审查。基线为本轮开始的工作树，依赖D3后完成D4；不改业务确认、密钥、API请求。
 
 追加J1/J2：对照队员旧json_object的param=input修复，在本地复杂契约及strict明确不支持后的兼容路径增加input可见JSON指令，原wire独立；本地HTTP先红后绿，保持模型/强度/预算/单请求/错误详情，相关回归与审查后收尾。D3/D4/J1/J2已完成，255节点最新通过、实际WebView220项通过、双轴0待修。见[维护](../docs/maintenance/settings_choice_interaction_20261012.md)，无收费请求/个人配置/EXE/提交推送。
+
+
+## 2026-10-14 Targeted stage visibility
+
+S1 uses the existing public SessionState/conversation_cards, WorkspaceController snapshot and production DOM seams. Add the symptom test before changing the shared projection; verify only this red/green feedback loop now, defer combined regression. Review the incremental working-tree diff against local_artifacts/skill_stage_visibility_20261014/before along Spec and Standards. Keep all preceding work and the paused audit intact.
+
+
+S1 complete: 5 focused checks passed; incremental Standards/Spec reviews each clear. Exact feedback boundaries and fixture corrections: ../docs/maintenance/skill_stage_visibility_20261014.md. Combined regression awaits S2/S3.
+
+
+## 2026-10-14 S2 action rows and notes
+
+S2a: equal-width glass action row for current requirement/plan/Skill controls, including dynamic 3/5 Skill choices and disabled/hover/reduced motion. S2b: final result copy/export/notes only, notes view drops tone; Tk owner action map and selection update stay consistent. Same authorized public DOM/Controller seams; incremental before stored under local_artifacts/action_rows_20261014/before. Finish focused feedback and dual-axis review, defer combined regression until S3.
+
+S2 complete: 20 distinct public DOM/Tk/Controller checks passed, including actual note editor save and old tone persistence. Incremental Spec/Standards each 0 findings. Detailed red/green and corrected historical adoption test: ../docs/maintenance/action_rows_20261014.md. S3 and combined regression remain pending.
+
+## 2026-10-14 S3 online Skill introduction scoring
+
+S3a: public search feedback loop reproduces missing introduction and wrapped JSON fallback; pass bounded actual descriptions/intro excerpts in one AI scoring call with model scores and specific uses. S3b: tolerate partial malformed rows and expose genuine failure/review mode in inline status, candidate details and Debug; preserve source identity/cancel/local paths. S3c: incremental Spec/Standards review, combined S1–S3/adjacent regression, static checks/maintenance/CodeGraph. Baseline local_artifacts/skill_summary_scoring_20261014/before. No personal settings, live paid model requests, EXE build or remote publication.
+
+S3a–S3c complete: empty summary scores explicitly fail while valid low scores remain no-match; cancellation wins over late network exceptions. Broad 323 nodes yielded 322 passed/1 old hidden-control fixture; corrected to public previous-stage→integration, final affected six modules 61 passed. Latest distinct nodes 326 passed; final Spec/Standards each 0 findings. See ../docs/maintenance/skill_summary_scoring_20261014.md. Full project audit remains paused.

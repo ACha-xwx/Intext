@@ -36,14 +36,13 @@ def test_sent_goal_reuses_workflow_and_explicit_model_confirmation(app, monkeypa
     assert app.session.confirmed_requirements_version is None
 
 
-def test_changed_model_configuration_cannot_start_generation(app, monkeypatch):
+def test_valid_changed_model_configuration_can_start_without_confirmation(app, monkeypatch):
     view = controller(app)
     app.api_model_var.set("unconfirmed-fixture")
     requests = []
     monkeypatch.setattr(app, "_submit", lambda *a: requests.append(a))
     view.dispatch("send", {"text": "重新设计软件界面"}, view_stamp(app))
-    assert not requests
-    assert app.notebook.index(app.notebook.select()) == app._settings_page_index
+    assert requests and app.busy
 
 
 def test_stale_browser_action_cannot_mutate_new_conversation(app):
@@ -156,7 +155,8 @@ def test_web_settings_connection_test_never_confirms_and_confirm_preserves_other
     draft["connection"]["model"] = "changed-model"
     draft["values"]["font_size"] = "15"
     view.dispatch("settings_test", draft, view_stamp(app))
-    assert not app._model_settings_confirmed() and "连接成功" in app.status_var.get()
+    assert app._model_settings_confirmed() and "连接成功" in app.status_var.get()
+    assert load_settings(app._preferences_path).connection["model"] != "changed-model"  # Probe does not save the edit.
     draft["revision"] = view.settings_snapshot()["revision"]
     view.dispatch("settings_confirm", draft, view_stamp(app))
     loaded = load_settings(app._preferences_path)

@@ -7,12 +7,14 @@ import logging
 import math
 import os
 import tempfile
+from copy import deepcopy
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Mapping
 from urllib.parse import urlsplit
 
 from .credentials import CredentialProtectionError, decrypt_api_key, encrypt_api_key
+from .model_catalog import callable_model_ids
 
 
 @dataclass(frozen=True)
@@ -61,6 +63,10 @@ FIELDS = {
 RETIRED_FONT_FIELDS = ("chinese_font", "latin_font", "split_fonts")
 CONNECTION_FIELDS = {"provider", "protocol", "base_url", "model", "model_provider", "website"}
 MAX_SETTINGS_BYTES = 1048576  # Five independent credentials and fetched directories.
+
+
+class SettingsPersistenceError(OSError):
+    """A validated setting could not be encrypted or committed to storage."""
 
 
 @dataclass
@@ -248,7 +254,7 @@ def _load_connection_settings(document: dict, *, restore_credentials: bool) -> L
             connection, document.get("credentials", {}).get("api_key") if isinstance(document.get("credentials", {}), dict) else None):
         ids = directory.get("ids")
         if isinstance(ids, list) and all(isinstance(value, str) and 0 < len(value) < 4096 for value in ids):
-            loaded.model_ids = tuple(dict.fromkeys(ids))
+            loaded.model_ids = callable_model_ids(ids)
     # Check the saved confirmation against its original parameters first.
     # Migrate only pre-picker defaults; preserve explicitly saved newer choices.
     if document.get("composer_defaults") != 1 and preferences["reasoning_effort"] in {"auto", "omit"}:
@@ -307,7 +313,7 @@ def save_model_directory(path: Path, connection: Mapping[str, str], api_key: str
     saved_key = decrypt_api_key(credential, public) if credential else ""
     if saved_key != api_key.strip():
         return False
-    ids = list(dict.fromkeys(model_ids))
+    ids = list(callable_model_ids(model_ids))
     if any(not isinstance(value, str) or not value or len(value) >= 4096 for value in ids):
         raise ValueError("模型列表格式无效，请重新获取。")
     directory = {"ids": ids, "fingerprint": _directory_fingerprint(public, credential)}
@@ -339,6 +345,8 @@ def save_preferences(path: Path, values: Mapping[str, Any], connection: Mapping[
         logging.getLogger(__name__).warning("Cannot preserve previous provider profiles; saving repaired settings", exc_info=True)
         previous = {}
     profiles = previous.get("model_profiles", {})
+    if previous.get("tutorial_status") in ("completed", "skipped"):
+        document["tutorial_status"] = previous["tutorial_status"]
     profiles = dict(profiles) if isinstance(profiles, dict) else {}
     # The legacy active projection stays authoritative, including a cleared
     # credential or confirmation. Synchronize it before replacing the active
@@ -351,11 +359,14 @@ def save_preferences(path: Path, values: Mapping[str, Any], connection: Mapping[
         profiles[old_provider]["model_values"] = {key: previous.get("preferences", {}).get(key, spec.default)
             for key, spec in FIELDS.items() if spec.category == "模型"}
     if api_key.strip():
-        document["credentials"] = {"api_key": encrypt_api_key(api_key.strip(), public)}
+        try:
+            document["credentials"] = {"api_key": encrypt_api_key(api_key.strip(), public)}
+        except CredentialProtectionError as exc:
+            raise SettingsPersistenceError("API Key 未能通过 DPAPI 安全加密，设置尚未保存，请重试。") from exc
         if model_confirmed:
             document["model_confirmation"] = {"version": 1, "fingerprint": _model_confirmation_fingerprint(
                 values, public, document["credentials"]["api_key"])}
-    ids = tuple(dict.fromkeys(str(value).strip() for value in model_ids if str(value).strip()))
+    ids = callable_model_ids(model_ids)
     if any(len(value) >= 4096 for value in ids):
         raise ValueError("模型 ID 过长，请重新获取模型列表。")
     document["model_directory"] = {"ids": ids, "fingerprint": _directory_fingerprint(
@@ -395,6 +406,126 @@ def delete_provider_profile(path: Path, provider: str, *, fallback="DeepSeek") -
     logging.getLogger(__name__).info("Custom provider profile deleted; credential and model directory removed")
 
 
+def rename_provider_profile(path: Path, provider: str, name: str) -> LoadedSettings:
+    """Rename a saved custom service and rebind its DPAPI data atomically."""
+    from .model_catalog import PROVIDERS
+    log = logging.getLogger(__name__)
+    try:
+        if not isinstance(provider, str) or provider in PROVIDERS:
+            raise ValueError("只能重命名已保存的自定义供应商。")
+        if not isinstance(name, str) or not name.strip() or len(name.strip()) >= 4096:
+            raise ValueError("请填写有效的新服务名称。")
+        name = name.strip()
+        document = _read_document(path)
+        profiles = document.get("model_profiles", {})
+        if not isinstance(profiles, dict) or not isinstance(profiles.get(provider), dict):
+            raise ValueError("自定义供应商尚未保存，请先填写有效配置。")
+        if any(key.casefold() == name.casefold() and key != provider for key in (*PROVIDERS, *profiles)):
+            raise ValueError("这个服务名称已存在，请使用另一个名称。")
+        active = document.get("connection", {}).get("provider") == provider
+        record = deepcopy(profiles[provider])
+        if active:
+            for key in ("connection", "credentials", "model_confirmation", "model_directory"):
+                record.pop(key, None)
+                if key in document:
+                    record[key] = deepcopy(document[key])
+            record["model_values"] = {key: document.get("preferences", {}).get(key, spec.default)
+                                      for key, spec in FIELDS.items() if spec.category == "模型"}
+        connection = record.get("connection", {})
+        if not isinstance(connection, dict) or connection.get("provider") != provider:
+            raise ValueError("供应商档案已变化，请重新打开设置后重试。")
+        values = dict(document.get("preferences", {}), **record.get("model_values", {}))
+        credential = record.get("credentials", {}).get("api_key")
+        new_connection = dict(connection, provider=name)
+        new_credential = None
+        log.debug("Custom provider rename started; encrypted_key=%s", credential is not None)
+        if credential is not None:
+            try:
+                key = decrypt_api_key(credential, connection)
+                new_credential = encrypt_api_key(key, new_connection)
+            except CredentialProtectionError as exc:
+                raise SettingsPersistenceError("重命名时未能安全迁移 API Key，原供应商已保留，请重试。") from exc
+            record["credentials"] = dict(record["credentials"], api_key=new_credential)
+        confirmation = record.get("model_confirmation")
+        if confirmation is not None:
+            if (credential is not None and isinstance(confirmation, dict) and confirmation.get("version") == 1
+                    and confirmation.get("fingerprint") == _model_confirmation_fingerprint(values, connection, credential)):
+                record["model_confirmation"] = dict(confirmation, fingerprint=_model_confirmation_fingerprint(values, new_connection, new_credential))
+            else:
+                record.pop("model_confirmation", None)
+        directory = record.get("model_directory")
+        if isinstance(directory, dict) and directory.get("fingerprint") == _directory_fingerprint(connection, credential):
+            record["model_directory"] = dict(directory, fingerprint=_directory_fingerprint(new_connection, new_credential))
+        record["connection"] = new_connection
+        # Build the public/runtime projection before replacing the file.
+        renamed = _load_connection_settings({**record, "preferences": values,
+            "composer_defaults": document.get("composer_defaults")}, restore_credentials=True)
+        if credential is not None and renamed.api_key != key:
+            raise SettingsPersistenceError("重命名后的 API Key 无法恢复，原供应商已保留，请重试。")
+        document["model_profiles"] = {name if key == provider else key: record if key == provider else value
+                                      for key, value in profiles.items()}
+        if active:
+            for field in ("connection", "credentials", "model_confirmation", "model_directory"):
+                document.pop(field, None)
+                if field in record:
+                    document[field] = deepcopy(record[field])
+        _write_document(path, document)
+        log.info("Custom provider renamed; credential preserved=%s models=%s", bool(renamed.api_key), len(renamed.model_ids))
+        return renamed
+    except Exception:
+        log.exception("Custom provider rename failed; original profile retained")
+        raise
+
+
+def save_desktop_preferences(path: Path, changes: Mapping[str, Any]) -> None:
+    """Update desktop preferences without persisting unfinished model drafts."""
+    if any(key not in FIELDS or FIELDS[key].category == "模型" for key in changes):
+        raise ValueError("普通设置更新不能包含模型配置。")
+    try:
+        document = _read_document(path)
+    except FileNotFoundError:
+        document = {"version": 2, "preferences": defaults(), "connection": {}}
+    values = document.get("preferences", {})
+    if not isinstance(values, dict):
+        raise ValueError("已保存的设置格式无效，请先修复设置文件。")
+    normalized = validate_preferences(dict(values, **changes))
+    # Preserve the credential/profile projection byte for byte; normalizing
+    # unrelated model defaults must not invalidate their confirmation hash.
+    document["preferences"] = dict(values, **{key: normalized[key] for key in changes})
+    document["version"] = 2
+    _write_document(path, document)
+    logging.getLogger(__name__).info("Desktop settings saved atomically; fields=%s", list(changes))
+
+
+def load_tutorial_status(path: Path) -> str:
+    """Read onboarding without restoring credentials or changing model state."""
+    try:
+        status = _read_document(path).get("tutorial_status")
+        return status if status in ("completed", "skipped") else "not_started"
+    except FileNotFoundError:
+        return "not_started"
+    except (OSError, ValueError):
+        logging.getLogger(__name__).warning("Cannot load tutorial state; showing guide", exc_info=True)
+        return "not_started"
+
+
+def save_tutorial_status(path: Path, status: str) -> None:
+    """Persist completion or explicit skip, preserving unrelated settings."""
+    if status not in ("completed", "skipped"):
+        raise ValueError("教程状态无效。")
+    try:
+        document = _read_document(path)
+    except FileNotFoundError:
+        document = {"version": 2, "preferences": defaults(), "connection": {}}
+    document["tutorial_status"] = status
+    try:
+        _write_document(path, document)
+    except Exception:
+        logging.getLogger(__name__).exception("Tutorial state save failed; guide remains available for retry")
+        raise
+    logging.getLogger(__name__).info("教程状态已保存：%s", "已完成" if status == "completed" else "已跳过")
+
+
 def update_debug_preference(path: Path, enabled: bool) -> None:
     """Persist just the window toggle without reading a credential or UI draft."""
     if not isinstance(enabled, bool):
@@ -416,7 +547,7 @@ def update_debug_preference(path: Path, enabled: bool) -> None:
 def _write_document(path: Path, document: dict) -> None:
     content = json.dumps(document, ensure_ascii=False, indent=2, allow_nan=False) + "\n"
     if len(content.encode("utf-8")) > MAX_SETTINGS_BYTES:
-        raise ValueError("设置文件过大，请缩短目录或其它文本设置后重试。")
+        raise SettingsPersistenceError("设置文件过大，请缩短目录或其它文本设置后重试。")
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = None
     try:

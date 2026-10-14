@@ -27,7 +27,9 @@ def conversation_cards(session):
         return [{"key": "welcome", "kind": "welcome", "title": "一起把目标变成可用的提示词",
                  "text": "描述你想完成的目标。我会逐步整理要求、提出关键问题，再和你一起核对方案。"}]
     cards.append({"key": "task", "kind": "user", "title": "你的目标", "text": session.task_text})
-    traces = [r for r in session.control.get("response_traces", []) if isinstance(r, dict) and isinstance(r.get("id"), str)]
+    hidden_traces = set(session.control.get("hidden_response_trace_ids", []))
+    traces = [r for r in session.control.get("response_traces", []) if isinstance(r, dict)
+              and isinstance(r.get("id"), str) and r["id"] not in hidden_traces]
     # Sending and assessment are separate: even a failed/cancelled request has
     # already consumed the historical answers. Derive presentation from the
     # existing request/trace basis without changing their business status.
@@ -87,7 +89,7 @@ def conversation_cards(session):
         cards.append({"key": "plan", "kind": "plan", "title": "一起核对方案",
                       "status": plan.get("status"), "content": deepcopy(plan["content"])})
     skill = session.skill_state
-    if (not navigation["revisiting"] or stage in {"skills", "result"}) and (plan.get("status") == "confirmed" or skill.get("bindings")):
+    if stage == "skills" and (plan.get("status") == "confirmed" or skill.get("bindings")):
         batch = skill.get("candidate_batch") or {}
         result = batch.get("result") or {}
         cards.append({"key": "skills", "kind": "skills", "title": "选配 Skill",
@@ -317,7 +319,8 @@ class ConversationWorkspaceMixin(ResponseWorkspaceMixin):
             entry.delete("1.0", "end")
             self.refresh()
             if self._missing_generation_config():
-                self.status_var.set("目标已记录；请先在设置中确认模型，再继续整理。")
+                self.status_var.set("目标已记录；请先在设置中填写有效模型配置，再继续整理。" if getattr(self, "_automatic_model_settings", False)
+                                    else "目标已记录；请先在设置中确认模型，再继续整理。")
                 self.show_settings()
             else:
                 self.start_analysis()
@@ -354,7 +357,7 @@ class ConversationWorkspaceMixin(ResponseWorkspaceMixin):
             self._workspace_popover.close(immediate=True)
             if previous==kind:
                 return
-        button, title = {"result": ("result_details", "语气和附注"),
+        button, title = {"result": ("result_details", "附注"),
                           "summary": ("task_summary_button", "当前任务摘要")}[kind]
         anchor=self._conversation_buttons[button] if kind == "result" else self.widgets[button]
         def closed():
@@ -390,18 +393,9 @@ class ConversationWorkspaceMixin(ResponseWorkspaceMixin):
     def _render_result_options(self, parent):
         final = self.session.final_result
         available = final.get("status") in {"draft", "confirmed"}
-        self._conversation_label(parent, "提示词语气")
-        tone = ttk.Combobox(parent, textvariable=self.final_tone_var, state="readonly" if available else "disabled",
-                            values=("中性", "适度礼貌"), width=16)
-        tone.pack(anchor="w", pady=(0, 8))
-        tone.bind("<<ComboboxSelected>>", lambda _event: self.change_final_tone())
-        self.widgets["conversation_final_tone"] = tone
-        notes = (final.get("content") or {}).get("user_notes", [])
-        if notes:
-            self._conversation_reading(parent, "\n\n".join(row["text"] for row in notes), height=6)
-        else:
-            self._conversation_label(parent, "还没有附注。")
         self._conversation_button(parent, "add_final_note", "添加附注", self.add_final_note, enabled=available)
+        logging.getLogger(__name__).debug("Final note controls rendered; task=%s available=%s tone_control=False",
+                                         self.session.task_id, available)
 
     def toggle_conversation_details(self, opened=None):
         # Compatibility for old navigation callers; duplicate details removed.
@@ -428,15 +422,33 @@ class ConversationWorkspaceMixin(ResponseWorkspaceMixin):
                            "plan": self.session.plan_preview(), "skill": self.session.skill_state,
                            "final": self.session.final_result, "navigation": self.session.workspace_navigation()}, ensure_ascii=False, sort_keys=True)
 
-    def navigate_workspace(self, direction):
+    def navigate_workspace(self, direction, *, answer_drafts=None):
+        if direction == "previous" and answer_drafts is None:
+            current = {q["question_id"] for q in self.session.questions_for_review()}
+            answer_drafts = {key: widget.get("1.0", "end-1c") for key, widget in self._question_inputs.items()
+                             if key in current and widget.winfo_exists()}
         if self._conversation_locked():
             self.cancel_active_request()
-        self.session.navigate_workspace(direction)
+        navigation = self.session.workspace_navigation()
+        search = self.session.skill_state.get("search_state") or {}
+        restart_search = (direction == "next" and navigation["stage"] == "plan"
+                          and navigation["next"] == "skills" and search.get("status") in {"cancelled", "error"})
+        restore_id = self.session.control.get("workspace_drafts", {}).get("answer_restore_id")
+        self.session.navigate_workspace(direction, answer_drafts=answer_drafts)
+        drafts = self.session.control.get("workspace_drafts", {})
+        restored = drafts.get("answer_restore_id") != restore_id
+        if restored:
+            self._question_inputs.clear()
+            self._question_drafts = deepcopy(drafts.get("answers", {}))
         self._answer_target_id = None
         self.show_workspace(0)
         self.refresh()
-        self._conversation_focus_key = "navigation"
+        self._conversation_focus_key = "active_question" if restored else "navigation"
         self._conversation_scroll_latest(force=True)
+        if restart_search:
+            kind = search.get("resume_kind") or ("network" if (search.get("network") or {}).get("status") == "cancelled" else "local")
+            logging.getLogger(__name__).info("Workspace cancelled search resumed: task=%s kind=%s", self.session.task_id, kind)
+            (self.search_online_skills if kind == "network" else self.find_skills)()
 
     def _conversation_action(self, token, command, *, allow_locked=False, scope=None):
         if self._conversation_locked() and not allow_locked:
@@ -539,12 +551,6 @@ class ConversationWorkspaceMixin(ResponseWorkspaceMixin):
         unlocked = not self._conversation_locked()
         for key in ("edit_requirement", "remove_requirement"):
             self._conversation_buttons[key].configure(state="normal" if row and unlocked else "disabled")
-        available = {"adopt_requirement": bool(row and selected[0].startswith("p:") and (
-                     row.get("operation") in {"replace", "withdraw"} or row.get("kind") == "pending_interpretation"))}
-        for key, applies in available.items():
-            button = self._conversation_buttons[key]
-            button.configure(state="normal" if applies and unlocked else "disabled")
-            button.pack(side="left", padx=(0, 8), pady=3) if applies else button.pack_forget()
 
     def _conversation_requirements_table(self, parent, data):
         from .ui import FIELD_LABELS, KIND_LABELS
@@ -590,7 +596,6 @@ class ConversationWorkspaceMixin(ResponseWorkspaceMixin):
         for key, label, operation in (
             ("edit_requirement", "修改选中需求", self.edit_preview_item),
             ("remove_requirement", "移除选中需求", self.remove_preview_item),
-            ("adopt_requirement", "采用选中修改", self.adopt_preview_change),
         ):
             self._conversation_button(actions, key, label, lambda op=operation: self._conversation_requirement_action(op),
                                       enabled=False).pack_configure(side="left", padx=(0, 8))
@@ -656,7 +661,8 @@ class ConversationWorkspaceMixin(ResponseWorkspaceMixin):
         if self._conversation_locked():
             return
         if self._missing_generation_config():
-            self.status_var.set("请先确认模型设置，再选择继续追问。")
+            self.status_var.set("请先在设置中填写有效模型配置，再选择继续追问。" if getattr(self, "_automatic_model_settings", False)
+                                else "请先确认模型设置，再选择继续追问。")
             self.show_workspace(self._settings_page_index)
             return
         try:
@@ -666,7 +672,7 @@ class ConversationWorkspaceMixin(ResponseWorkspaceMixin):
             self.status_var.set(str(exc))
             self.refresh()
             return
-        self.status_var.set("已选择继续询问；回答整理后会再次核对是否需要补充。")
+        self.status_var.set("已选择继续询问。")
         self.refresh()
         self.start_analysis()
 
@@ -781,12 +787,15 @@ class ConversationWorkspaceMixin(ResponseWorkspaceMixin):
                 self._conversation_button(card, "draft", "保留未知，先做草稿", self.continue_with_draft,
                                           enabled=not self._preview_check(draft=True))
             stage = self.session.workspace_navigation()["stage"]
+            plan_visible = "plan" in self._conversation_frames
+            skills_visible = "skills" in self._conversation_frames
             control_basis = (self._session_instance_token, self.session.plan.get("plan_version"),
-                             self.session.plan.get("status"), stage, "plan" in self._conversation_frames, self.delivery_busy)
+                             self.session.plan.get("status"), stage, plan_visible, skills_visible, self.delivery_busy)
             if control_basis != getattr(self, "_stage_controls_log_basis", None):
                 self._stage_controls_log_basis = control_basis
-                logging.getLogger(__name__).debug("Stage controls updated; task=%s stage=%s plan_visible=%s cancel_inline=%s",
-                                                 self.session.task_id, stage, control_basis[-2], "cancel_request" in self._conversation_buttons)
+                logging.getLogger(__name__).debug("Stage controls updated; task=%s stage=%s plan_visible=%s skills_visible=%s cancel_inline=%s",
+                                                 self.session.task_id, stage, plan_visible, skills_visible,
+                                                 "cancel_request" in self._conversation_buttons)
             self.conversation_title_var.set((self.session.task_text.splitlines()[0][:38] if self.session.task_text else "新的任务"))
             heading = self.widgets["conversation_heading"]
             heading.grid() if self.session.task_text else heading.grid_remove()
@@ -916,11 +925,7 @@ class ConversationWorkspaceMixin(ResponseWorkspaceMixin):
             available = data["status"] in {"draft", "confirmed"}
             self._conversation_button(card, "copy", "复制提示词", self.copy_current_prompt, enabled=available)
             self._conversation_button(card, "export", "导出方案和提示词", self.export_current_result, enabled=available)
-            self._conversation_button(card, "save", "保存会话", self.save)
-            if data["status"] == "draft":
-                self._conversation_button(card, "confirm_final", "确认最终提示词", self.confirm_final_result,
-                                          enabled=not (self.session.final_result.get("content") or {}).get("plan_review_pending"))
-            self._conversation_button(card, "result_details", "语气和附注", self.toggle_conversation_result_options, enabled=available)
+            self._conversation_button(card, "result_details", "附注", self.toggle_conversation_result_options, enabled=available)
 
     def _render_plan_review(self, card, data):
         status = {"draft": "待确认", "confirmed": "已确认", "stale": "需求已变化，旧方案已过期"}.get(data["status"], data["status"])
@@ -928,9 +933,7 @@ class ConversationWorkspaceMixin(ResponseWorkspaceMixin):
         self.widgets["conversation_plan_reading"] = self._conversation_reading(card, conversation_plan_text(data["content"]), height=12)
         current = data["status"] in {"draft", "confirmed"}
         self._conversation_button(card, "edit_plan", "展开完整方案并编辑", lambda: self.show_workspace(1), enabled=current)
-        if self.session.plan.get("pending_key_work_review_ids", []):
-            self._conversation_button(card, "review_plan", "已核对修改后的关键工作", self._conversation_review_plan, enabled=current)
-        if data["status"] == "draft":
+        if current:
             needs_review = bool(self.session.questions_for_review(respect_interview_limit=False))
             if needs_review:
                 self._conversation_label(card, "还有待核对事项，请先逐项回答或明确暂缓，再确认方案。")

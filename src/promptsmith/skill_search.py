@@ -639,6 +639,10 @@ _ONLINE_QUERY_BY_CATEGORY = {
     "general": ("workflow", "research", "writing"),
 }
 _ONLINE_SIGNALS = (
+    (r"技术文档|项目文档|documentation|technical\s+(?:document|writing)|document(?:ation)?", "documentation"),
+    (r"pdf|便携文档", "pdf"),
+    (r"word|docx|文档", "docx"),
+    (r"校对|准确性|事实核查|proofread|fact.check|accuracy", "proofreading"),
     (r"ppt|幻灯|汇报|演示|powerpoint|slides?", "powerpoint"),
     (r"论文|文献|研究|调研|literature|paper", "research"),
     (r"数据|图表|可视化|csv|excel|统计|spreadsheet", "data analysis"),
@@ -718,15 +722,24 @@ def _online_queries(
 ) -> list[str]:
     """Produce short independent terms; avoid sending whole Chinese paragraphs to q."""
 
+    # The Skill index already knows artifact identity: Agent/SKILL.md markers
+    # and whole task sentences dilute its name search. Keep capability signals
+    # ahead of model phrases so six long phrases cannot evict useful terms.
     terms: list[str] = []
-    if queries is not None:
-        terms.extend(value.strip() for value in queries if isinstance(value, str) and value.strip())
     text = " ".join(_online_work_text(work) for work in key_works)
     if isinstance(context_text, str):
         text += " " + context_text
     for pattern, term in _ONLINE_SIGNALS:
         if re.search(pattern, text, re.I) and term not in terms:
             terms.append(term)
+    if queries is not None:
+        for value in queries:
+            if not isinstance(value, str):
+                continue
+            cleaned = re.sub(r"(?i)\bSKILL\.md\b|\b(?:AI\s+)?Agent\s+skills?\b|\b(?:AI|agent|skills?)\b", " ", value)
+            cleaned = " ".join(cleaned.split()[:4])[:64].strip()
+            if cleaned:
+                terms.append(cleaned)
     for term in _ONLINE_QUERY_BY_CATEGORY.get(category or "general", _ONLINE_QUERY_BY_CATEGORY["general"]):
         if term not in terms:
             terms.append(term)
@@ -740,7 +753,7 @@ def _online_github_queries(search_terms: Iterable[str]) -> list[str]:
     queries: list[str] = []
     seen: set[str] = set()
     for term in search_terms:
-        cleaned = re.sub(r"(?i)\bSKILL\.md\b|\bagent\s+skills?\b|\bskills?\b", " ", term)
+        cleaned = re.sub(r"(?i)\bSKILL\.md\b|\b(?:AI\s+)?agent\s+skills?\b|\b(?:AI|agent|skills?)\b", " ", term)
         cleaned = " ".join(cleaned.split()[:4]).strip()
         if not cleaned or cleaned.casefold() in seen:
             continue
@@ -891,9 +904,11 @@ def _online_discovery_rows(payload: Mapping[str, Any]) -> list[dict[str, Any]]:
         source_url = _nonempty(row.get("url")) or _nonempty(row.get("source_url"))
         if source and _ONLINE_REPOSITORY.fullmatch(source):
             found.append({"repository": source, "skill_id": skill_id, "source_index": "skills.sh",
-                          "installs": row.get("installs", 0)})
+                          "installs": row.get("installs", 0), "name": _nonempty(row.get("name"))[:160],
+                          "description": _nonempty(row.get("description"))[:500]})
         elif _online_is_skill_markdown_url(source_url):
-            found.append({"repository": "", "skill_id": skill_id, "source_index": "web", "url": source_url})
+            found.append({"repository": "", "skill_id": skill_id, "source_index": "web", "url": source_url,
+                          "name": _nonempty(row.get("name"))[:160], "description": _nonempty(row.get("description"))[:500]})
     return found
 
 
@@ -994,6 +1009,7 @@ def _online_record_from_source(
     *,
     deadline: float,
     searched_at: str,
+    task_text: str = "",
 ) -> dict[str, Any] | None:
     repository = _nonempty(item.get("repository"))
     requested_id = _nonempty(item.get("skill_id"))
@@ -1006,6 +1022,12 @@ def _online_record_from_source(
                          if _online_path_matches_id(candidate_path, requested_id)]
             if not paths:
                 return None
+            if not requested_id and task_text:
+                from .skill_recommendation import rank_discovery_sources
+                ranked_paths = rank_discovery_sources(
+                    [{"name": candidate_path, "path": candidate_path, "sha": candidate_sha} for candidate_path, candidate_sha in paths],
+                    task_text=task_text, key_works=[])
+                paths = [(row["path"], row["sha"]) for row in ranked_paths]
             path, tree_sha = paths[0]
             metadata = _online_json(_online_reader(opener, f"{GITHUB_API_BASE}/repos/{repository}", min(6.0, max(0.1, deadline - time.monotonic()))))
             if not isinstance(metadata, Mapping):
@@ -1349,12 +1371,16 @@ def search_online_skills(
         raise SkillSearchError("network", errors[0])
     records: list[dict[str, Any]] = []
     evidence_counts = {"full_skill": 0, "metadata": 0, "search_result_only": 0}
-    for item in list(discovered.values())[:max_verified_candidates]:
+    from .skill_recommendation import rank_discovery_sources
+    ranked = rank_discovery_sources(discovered.values(), task_text=context_text or "", key_works=works)
+    logging.getLogger(__name__).debug("Skill sources ranked before reads: discovered=%s budget=%s", len(ranked), max_verified_candidates)
+    for item in ranked[:max_verified_candidates]:
         if time.monotonic() >= deadline:
             errors.append("联网 Skill 搜索超过时间限制。")
             break
         try:
-            record = _online_record_from_source(opener, item, deadline=deadline, searched_at=searched_at)
+            record = _online_record_from_source(opener, item, deadline=deadline, searched_at=searched_at,
+                                                task_text=" ".join([context_text or "", *(_online_work_text(work) for work in works)]))
         except (SkillSearchError, OSError, ValueError) as exc:
             if getattr(exc, "request_skipped", False):
                 logging.getLogger(__name__).debug("Skill source access skipped: %s", str(exc))

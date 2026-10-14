@@ -166,7 +166,7 @@ def json_request_parameters(config: ApiConfig) -> dict[str, Any]:
 
 def generation_failure_message(purpose: str, exc: Exception, timeout_seconds: float | None) -> str:
     if purpose == "m2" and getattr(exc, "kind", None) == "truncated":
-        return "AI 这次没有生成完整方案，你的需求和已有方案已保留。点击“重新生成方案”再试一次，程序会减少重复说明。"
+        return "AI 这次没有生成完整方案，你的需求和已有方案已保留。点击“重新生成方案”再试一次。"
     if purpose == "m2":
         kind = getattr(exc, "kind", None)
         retained = "你的回答、已确认需求和已有方案已保留，不用重新回答。"
@@ -183,11 +183,11 @@ def generation_failure_message(purpose: str, exc: Exception, timeout_seconds: fl
         result = getattr(exc, "api_result", None)
         status = getattr(exc, "status_code", None) or getattr(result, "status_code", None)
         if status in {401, 403} or kind == "authentication":
-            return f"模型服务未接受当前访问凭据或权限。{retained}请在设置页核对密钥及模型访问权限，测试连接并点击“确认”后重新生成。"
+            return f"模型服务未接受当前访问凭据或权限。{retained}请在设置页核对密钥及模型访问权限，测试连接后重新生成。"
         if status == 429 or kind == "rate_limit":
             return f"模型服务暂时限流或额度不足。{retained}稍后重试，或检查服务额度、切换可用模型。"
         if kind in {"http_error", "http"}:
-            return f"模型服务拒绝了本次生成请求。{retained}请在设置页核对连接地址、接口类型和模型名称，测试连接并点击“确认”后重新生成；反复失败时可提供诊断记录排查。"
+            return f"模型服务拒绝了本次生成请求。{retained}请在设置页核对连接地址、接口类型和模型名称，测试连接后重新生成；反复失败时可提供诊断记录排查。"
     if getattr(exc, "kind", None) != "timeout":
         next_step = {
             "m1": "回答已保留。可以补充一句说明后重新整理，或点击重试分析；已有需求可继续核对。",
@@ -456,7 +456,7 @@ class PromptSmithApp(GuidedFlowMixin):
 
     def _configure_root(self) -> None:
         from .display import display_scale
-        self.root.title("PromptSmith · 需求引导式提示构建助手")
+        self.root.title("Intext · 需求引导式提示构建助手")
         # Tk may see a smaller logical desktop under Windows display scaling.
         # Keep the fixed next-step bar on-screen and let page content scroll.
         available_width = max(320, self.root.winfo_screenwidth() - 40)
@@ -502,7 +502,7 @@ class PromptSmithApp(GuidedFlowMixin):
         shell.columnconfigure(0, weight=1)
         shell.rowconfigure(2, weight=1)
 
-        ttk.Label(shell, text="PromptSmith", style="Title.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(shell, text="Intext", style="Title.TLabel").grid(row=0, column=0, sticky="w")
         ttk.Label(
             shell,
             text="把模糊任务逐步整理成可确认的需求。模型只提出候选，确认与版本由程序维护。",
@@ -1114,7 +1114,8 @@ class PromptSmithApp(GuidedFlowMixin):
 
     def _api_config(self, *, timeout_seconds: float | None = None) -> ApiConfig:
         if not self._model_settings_confirmed():
-            raise ValueError("请在设置页面点击“确认”，确认当前模型设置后再继续。")
+            raise ValueError("请在设置页面填写有效的接口、模型 ID 和 API Key 后再继续。" if getattr(self, "_automatic_model_settings", False)
+                             else "请在设置页面点击“确认”，确认当前模型设置后再继续。")
         return self._draft_api_config(timeout_seconds=timeout_seconds)
 
     def _draft_api_config(self, *, timeout_seconds: float | None = None) -> ApiConfig:
@@ -1136,14 +1137,22 @@ class PromptSmithApp(GuidedFlowMixin):
         )
 
     def _model_settings_confirmed(self) -> bool:
+        if getattr(self, "_automatic_model_settings", False):
+            from .preferences import validate_public_url
+            try:
+                validate_public_url(self.api_base_var.get())
+                self._draft_api_config()
+            except ValueError:
+                return False
+            return True
         return self._confirmed_connection_state == self._generation_snapshot()
 
     def _refresh_model_confirmation(self) -> None:
         confirmed = self._model_settings_confirmed()
-        self.model_confirmation_var.set(
+        self.model_confirmation_var.set(("模型配置可直接使用。" if confirmed else "请填写有效的接口、模型 ID 和 API Key。") if getattr(self, "_automatic_model_settings", False) else (
             "模型设置已确认，可以返回工作区继续。"
             if confirmed else "模型设置待确认。测试连接只检查接口；点击“确认”后用于任务。"
-        )
+        ))
         self.widgets["confirm_model_settings_button"].configure(
             state="disabled" if confirmed or self.busy else "normal"
         )
@@ -1161,8 +1170,12 @@ class PromptSmithApp(GuidedFlowMixin):
             return
         self._confirmed_connection_state = self._generation_snapshot()
         self._refresh_model_confirmation()
-        self.status_var.set("模型设置已确认并保存；下次启动自动恢复，可以返回工作区继续。")
-        logging.getLogger(__name__).info("Model settings explicitly confirmed and persisted")
+        if getattr(self, "_automatic_model_settings", False):
+            self.status_var.set("模型配置已保存，可以返回工作区继续。")
+            logging.getLogger(__name__).info("Valid model settings persisted for Web workspace")
+        else:
+            self.status_var.set("模型设置已确认并保存；下次启动自动恢复，可以返回工作区继续。")
+            logging.getLogger(__name__).info("Model settings explicitly confirmed and persisted")
         self._refresh_primary_action()
 
     def _client(self, config: ApiConfig):
@@ -1207,7 +1220,8 @@ class PromptSmithApp(GuidedFlowMixin):
                 self._confirmed_connection_state = self._generation_snapshot()
                 self._refresh_model_confirmation()
                 self._refresh_primary_action()
-        self.settings_status_var.set("已切换供应商；各家的未保存输入暂存，保存设置仅保存当前供应商。")
+        self.settings_status_var.set("已切换供应商；修改自动保存。" if getattr(self, "_automatic_model_settings", False)
+                                     else "已切换供应商；各供应商的未保存输入已暂存，仅保存当前供应商。")
         self.model_directory_status_var.set(self.model_directory_refresh.statuses.get(provider, ""))
         logging.getLogger(__name__).info("Provider profile switched: provider=%s credential_present=%s models=%s confirmed=%s",
             provider, bool(self.api_key_var.get().strip()), len(self.widgets["api_model_combo"].cget("values")), self._model_settings_confirmed())
@@ -1232,7 +1246,8 @@ class PromptSmithApp(GuidedFlowMixin):
             return
         if current != self._connection_state:
             if self._confirmed_connection_state is not None:
-                logging.getLogger(__name__).info("Model confirmation invalidated: model settings edited; reconfirmation required")
+                logging.getLogger(__name__).info("Model settings edited; readiness will be re-evaluated" if getattr(self, "_automatic_model_settings", False)
+                                                 else "Model confirmation invalidated: model settings edited; reconfirmation required")
             self.connection_version += 1
             self._connection_state = current
             self._confirmed_connection_state = None
@@ -1311,7 +1326,7 @@ class PromptSmithApp(GuidedFlowMixin):
             or request_connection_version is not None
             and request_connection_version != self.model_directory_version
         ):
-            self._set_busy(False, "连接配置已变化，已忽略旧模型列表；可重新获取。")
+            self._set_busy(False, "连接配置已变化，可重新获取模型列表。")
             return
         self.widgets["api_model_combo"].configure(values=tuple(result.model_ids))
         self._capture_provider_profile()
@@ -1340,7 +1355,7 @@ class PromptSmithApp(GuidedFlowMixin):
             or request_connection_version is not None
             and request_connection_version != self.model_directory_version
         ):
-            self._set_busy(False, "连接配置已变化，已忽略旧模型列表失败结果。")
+            self._set_busy(False, "连接配置已变化，已忽略旧模型列表的失败结果。")
             return
         self._set_busy(False, f"获取模型列表失败：{exc}")
         self._show_error("获取模型列表失败", f"{exc}\n仍可手动填写模型 ID。", parent=self.root)
@@ -1542,7 +1557,7 @@ class PromptSmithApp(GuidedFlowMixin):
         if not self.api_key_var.get().strip():
             missing.append("API Key")
         if not missing and not self._model_settings_confirmed():
-            missing.append("确认模型设置")
+            missing.append("有效模型配置" if getattr(self, "_automatic_model_settings", False) else "确认模型设置")
         return missing
 
     def _delivery_primary_action(self) -> PrimaryAction:
@@ -1950,12 +1965,12 @@ class PromptSmithApp(GuidedFlowMixin):
             self._show_error("配置不完整", str(exc), parent=self.root)
             return
         self.busy_kind = "connection_test"
-        self._set_busy(True, "正在测试模型连接，窗口仍可移动和重绘...")
+        self._set_busy(True, "正在测试模型连接...")
         client = self._client(config)
         self._submit(client.test_connection, self._connection_ok, self._connection_failed)
 
     def _connection_ok(self, result: Any) -> None:
-        confirmation = "模型设置已确认" if self._model_settings_confirmed() else "模型设置尚未确认，请点击“确认”"
+        confirmation = ("模型配置可直接使用" if self._model_settings_confirmed() else "请在设置页修正模型配置") if getattr(self, "_automatic_model_settings", False) else ("模型设置已确认" if self._model_settings_confirmed() else "模型设置尚未确认，请点击“确认”")
         if result.probe_truncated:
             self._set_busy(
                 False,
@@ -2004,7 +2019,7 @@ class PromptSmithApp(GuidedFlowMixin):
             self._show_error("无法开始分析", str(exc), parent=self.root)
             return
         self.busy_kind = "m1"
-        self._set_busy(True, "正在分析需求；返回前可查看界面，但不要关闭程序...")
+        self._set_busy(True, "正在分析需求...")
         client = self._client(config)
         workflow = self.workflow
         session_token = self._session_instance_token
@@ -2139,7 +2154,7 @@ class PromptSmithApp(GuidedFlowMixin):
 
     def _accept_proposals(self, proposal_ids: list[str]) -> None:
         if not proposal_ids:
-            self._show_info("没有候选", "请选择候选，或等待模型返回。", parent=self.root)
+            self._show_info("没有候选", "请选择候选或等待模型返回。", parent=self.root)
             return
         try:
             self.session.accept_proposals(proposal_ids)
@@ -2300,7 +2315,7 @@ class PromptSmithApp(GuidedFlowMixin):
             return
         if connection_snapshot != self._generation_snapshot():
             self.session.pending_requests.pop(payload["request_id"], None)
-            self._set_busy(False, "连接配置已变化，已忽略旧方案返回。")
+            self._set_busy(False, "连接配置已变化。")
             self.refresh()
             return
         try:
@@ -2339,7 +2354,7 @@ class PromptSmithApp(GuidedFlowMixin):
             else:
                 self.show_workspace(3 if draft_ready else 1)
         else:
-            self.status_var.set(f"方案已生成，可以点击上方“方案”查看；当前编辑位置已保留。{guidance}")
+            self.status_var.set(f"方案已生成，可以点击上方“方案”查看。{guidance}")
 
     def _plan_failed(
         self,
@@ -2380,7 +2395,7 @@ class PromptSmithApp(GuidedFlowMixin):
         except SessionStateError as exc:
             self._show_error("无法修改目标", str(exc), parent=self.root)
             return
-        self.status_var.set("方案目标已修改，方案确认已失效，关键工作需要重新复核。")
+        self.status_var.set("方案目标已修改，请重新复核。")
         self.refresh()
 
     def edit_plan_goal_details(self) -> None:
@@ -2801,7 +2816,7 @@ class PromptSmithApp(GuidedFlowMixin):
 
     def go_to_requirements(self) -> None:
         self.notebook.select(0)
-        self.status_var.set("已返回需求页；只有实际修改需求才会使当前方案过期。")
+        self.status_var.set("已返回需求页。")
 
     def record_question(self, disposition: str) -> None:
         selected = self.widgets["questions_tree"].selection()
@@ -2814,7 +2829,7 @@ class PromptSmithApp(GuidedFlowMixin):
             self._show_error("无法记录", str(exc), parent=self.root)
             return
         self.answer_var.set("")
-        self.status_var.set("回答原话已记录，相关未知仍保留；点击“分析 / 继续”判断是否已补足。")
+        self.status_var.set("回答原话已记录。")
         self.refresh()
 
     def review_selected_requirements(self) -> None:
@@ -3096,7 +3111,7 @@ class PromptSmithApp(GuidedFlowMixin):
             self.session.skill_state["last_error"] = message
             self.session.touch()
             self.skill_status_var.set(message)
-            self.final_status_var.set("所选 Agent Skill 目录记录已变化；最终结果已过期。请重新核验 Skill 或跳过。")
+            self.final_status_var.set("所选 Agent Skill 目录记录已变化，请重新核验 Skill 或跳过。")
             return False
         return True
 
@@ -3336,9 +3351,11 @@ class PromptSmithApp(GuidedFlowMixin):
         self.skill_status_var.set(self._skill_search_status_text)
         self._record_skill_search_state(
             status="local_running",
+            resume_kind=None,
             local={"status": "running", "count": 0},
             last_error=None,
         )
+        self.session.focus_workspace_stage("skills")
         self._refresh_delivery_pages()
         self._submit(
             lambda: self._local_skill_search_operation(request),
@@ -3366,13 +3383,15 @@ class PromptSmithApp(GuidedFlowMixin):
 
     def _network_skill_search_progress(self, request: dict[str, Any], message: str) -> None:
         if self._skill_search_is_current(request):
+            logging.getLogger(__name__).debug("Network Skill progress: %s", message)
             self._skill_search_status_text = f"正在联网搜索 Skill：{message}"
             self.skill_status_var.set(self._skill_search_status_text)
 
     def _network_skill_search_ok(self, request: dict[str, Any], result: Any) -> None:
         if not self._skill_search_result_is_current(request):
             return
-        if not result.candidates and result.error:
+        diagnostics = result.diagnostics if isinstance(result.diagnostics, dict) else {}
+        if not result.candidates and result.error and not diagnostics.get("collected_count"):
             message = result.error.get("message", "搜索来源暂不可用。")
             self._network_skill_search_error(request, SkillSearchError("network", message))
             return
@@ -3413,18 +3432,37 @@ class PromptSmithApp(GuidedFlowMixin):
                 "merged_count": len(candidates),
                 "source_errors": source_errors,
                 "source_diagnostics": deepcopy(source_diagnostics) if isinstance(source_diagnostics, dict) else {},
+                "collected_count": diagnostics.get("collected_count", 0),
+                "ai_review_status": diagnostics.get("ai_review_status", "unknown"),
+                "ai_review_error": diagnostics.get("ai_review_error"),
+                "ai_review": deepcopy(diagnostics.get("ai_review", {})),
+                "fallback_rejected_count": diagnostics.get("fallback_rejected_count", 0),
                 "http": deepcopy(diagnostics.get("http", {})),
             },
             last_error=None,
         )
         self._finish_skill_search(request)
         if result.candidates:
+            scored = (diagnostics.get("ai_review") or {}).get("scored_count", len(result.candidates))
             self._skill_search_status_text = (
                 f"联网搜索完成：找到 {len(result.candidates)} 项候选；"
                 f"合并后共 {len(candidates)} 项。"
             )
+            if (diagnostics.get("ai_review") or {}).get("review_mode") == "summary" and diagnostics.get("ai_review_status") == "completed":
+                self._skill_search_status_text += f" AI 已按 Skill 简介评分 {scored} 项，并按推荐强度排序。"
         else:
-            self._skill_search_status_text = "联网搜索完成：没有找到新的候选，已保留本地结果。"
+            collected = diagnostics.get("collected_count", 0)
+            if diagnostics.get("ai_review_status") == "failed":
+                self._skill_search_status_text = f"联网搜索完成：收集 {collected} 项 Skill 信息，但 AI 筛选暂不可用；没有足够相关的候选可保留。已有结果和选择保留，可以重试或跳过 Skill。"
+            elif collected:
+                self._skill_search_status_text = f"联网搜索完成：收集 {collected} 项 Skill 信息，AI 未发现适合当前任务的匹配。已有结果和选择保留，可以调整检索方向、重试或跳过 Skill。"
+            else:
+                self._skill_search_status_text = "联网搜索完成：没有找到新的 Skill 信息，已有结果和选择保留。可以重试或跳过 Skill。"
+        if result.candidates and diagnostics.get("ai_review_status") == "failed":
+            self._skill_search_status_text += " AI 筛选暂不可用，联网候选仅经名称/描述粗筛，请核对用途后选用。"
+        if diagnostics.get("ai_review_status") == "failed" and diagnostics.get("ai_review_error"):
+            reason = self.runtime_log.redact(str(diagnostics["ai_review_error"]))
+            self._skill_search_status_text += f" 原因：{reason[:180]}。可重试；完整原因见 Debug。"
         if source_summary:
             self._skill_search_status_text += f" 来源状态：{source_summary}。"
         if source_errors:
@@ -3537,9 +3575,11 @@ class PromptSmithApp(GuidedFlowMixin):
         self.skill_status_var.set(self._skill_search_status_text)
         self._record_skill_search_state(
             status="network_running",
+            resume_kind=None,
             network={"status": "running", "count": 0},
             last_error=None,
         )
+        self.session.focus_workspace_stage("skills")
         self._refresh_delivery_pages()
         self._submit(
             lambda: self._network_skill_search_operation(request),
@@ -3762,7 +3802,7 @@ class PromptSmithApp(GuidedFlowMixin):
             candidate_batch=self.session.skill_state.get("candidate_batch"),
             bindings=existing,
         )
-        self.skill_status_var.set(f"已选用 {len(existing)} 项 Agent Skill；尚未整合为最终草稿。")
+        self.skill_status_var.set(f"已选用 {len(existing)} 项 Agent Skill。")
         logging.getLogger(__name__).info("Skill selection updated: task=%s requested=%d selected=%d",
             self.session.task_id, len(selected_ids), len(existing))
         self.refresh()
@@ -3783,12 +3823,12 @@ class PromptSmithApp(GuidedFlowMixin):
             candidate_batch=self.session.skill_state.get("candidate_batch"),
             bindings=bindings,
         )
-        self.skill_status_var.set("已取消选中的 Agent Skill；需要重新整合最终草稿。")
+        self.skill_status_var.set("已取消选中的 Agent Skill。")
         logging.getLogger(__name__).info("Skill selection cancelled: task=%s requested=%d remaining=%d",
             self.session.task_id, len(selected_ids), len(bindings))
         self.refresh()
         if had_final_result:
-            self.status_var.set("已取消 Agent Skill 选用；原最终结果已过期，请重新整合并确认。")
+            self.status_var.set("已取消 Agent Skill 选用，请重新整合并确认。")
             self.final_status_var.set("最终结果已过期（Agent Skill 选用已变化），请重新整合并确认。")
 
     def skip_skills(self) -> None:
@@ -3955,7 +3995,7 @@ class PromptSmithApp(GuidedFlowMixin):
             self.notebook.select(2)
         else:
             self._set_delivery_feedback("已将所选 Skill 的来源和任务用途写入提示词；未知和建议随正文保留，可直接复制或导出。")
-            self.status_var.set("Skill 整合草稿已生成；后置建议已写入提示词，可到结果页确认。")
+            self.status_var.set("Skill 整合草稿已生成，可到结果页确认。")
             self.refresh()
             if self.notebook.index(self.notebook.select()) == 0:
                 self._conversation_scroll_latest(force=True)
@@ -4011,7 +4051,7 @@ class PromptSmithApp(GuidedFlowMixin):
             key = "local" if search_request.get("kind") == "local" else "network"
             prior = (search_request.get("previous_search_state") or {}).get(key)
             source = deepcopy(prior) if isinstance(prior, dict) and prior.get("status") != "running" else {"status": "cancelled", "count": 0}
-            self._record_skill_search_state(status="cancelled", **{key: source}, last_error=None)
+            self._record_skill_search_state(status="cancelled", **{key: source}, resume_kind=key, last_error=None)
             self._skill_search_status_text = "已停止 Skill 搜索，已有候选与选择保留；可重新查找或继续联网搜索。"
             self.skill_status_var.set(self._skill_search_status_text)
         self._response_deliveries.clear()
@@ -4180,7 +4220,7 @@ class PromptSmithApp(GuidedFlowMixin):
     def _decide_selected_m4_change(self, decision: str) -> None:
         selected = self.widgets["m4_changes_tree"].selection()
         if len(selected) != 1:
-            self._show_info("请选择变化", "请先选择一项待处理的 M4 变化。", parent=self.root)
+            self._show_info("请选择变化", "请先选择一项待处理的变化。", parent=self.root)
             return
         change_id = selected[0]
         row = next(
@@ -4199,7 +4239,7 @@ class PromptSmithApp(GuidedFlowMixin):
         except (DeliveryValidationError, SessionStateError) as exc:
             self._show_error("无法处理 M4 变化", str(exc), parent=self.root)
             return
-        self.status_var.set("M4变化已接受；请继续处理其余变化并复核最终草稿。" if decision == "accepted" else "M4变化已拒绝；请继续处理其余变化并复核最终草稿。")
+        self.status_var.set("变化已接受；请继续处理其余变化并复核最终草稿。" if decision == "accepted" else "变化已拒绝；请继续处理其余变化并复核最终草稿。")
         self.refresh()
 
     def generate_no_skill_final(self) -> None:
@@ -4218,7 +4258,7 @@ class PromptSmithApp(GuidedFlowMixin):
             self._set_delivery_feedback("已用当前选用的 Skill 生成提示词；格式和前提待下游 AI 核对，可以复制或导出。")
         logging.getLogger(__name__).info("Generated prompt directly; selected_skills=%d", len(self.session.skill_state.get("bindings", [])))
         self.final_status_var.set("提示词已生成，可以复制或导出。")
-        self.status_var.set("已保留所选 Skill 的名称、来源和用途；未验证信息由下游 AI 继续核对。" if has_skills else "提示词已从当前已确认方案生成。")
+        self.status_var.set("已保留所选 Skill 的名称、来源和用途。" if has_skills else "提示词已从当前已确认方案生成。")
         self.refresh()
         if self.notebook.index(self.notebook.select()) == 0:
             self._conversation_scroll_latest(force=True)
@@ -4368,6 +4408,7 @@ class PromptSmithApp(GuidedFlowMixin):
             verification = record.get("verification") if isinstance(record.get("verification"), dict) else {}
             evidence_level = "full_skill" if verification.get("source_read") else "metadata"
         evidence_labels = {
+            "skill_summary": "Skill 简介与公开摘要（AI 未阅读全文）",
             "skill_excerpt": "SKILL.md 节选（完整文件哈希已核验）",
             "full_skill": "已读取 Skill 内容",
             "metadata": "公开元数据或 README 摘要",
@@ -4495,7 +4536,7 @@ class PromptSmithApp(GuidedFlowMixin):
         self.root.clipboard_clear()
         self.root.clipboard_append(prompt)
         if status == "stale":
-            self.status_var.set("已复制过期草稿；来源已变化，请勿当作正式结果。")
+            self.status_var.set("已复制过期草稿。")
         else:
             self.status_var.set("已复制草稿提示，尚未确认。")
 
@@ -4624,33 +4665,33 @@ class PromptSmithApp(GuidedFlowMixin):
     def accept_selected_m2_suggestion(self) -> None:
         row = self._selected_m2_suggestion()
         if row is None:
-            self._show_info("请选择建议", "请选择一项 M2 建议。", parent=self.root)
+            self._show_info("请选择建议", "请选择一项建议。", parent=self.root)
             return
         try:
             decide_m2_suggestion(self.session, row["suggestion_id"], "accepted")
         except DeliveryValidationError as exc:
             self._show_error("无法接受建议", str(exc), parent=self.root)
             return
-        self.status_var.set("已接受选中的 M2 建议；最终结果仍需重新确认。")
+        self.status_var.set("已接受选中的建议。")
         self.refresh()
 
     def reject_selected_m2_suggestion(self) -> None:
         row = self._selected_m2_suggestion()
         if row is None:
-            self._show_info("请选择建议", "请选择一项 M2 建议。", parent=self.root)
+            self._show_info("请选择建议", "请选择一项建议。", parent=self.root)
             return
         try:
             decide_m2_suggestion(self.session, row["suggestion_id"], "rejected")
         except DeliveryValidationError as exc:
             self._show_error("无法拒绝建议", str(exc), parent=self.root)
             return
-        self.status_var.set("已拒绝选中的 M2 建议；该建议不会进入执行要求。")
+        self.status_var.set("已拒绝选中的建议，该建议不会进入执行要求。")
         self.refresh()
 
     def process_selected_m2_suggestion(self) -> None:
         row = self._selected_m2_suggestion()
         if row is None:
-            self._show_info("请选择建议", "请选择一项需要上游处理的 M2 建议。", parent=self.root)
+            self._show_info("请选择建议", "请选择一项需要上游处理的建议。", parent=self.root)
             return
         if not row.get("requires_user_confirmation"):
             self._show_info("无需上游处理", "该建议可在此接受或拒绝。", parent=self.root)
@@ -5232,8 +5273,8 @@ class PromptSmithApp(GuidedFlowMixin):
     def open_session(self) -> None:
         path = filedialog.askopenfilename(
             parent=self.root,
-            title="打开PromptSmith会话",
-            filetypes=[("PromptSmith JSON", "*.json"), ("所有文件", "*.*")],
+            title="打开 Intext 会话",
+            filetypes=[("Intext JSON", "*.json"), ("所有文件", "*.*")],
         )
         if not path:
             return
@@ -5254,11 +5295,11 @@ class PromptSmithApp(GuidedFlowMixin):
                 default_dir.mkdir(parents=True, exist_ok=True)
                 chosen = filedialog.asksaveasfilename(
                     parent=self.root,
-                    title="保存PromptSmith会话",
+                    title="保存 Intext 会话",
                     initialdir=default_dir,
                     initialfile=f"{self.session.task_id}.json",
                     defaultextension=".json",
-                    filetypes=[("PromptSmith JSON", "*.json")],
+                    filetypes=[("Intext JSON", "*.json")],
                 )
                 if not chosen:
                     logging.getLogger("promptsmith.ui").debug("Session save cancelled by user")

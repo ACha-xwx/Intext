@@ -35,13 +35,29 @@ class WorkspaceController:
     """All methods run on the thread that created PromptSmithApp."""
     def __init__(self, app, history=None):
         self.app = app
+        from .preferences import load_tutorial_status
+        self.tutorial_status = load_tutorial_status(app._preferences_path)
+        app._automatic_model_settings = True
+        app._refresh_model_confirmation()
+        app._refresh_primary_action()
+        LOG.debug("Web settings automatic readiness enabled; valid configuration requires no confirmation")
         self.history = history
         self.panel_kind = None
         self.panel_frame = None
         self.panel_token = None
         self.notifications = []
         self.notification_sequence = 0
+        self._feedback_action = None
+        self._feedback_values = {}
+        for name in ("status_var", "settings_status_var", "skill_status_var", "final_status_var", "model_directory_status_var"):
+            variable = getattr(app, name, None)
+            if variable is not None:
+                self._feedback_values[name] = variable.get()
+                variable.trace_add("write", lambda *_args, name=name, variable=variable: self._status_feedback(name, variable.get()))
         self.icons = {}
+        app._notify_directory_feedback = lambda provider, text: self._status_feedback("directory:" + provider, f"{provider}：{text}" if text else "")
+        if getattr(app, "_settings_load_warning", ""):
+            self._notify("warn", "设置恢复提醒", app._settings_load_warning, key="settings:restore")
         from .web_editors import WebEditors
         self.editors = WebEditors(app, lambda: view_stamp(app))
         for theme in ("light", "dark"):
@@ -65,19 +81,58 @@ class WorkspaceController:
             LOG.debug("Web navigation: native_index=%s settings_in_browser=%s", index, index == app._settings_page_index)
         app.show_workspace = show_workspace
         def notify(level, title, message, **_options):
-            self.notification_sequence += 1
-            safe = app.runtime_log.redact(f"{title}：{message}")
-            self.notifications.append(dict(id=self.notification_sequence, level=level, text=safe))
-            self.notifications[:] = self.notifications[-8:]
+            self._notify(level, title, message)
             severity = {"error": logging.ERROR, "warn": logging.WARNING, "info": logging.INFO}[level]
-            LOG.log(severity, "Web feedback: %s", safe, exc_info=sys.exc_info() if sys.exc_info()[0] else None)
+            LOG.log(severity, "Web feedback: %s", app.runtime_log.redact(f"{title}：{message}"), exc_info=sys.exc_info() if sys.exc_info()[0] else None)
         app._show_error = lambda title, message, **options: notify("error", title, message, **options)
         app._show_info = lambda title, message, **options: notify("info", title, message, **options)
         app._show_warning = lambda title, message, **options: notify("warn", title, message, **options)
         app.review_current_conflict = lambda: self.editors.open("conflict")
 
+    def _notify(self, level, title, message, key=None):
+        safe_title = self.app.runtime_log.redact(str(title))
+        body = self.app.runtime_log.redact(str(message))
+        if self._feedback_action:
+            key = "action:" + self._feedback_action
+        if key is None and self.notifications:
+            previous = self.notifications[-1]
+            # One operation often updates status then shows a richer error.
+            # Replace that status card instead of showing two failure cards.
+            first_line = body.split("\n", 1)[0]
+            if str(previous.get("key") or "").startswith("status:") and previous["body"] in (body, f"{safe_title}：{first_line}"):
+                key = previous["key"]
+        self.notification_sequence += 1
+        self.notifications.append(dict(id=self.notification_sequence, level=level,
+            title=safe_title, body=body, text=f"{safe_title}：{body}" if safe_title else body, key=key))
+        self.notifications[:] = self.notifications[-32:]
+        LOG.debug("User notification queued; id=%s level=%s source=%s", self.notification_sequence, level, key or "dialog")
+
+    def _status_feedback(self, name, text):
+        if self._feedback_values.get(name) == text:
+            return
+        self._feedback_values[name] = text
+        # Per-keystroke draft indicators and empty resets are not operation feedback.
+        if not text or text in ("有未保存设置。", "有未保存的设置。", "修改将自动保存。"):
+            return
+        if name == "model_directory_status_var" or text.startswith(("最终结果：", "目录状态：")):
+            return
+        if name == "skill_status_var" and text.startswith(("正在联网搜索 Skill", "正在查找本地 Skill")):
+            # Per-query/per-file progress is projected inline and logged by the
+            # search lifecycle. Only completion, cancellation or failure notifies.
+            return
+        if any(word in text for word in ("失败", "错误", "未完成", "无法", "异常")):
+            level = "error"
+        elif any(word in text for word in ("请先", "尚未", "未配置", "过期", "不一致", "需要重新", "请填写", "请选择", "未保存", "不完整", "不可用", "空模型列表")):
+            level = "warn"
+        elif any(word in text for word in ("已保存", "已复制", "已导出", "已删除", "已恢复", "成功", "已生成", "已确认")):
+            level = "success"
+        else:
+            level = "info"
+        self._notify(level, "", text, key="status:" + name)
+
     def settings_snapshot(self):
         from .preferences import FIELDS
+        from .model_catalog import callable_model_ids
         from .ui import PROVIDER_PRESETS, PROTOCOL_LABELS, PROTOCOL_NAMES
         app = self.app
         values = {key: variable.get() for key, variable in app.preference_vars.items()}
@@ -95,7 +150,7 @@ class WorkspaceController:
             saved_providers=list(app._provider_profiles),
             provider_families={name: name if name in PROVIDER_PRESETS else profile.connection.get("model_provider", "")
                               for name, profile in app._provider_profiles.items()},
-            available_models=list(app.widgets["api_model_combo"].cget("values")),
+            available_models=list(callable_model_ids(app.widgets["api_model_combo"].cget("values"))),
             confirmed=app._model_settings_confirmed(), confirmation=app.model_confirmation_var.get(),
             directory_status=app.model_directory_status_var.get(),
             status=app.settings_status_var.get(), operation_status=app.status_var.get(),
@@ -111,6 +166,46 @@ class WorkspaceController:
         current = self.settings_snapshot()
         if data.get("revision") != current["revision"]:
             raise ValueError("设置已在其它操作中更新，请重新打开设置核对后再提交。")
+        if action == "settings_rename_provider":
+            from .model_catalog import PROVIDERS
+            from .preferences import rename_provider_profile
+            target, name = data.get("target"), data.get("name")
+            if app.busy:
+                raise ValueError("正在处理当前请求，完成或取消后再重命名供应商。")
+            if not isinstance(target, str) or target in PROVIDERS or target not in app._provider_profiles or target != current["connection"]["provider"]:
+                raise ValueError("请选择当前已保存的自定义供应商后重命名。")
+            if not isinstance(name, str) or not name.strip() or len(name.strip()) >= 4096:
+                raise ValueError("请填写有效的新服务名称。")
+            name = name.strip()
+            if any(key.casefold() == name.casefold() and key != target for key in (*PROVIDERS, *app._provider_profiles)):
+                raise ValueError("这个服务名称已存在，请使用另一个名称。")
+            if name == target:
+                return dict(settings=current)
+            # A failed encryption/write must not alter the current Tk state.
+            profile = rename_provider_profile(app._preferences_path, target, name)
+            app.model_directory_refresh.supersede(target)
+            app._provider_profiles = {name if key == target else key: profile if key == target else value
+                                      for key, value in app._provider_profiles.items()}
+            suppressed = app._suppress_provider_callback
+            app._suppress_provider_callback = True
+            try:
+                app._last_provider = name
+                app.provider_var.set(name)
+                # Renaming is not switching to another interface; keep its key
+                # and directory rather than taking the normal switch callback.
+                app.connection_version += 1
+                app.model_directory_version += 1
+                app._connection_state = app._generation_snapshot()
+                app._model_directory_state = app._model_directory_snapshot()
+                app._confirmed_connection_state = app._connection_state if profile.model_confirmed else None
+                app.widgets["provider_combo"].configure(values=tuple(dict.fromkeys((*PROVIDERS, *app._provider_profiles))))
+            finally:
+                app._suppress_provider_callback = suppressed
+            app._refresh_model_confirmation()
+            app._refresh_primary_action()
+            app.settings_status_var.set("已重命名供应商，接口、密钥和模型列表已保留。")
+            LOG.info("Web custom provider rename applied; models=%s", len(profile.model_ids))
+            return dict(settings=self.settings_snapshot())
         if action == "settings_delete_provider":
             from .model_catalog import PROVIDERS
             from .preferences import delete_provider_profile
@@ -145,7 +240,7 @@ class WorkspaceController:
             app.set_debug_console_enabled()
             LOG.info("Web settings Debug toggle: enabled=%s", data["enabled"])
             return
-        if action not in {"settings_save", "settings_confirm", "settings_test", "settings_models", "settings_provider"}:
+        if action not in {"settings_autosave", "settings_save", "settings_confirm", "settings_test", "settings_models", "settings_provider"}:
             raise ValueError("设置操作不存在。")
         if app.busy:
             raise ValueError("正在处理当前请求，完成或取消后再提交设置。")
@@ -153,6 +248,24 @@ class WorkspaceController:
         values = data.get("values")
         if not isinstance(connection, dict) or not isinstance(values, dict):
             raise ValueError("设置内容格式不正确。")
+        changed_fields = data.get("changed_fields")
+        if action == "settings_autosave" and changed_fields is not None:
+            if not isinstance(changed_fields, list) or any(not isinstance(key, str) or
+                    (key not in FIELDS and key not in {"connection." + k for k in
+                        ("provider", "protocol", "base_url", "model", "model_provider", "website")}) for key in changed_fields):
+                raise ValueError("设置更新字段无效。")
+            if changed_fields and all(key in FIELDS and FIELDS[key].category != "模型" for key in changed_fields):
+                if data.get("key_action", "keep") != "keep" or data.get("key"):
+                    raise ValueError("普通设置更新不能包含密钥操作。")
+                if any(key not in values for key in changed_fields):
+                    raise ValueError("设置更新缺少对应值。")
+                changes = {key: normalize_value(key, values[key]) for key in changed_fields}
+                window_changed = "window_width" in changes and changes["window_width"] != app.preferences["window_width"]
+                app.save_desktop_settings(changes)
+                window_notice = "启动窗口大小下次启动生效。" if window_changed else ""
+                app.settings_status_var.set(f"已自动保存。{window_notice}")
+                LOG.info("Web desktop settings autosaved: fields=%s deferred_window_size=%s", list(changes), window_changed)
+                return dict(settings=self.settings_snapshot())
         if not {"provider", "protocol", "base_url", "model"} <= set(connection) or set(connection) - {"provider", "protocol", "base_url", "model", "model_provider", "website"} or any(not isinstance(v, str) or len(v) > 4096 for v in connection.values()):
             raise ValueError("模型连接字段无效。")
         if connection["protocol"] not in PROTOCOL_LABELS:
@@ -167,7 +280,7 @@ class WorkspaceController:
             validate_public_url(connection["base_url"])
             if connection.get("website"):
                 validate_public_url(connection["website"])
-        if action == "settings_save":
+        if action in {"settings_save", "settings_autosave"}:
             normalized = validate_preferences(values)
         elif action == "settings_provider":
             # Incomplete numeric drafts must not trap the user on this provider.
@@ -199,13 +312,26 @@ class WorkspaceController:
         for key, value in normalized.items():
             if str(app.preference_vars[key].get()) != str(value):
                 app.preference_vars[key].set(value)
-        if action == "settings_save":
+        if action in {"settings_save", "settings_autosave"}:
             roots = app.widgets["setting_extra_skill_roots"]
             roots.delete("1.0", "end")
             roots.insert("1.0", normalized["extra_skill_roots"])
         LOG.info("Web settings submitted: action=%s fields=%s credential_action=%s", action, list(normalized), key_action)
         if action == "settings_provider":
             app.provider_var.set(data["target"])
+        elif action == "settings_autosave":
+            ready = bool(app.api_key_var.get().strip() and app.api_model_var.get().strip())
+            if ready:
+                app._draft_api_config()
+            if not app.save_settings(confirm_model=ready):
+                if app._last_settings_save_error is not None:
+                    raise app._last_settings_save_error
+                raise ValueError(app.settings_status_var.get())
+            app._confirmed_connection_state = app._generation_snapshot() if ready else None
+            app._refresh_model_confirmation()
+            app._refresh_primary_action()
+            app.settings_status_var.set("已自动保存。" + ("模型配置可直接使用。" if ready else "填写模型 ID 和 API Key 后即可使用。"))
+            LOG.info("Web settings autosaved: ready=%s credential_present=%s", ready, bool(app.api_key_var.get().strip()))
         elif action == "settings_save":
             if not app.save_settings():
                 raise ValueError(app.settings_status_var.get())
@@ -259,13 +385,15 @@ class WorkspaceController:
             if card["kind"] == "plan":
                 card["text"] = conversation_plan_text(card["content"])
             if card["kind"] == "skills":
+                card["progress"] = app.skill_status_var.get()
                 rows = visible_rows(table_rows(card["candidates"], card["bindings"]),
                     source=app.skill_source_filter_var.get(), show_all=app.show_all_skills_var.get(), limit=app.preferences["display_limit"])
                 card["rows"] = [dict(id=r["candidate_id"], name=r.get("name", ""), source=source_group(r),
                     score=recommendation_score(r), selected=r.get("_already_selected", False),
                     allowed=bool(r.get("selection_allowed")) and not r.get("_already_selected", False),
                     bindings=r.get("_binding_ids", []), description=r.get("description", ""),
-                    details="\n".join(str(r.get(k, "")) for k in ("fit_reason", "usage_suggestion", "source_url", "local_path"))) for r in rows]
+                    details="\n".join(str(r.get(k, "")) for k in ("match_reason", "fit_reason", "usage_suggestion",
+                                      "recommendation_basis", "ai_evidence_note", "source_url", "local_path") if r.get(k))) for r in rows]
                 # Full Skill files are unnecessary for presentation/selection.
                 card.pop("candidates", None)
                 card.pop("bindings", None)
@@ -284,7 +412,7 @@ class WorkspaceController:
         selection = tree.selection() if tree is not None and tree.winfo_exists() else ()
         page = "settings" if app.notebook.index(app.notebook.select()) == app._settings_page_index else "workspace"
         return dict(stamp=view_stamp(app), session=app._session_instance_token, cards=cards, buttons=buttons,
-            navigation=app.session.workspace_navigation(),
+            navigation=app.session.workspace_navigation(), tutorial_status=self.tutorial_status,
             history=self.history.snapshot() if self.history is not None else None,
             drafts=deepcopy(app.session.control.get("workspace_drafts", {})),
             page=page, settings=self.settings_snapshot() if page == "settings" else None, notifications=list(self.notifications),
@@ -305,10 +433,31 @@ class WorkspaceController:
             reanswer=app._answer_target_id, reanswer_text=app.question_context_var.get())
 
     def dispatch(self, action, data, stamp):
+        previous = self._feedback_action
+        self._feedback_action = action if action != "drafts" else None
+        # A new explicit operation may legitimately report the same outcome.
+        # Render/selection/draft polling must retain source de-duplication.
+        if action in {"save", "save_as", "settings_autosave", "settings_debug", "history_retry", "send", "editor_save", "button", "stop", "navigate"}:
+            self._feedback_values.pop("status_var", None)
+            self._feedback_values.pop("settings_status_var", None)
+        try:
+            return self._dispatch(action, data, stamp)
+        finally:
+            self._feedback_action = previous
+
+    def _dispatch(self, action, data, stamp):
         from .model_catalog import EFFORTS
         app = self.app
         if not isinstance(data, dict):
             raise ValueError("操作参数格式不正确。")
+        if action in {"tutorial_finish", "tutorial_skip"}:
+            from .preferences import save_tutorial_status
+            if action == "tutorial_finish" and stamp != view_stamp(app):
+                raise ValueError("页面已更新，请重新点击完成教程。")
+            status = "completed" if action == "tutorial_finish" else "skipped"
+            save_tutorial_status(app._preferences_path, status)
+            self.tutorial_status = status
+            return dict(tutorial_status=status)
         if action == "debug_closed":
             console = app.debug_console
             if console is not None and getattr(console, "identity", None) == data.get("id"):
@@ -341,7 +490,11 @@ class WorkspaceController:
                 raise ValueError("当前步骤已变化，请查看当前内容再返回。")
             if stamp != view_stamp(app):
                 raise ValueError("内容已变化，请查看更新后的内容再返回。")
-            app.navigate_workspace("previous")
+            drafts = data.get("answer_drafts")
+            if drafts is not None and (not isinstance(drafts, dict)
+                    or any(not isinstance(key, str) or not isinstance(text, str) for key, text in drafts.items())):
+                raise ValueError("回答草稿格式不正确，当前内容已保留。")
+            app.navigate_workspace("previous", answer_drafts=drafts)
             return
         if stamp != view_stamp(app):
             raise ValueError("内容已变化，请查看更新后的内容再操作。")
@@ -394,15 +547,14 @@ class WorkspaceController:
             if not app.widgets["conversation_input"].get("1.0", "end-1c"):
                 app.session.control.setdefault("workspace_drafts", {})["message"] = ""
         elif action == "answer":
-            key = data.get("id")
-            if key not in app._question_inputs:
-                raise ValueError("这个问题已更新，请回答当前问题。")
-            widget = app._question_inputs[key]
-            widget.delete("1.0", "end")
-            widget.insert("1.0", str(data.get("text", "")))
-            app._submit_inline_question(key)
-            if key not in {q["question_id"] for q in app.session.questions_for_review()}:
-                app.session.control.setdefault("workspace_drafts", {}).setdefault("answers", {}).pop(key, None)
+            # Retain the legacy single-answer contract for existing callers.
+            rows = data.get("answers", [{"id": data.get("id"), "text": data.get("text", "")}])
+            if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
+                raise ValueError("本轮回答格式不正确，请重新提交。")
+            submitted = app.submit_guided_answers([
+                {"question_id": row.get("id"), "text": row.get("text")} for row in rows
+            ])
+            return {"submitted": submitted}
         elif action == "skip":
             key = data.get("id")
             if key not in app._question_inputs:
@@ -575,10 +727,10 @@ def run_web_workspace(logs, *, automatic_close=None):
                         LOG.debug("Web workspace action completed: action=%s task=%s", request["action"], app.session.task_id)
                     except ValueError as exc:
                         LOG.info("Web workspace action requires refresh: action=%s reason=%s", request["action"], exc)
-                        request["result"] = dict(ok=False, error=str(exc))
+                        request["result"] = dict(ok=False, error=logs.redact(str(exc)), error_kind="validation")
                     except Exception:
                         LOG.exception("Web workspace action failed: action=%s", request["action"])
-                        request["result"] = dict(ok=False, error="操作未完成，请重试；详细原因已记录到 Debug 控制台。")
+                        request["result"] = dict(ok=False, error="操作未完成，请重试；详细原因已记录到 Debug 控制台。", error_kind="persistence" if request["action"] == "settings_autosave" else "operation")
                     finally:
                         request["done"].set()
                     dirty = True
@@ -634,7 +786,7 @@ def run_web_workspace(logs, *, automatic_close=None):
         with tempfile.TemporaryDirectory(prefix="promptsmith-webview-") as profile:
             with api._lock:
                 width = int((api._state or {}).get("window_width", 1440))
-            window = webview.create_window("PromptSmith", str(resource_root()/"resources/ui/workspace/index.html"),
+            window = webview.create_window("Intext", str(resource_root()/"resources/ui/workspace/index.html"),
                 js_api=api, width=width, height=round(width*9/16), min_size=(720, 440), background_color="#ffffff", text_select=True)
             window.events.closed += api._closing.set
             def loaded():

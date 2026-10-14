@@ -170,7 +170,7 @@ class WebEditors:
                 self.open("plan")
         except (ValueError, SessionStateError) as exc:
             if self.current:
-                self.current["error"] = str(exc)
+                self.current["error"] = self.app.runtime_log.redact(str(exc))
             LOG.warning("Web editor save rejected: kind=%s reason=%s", current["kind"], exc)
             raise
         except Exception:

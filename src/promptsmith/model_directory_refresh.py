@@ -34,6 +34,9 @@ class ModelDirectoryRefresh:
             self.statuses.pop(provider, None)
         if self.app.provider_var.get().strip() == provider:
             self.app.model_directory_status_var.set(text)
+        feedback = getattr(self.app, "_notify_directory_feedback", None)
+        if feedback:
+            feedback(provider, text)
 
     def start(self):
         for provider, profile in tuple(self.app._provider_profiles.items()):

@@ -887,7 +887,7 @@ def test_confirming_overwrite_replaces_existing_export(delivery_app, monkeypatch
     app.export_final_markdown()
 
     assert target.read_text(encoding="utf-8") != "existing content"
-    assert "PromptSmith 最终交付" in target.read_text(encoding="utf-8")
+    assert "Intext 最终交付" in target.read_text(encoding="utf-8")
 
 
 def test_export_preserves_existing_file_if_session_changes_during_overwrite_confirmation(
