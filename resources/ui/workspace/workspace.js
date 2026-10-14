@@ -398,7 +398,8 @@ function applySnapshot(next) {
   const model=state.model_info||state.models.find(m=>m.id===state.model),modelButton=$("#model-button"),modelSignature=JSON.stringify([state.model,state.theme,model,state.active_service]);
   if(modelButton.dataset.signature!==modelSignature){modelButton.dataset.signature=modelSignature;modelButton.replaceChildren();
     const img=providerImage(model?.provider);if(img)modelButton.append(img);modelButton.append(node("span","",model?.name||state.model||"选择模型"));
-    modelButton.append(effortMeter(),node("span","chevron"));}
+    const arrow=icon("chevronDown");arrow.classList.add("model-chevron");
+    modelButton.append(effortMeter(),arrow);}
   modelButton.classList.toggle("picker-open",popupKind==="model");
   syncEffort();
   refreshModelMenu?.();

@@ -180,6 +180,29 @@ def run(executable, output):
                 finish.click()
                 expect(guide).to_have_count(0)
                 check("tutorial completed only by finish", load_tutorial_status(settings_path) == "completed")
+                back = page.get_by_role("button", name="返回工作区", exact=True)
+                if back.is_visible():
+                    back.click()
+                model_button = page.locator("#model-button")
+                expect(model_button).to_be_visible()
+                arrow = model_button.locator(":scope > :last-child")
+                check("model arrow rendered as SVG", arrow.evaluate("e=>e.tagName.toLowerCase()") == "svg")
+                bounds = arrow.bounding_box()
+                anchor = (bounds["x"] + bounds["width"] / 2, bounds["y"] + bounds["height"] / 2)
+                for direction in ("opening", "closing"):
+                    model_button.click()
+                    frames = page.evaluate("""() => new Promise(resolve => {
+                      const arrow=document.querySelector('#model-button').lastElementChild;
+                      const frames=[], started=performance.now();
+                      function sample(now) {
+                        const rect=arrow.getBoundingClientRect();
+                        frames.push([rect.x+rect.width/2, rect.y+rect.height/2]);
+                        if(now-started<450) requestAnimationFrame(sample); else resolve(frames);
+                      }
+                      requestAnimationFrame(sample);
+                    })""")
+                    check(f"model arrow pivot anchored while {direction}", len(frames) > 2 and all(
+                        abs(x - anchor[0]) < .1 and abs(y - anchor[1]) < .1 for x, y in frames))
                 page.screenshot(path=str(output / "configured.png"))
             session = SessionState.new()
             session.set_task("恢复上次比赛技术文档的回答")
