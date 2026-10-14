@@ -3,8 +3,8 @@
 ## 2026-10-14 安装交付
 
 - [x] I1 复现单文件临时解包并核对官方 WebView2 分发
-- [ ] I2 onedir 与当前用户安装/缺失依赖安装/低空间阻止
-- [ ] I3 实际安装、WebView2、升级数据保留、卸载及 Spec/Standards
+- [x] I2 onedir 与当前用户安装/缺失依赖安装/低空间阻止
+- [x] I3 实际安装、WebView2、升级数据保留、卸载及 Spec/Standards
 - [ ] I4 GitHub 源码和 Release、桌面安装包与哈希
 
 - [x] FND-001 整合忙态取消

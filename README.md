@@ -19,6 +19,8 @@ Python / WebView2 Windows 桌面应用，Tk 保留为业务线程与兼容界面
 
 ## 启动
 
+普通用户使用 `Intext-Setup-2026.10.14.exe` 安装，无需安装 Python。安装位置可选择其他盘；已存在的 WebView2 会保留，缺失时由微软安装器联网安装。需要 Windows 10 1809 或更高版本（x64），系统盘建议至少保留 1 GB 空间。安装后的程序直接读取已安装文件，避免单文件 EXE 每次启动全量解包；卸载不会删除 `%LOCALAPPDATA%/Intext/` 中的设置、密钥和会话。构建说明见 [开发与验证](docs/development.md#安装包)。
+
 在仓库根目录使用 Python 3.11 或更高版本（须包含 Tk）：
 
 ```powershell

@@ -3,7 +3,7 @@
   #define AppVersion "2026.10.14"
 #endif
 #ifndef AppId
-  #define AppId "{ED2D377A-87E4-48AF-89A0-A023CB8F62B9}"
+  #define AppId "Intext.ED2D377A-87E4-48AF-89A0-A023CB8F62B9"
 #endif
 #ifndef AppName
   #define AppName "Intext"
@@ -32,7 +32,7 @@ AppId={#AppId}
 AppName={#AppName}
 AppVersion={#AppVersion}
 AppPublisher=Intext
-AppPublisherURL=https://github.com/ACha-xwx/PromptSmith
+AppPublisherURL=https://github.com/ACha-xwx/Intext
 DefaultDirName={localappdata}\Programs\Intext
 DefaultGroupName=Intext
 DisableProgramGroupPage=yes
@@ -62,6 +62,9 @@ Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: 
 [Files]
 Source: "{#PayloadDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#RuntimeInstaller}"; DestName: "MicrosoftEdgeWebview2Setup.exe"; Flags: dontcopy
+Source: "NOTICE.md"; DestDir: "{app}\licenses\InnoSetup"; Flags: ignoreversion
+Source: "INNO-LICENSE.txt"; DestDir: "{app}\licenses\InnoSetup"; Flags: ignoreversion
+Source: "TRANSLATION-LICENSE.txt"; DestDir: "{app}\licenses\InnoSetup"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\Intext"; Filename: "{app}\Intext.exe"; Parameters: "--renderer web"; WorkingDir: "{app}"
@@ -86,25 +89,32 @@ begin
     HasRuntimeVersion(HKCU64) or HasRuntimeVersion(HKLM64);
 end;
 
-function PrepareToInstall(var NeedsRestart: Boolean): String;
+function CheckFreeSpace(Directory: String): String;
 var
   FreeMB, TotalMB: Cardinal;
+begin
+  Result := '';
+  if not GetSpaceOnDisk(Directory, True, FreeMB, TotalMB) then
+    Result := '无法检查磁盘可用空间，请检查目录权限后重试。'
+  else if FreeMB < {#SystemReserveMB} then
+    Result := 'Windows、临时目录或用户数据所在磁盘空间不足。请先清理至少 1 GB 空间，再重新安装。程序可安装到其他磁盘，但系统盘仍需要可用空间。';
+  if Result <> '' then
+    Log('Intext prerequisites: insufficient system space or inaccessible path: ' + Directory);
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
   DotNetRelease: Cardinal;
   ExitCode: Integer;
 begin
   Result := '';
   Log('Intext prerequisites: checking system space and .NET Framework');
-  if not GetSpaceOnDisk(ExpandConstant('{localappdata}'), True, FreeMB, TotalMB) then
-  begin
-    Result := '无法检查用户数据目录的可用空间，请检查目录权限后重试。';
-    Exit;
-  end;
-  if FreeMB < {#SystemReserveMB} then
-  begin
-    Result := '用户数据所在磁盘空间不足。请先清理至少 1 GB 空间，再重新安装。可将程序安装到其他磁盘，但 Windows 和 WebView2 仍需要系统盘空间。';
-    Log('Intext prerequisites: insufficient system space, available MB=' + IntToStr(FreeMB));
-    Exit;
-  end;
+  Result := CheckFreeSpace(ExpandConstant('{win}'));
+  if Result <> '' then Exit;
+  Result := CheckFreeSpace(ExpandConstant('{localappdata}'));
+  if Result <> '' then Exit;
+  Result := CheckFreeSpace(ExpandConstant('{tmp}'));
+  if Result <> '' then Exit;
   if not RegQueryDWordValue(HKLM32, 'SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full', 'Release', DotNetRelease) or
     (DotNetRelease < 461808) then
   begin

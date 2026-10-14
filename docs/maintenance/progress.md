@@ -1015,3 +1015,11 @@ Q2补证脚本已完成：3个通知遮挡前置重取、教程缩窗/模态快�
 用户确认同学 C 盘仅剩98 MB，与已核对约139 MB的单文件启动解包需求吻合。按“报错定位后制作安装包”的原授权恢复 I1–I4；先核对分发/官方Runtime，再实现onedir和可选安装目录，编译后实际安装/启动/卸载并审阅，最后GitHub源码/Release与桌面安装包。完整逐页审查仍暂停。安装公开CLI、外部Runtime进程、最终文件和实际WebView2沿用已确认测试边界，隔离配置/不请求模型。审查基点15858f8。
 
 2026-10-14 I1：公开冻结EXE --smoke-test启动测得_MEI解包，回归1红（临时盘解包）。Windows依赖已包含；onedir构建开始。选择官方Evergreen bootstrapper（1.77MB，Microsoft签名）减小包和临时空间，缺Runtime时需联网；不再强制离线178MB依赖。Inno页面旧链接返回HTML，改明确6.7.3 GitHub下载。首次计划apply_patch未匹配标题，无写入，随后正确追加。
+
+2026-10-14 I2：onedir冻结包139,673,593字节/3968文件，公开启动不_MEI回归1绿；新增Inno当前用户安装脚本/编译流程，系统/临时/用户数据盘低空间阻止、.NET4.7.2和WebView2检测/微软bootstrapper失败处理。测试限定实际编译CLI与私有注册表/外部Runtime fixture；共享Runtime不改。中文语言文件官方旧istrans和旧tag均404、raw连接超时，改GitHub内容API。
+
+I2构建集成首次5项因AppId花括号被Inno识别为常量而编译失败，修成稳定字符串ID后继续。公开测试编译器已验有效Pyrsys签名，微软bootstrapper有效Microsoft签名；中文语言文件通过官方GitHub内容API获取并本地保存。安装构建脚本全流程验证开始，不读取私人配置。README补丁一次末行不匹配未写入，随后按真实段落修正。
+
+I3正式产物首轮21项实际安装/升级/双WebView2/卸载通过，隔离LocalAppData与PATH无Python，不_MEI，无自动应用日志；系统Runtime已装仅跳过，缺失/失败只模拟外部fixture。Standards发现中文许可遗漏，已从其维护者项目获取MIT原许可，并保留Inno官方License；增加安装随附licenses。fixture改具名对象消除六位置元组。原始报告保留，附许可新版重编及定向验收中。远端已由用户改为ACha-xwx/Intext，读取可见，未覆盖用户Git动作。
+
+I3最终：含许可安装包22项原生通过，CLI新版5绿、包内M4 8绿、AST/空白通过；双轴复审各0待修。最终Setup56,558,711字节/SHA256 d3149e2ff12ebbac0019337559294d0789d206942694ec9d4bc78844aaac8fde，桌面副本与校验文件已放置并核对一致。源码/Release发布继续，不包含用户同时修改的比赛资料。

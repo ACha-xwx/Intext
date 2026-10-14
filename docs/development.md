@@ -83,6 +83,29 @@ Get-FileHash -LiteralPath dist/Intext.exe -Algorithm SHA256
 
 发布前记录提交 SHA、Python/依赖版本、构建时间、EXE 大小与 SHA-256；将 EXE 单独复制到临时目录验证启动，避免源目录掩盖漏打包的资源。真实跨机验证须在另一台电脑执行，独立目录测试不能替代。
 
+### 安装包
+
+安装 Inno Setup 6.7 或更高版本后，执行：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-installer.ps1
+```
+
+脚本使用项目虚拟环境（无虚拟环境时使用 PATH Python），从同一 spec 构建 onedir，下载并校验微软签名 WebView2 bootstrapper，再生成 `dist/installer/Intext-Setup-2026.10.14.exe` 与 `SHA256SUMS.txt`。可用 `-Python`、`-Compiler`、`-RuntimeInstaller` 指定已安装工具/微软安装器；离线构建需先准备依赖。目标机缺少 WebView2 时安装过程需要联网。安装器只按当前用户安装，支持选择目录、快捷方式、升级和卸载；卸载保留用户数据及共享 WebView2。Windows/.NET/低空间/依赖失败有明确提示，不静默回退 Tk。安装日志仅在显式传入 `/LOG=路径` 时生成，运行 Debug 仍只手动保存。
+
+单文件 `scripts/build.ps1` 仍用于便携分发。单文件冻结程序也包含 Python/pywebview，但启动需把约140 MB程序释放到 TEMP，不能在只有98 MB空闲的盘上正常运行；安装版避免该解包，仍需为 Windows、Runtime、缓存和用户数据留足空间。
+
+本地公开安装边界检查（会创建隔离测试安装并卸载）：
+
+```powershell
+$env:INTEXT_ISCC = 'C:/Program Files (x86)/Inno Setup 6/ISCC.exe'
+python -m pytest tests/test_installer_cli.py -q
+$env:INTEXT_TEST_APP = '实际安装目录/Intext.exe'
+python -m pytest tests/test_installer_distribution.py -q
+```
+
+测试用私有注册表/外部依赖 fixture 验证安装器行为，不卸载系统 WebView2。独立安装和本机 WebView2 启动不等于同学电脑或干净虚拟机验收。
+
 ## 资源改动
 
 `resources/prompts/` 存放当前与兼容提示、Schema、人工样例。`paths.py`、各 `M*Assets.load()` 和 `PromptSmith.spec` 必须一致。历史提示可能仍被旧会话、测试或打包引用，不因文件名版本较低直接删除。

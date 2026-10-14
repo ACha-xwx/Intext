@@ -750,3 +750,5 @@ Intext Hero参考：加载组件是40px圆角方块，2秒easeInOut旋转并变�
 2026-10-14：errno28表示空间不足；98MB低于单文件归档约139MB解包量。此前包内依赖和隔离WebView2通过，不能解释为缺Python/pywebview。改onedir可消除每次全量临时解包，但系统Runtime/浏览器/应用数据仍需要空间。
 
 2026-10-14 I1：公开冻结EXE --smoke-test启动测得_MEI解包，回归1红（临时盘解包）。Windows依赖已包含；onedir构建开始。选择官方Evergreen bootstrapper（1.77MB，Microsoft签名）减小包和临时空间，缺Runtime时需联网；不再强制离线178MB依赖。Inno页面旧链接返回HTML，改明确6.7.3 GitHub下载。首次计划apply_patch未匹配标题，无写入，随后正确追加。
+
+官方WebView2分发：HKLM32/HKCU pv版本检测，/silent /install，非提升为当前用户。来源https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/distribution。Bootstrapper已验证有效Microsoft Corporation签名。安装器空间检查覆盖Windows/LocalAppData/临时目录。
