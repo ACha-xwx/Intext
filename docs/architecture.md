@@ -1,6 +1,6 @@
 # 架构与内在逻辑
 
-2026-10-14 设置与品牌：重命名框统一输入样式，删除指定静态说明，五类简介精简且无句号；新增12项有实际运行接线的偏好并支持自动保存/启动恢复。图形品牌统一用户新LOGO，Hero完整字标和侧栏英文保留原黑白手绘SVG，运行不生成字体/图像。207个不同相关节点最新通过，实际源码WebView2隔离双启动21项通过，Spec/Standards最新各0项待修；完整逐页审查仍暂停，没有真实模型请求。EXE独立WebView2双启动21项及Tk构造烟测通过，最终Intext.exe已放桌面且哈希一致；GitHub发布按用户授权执行，详见[维护](maintenance/settings_brand_20261014.md)。
+2026-10-14 设置与品牌：重命名框统一输入样式，删除指定静态说明，五类简介精简且无句号；新增12项有实际运行接线的偏好并支持自动保存/启动恢复。图形品牌统一用户新LOGO，Hero完整字标和侧栏英文保留原黑白手绘SVG，运行不生成字体/图像。207个不同相关节点最新通过，实际源码WebView2隔离双启动21项通过，Spec/Standards最新各0项待修；完整逐页审查仍暂停，没有真实模型请求。EXE独立WebView2双启动21项及Tk构造烟测通过，最终Intext.exe已放桌面且哈希一致；实现提交99881a9已推送GitHub main并确认远端一致，详见[维护](maintenance/settings_brand_20261014.md)。
 
 2026-10-13 启动入口：`workspace/startup.js` 是浏览器呈现门，首个有效工作区快照就绪后按已保存 `tutorial_status` 分流；not_started 点开始后打开操作教程，completed/skipped 自动进入。Hero 期间主表面 inert 且隐藏，快捷键和 command 同步阻止操作；SessionState/Tk 业务边界保持。`vendor/liquid-metal.js` 为本地 Paper shader，退出/pagehide 释放，减少动画时速度为零；不读取字体或请求模型。界面/窗口/导出/手动日志/EXE 名称改 Intext，包名/设置路径/DPAPI 身份兼容原数据。完整标题和侧栏英文为静态SVG路径，见[维护](maintenance/intext_hero_20261013.md)。
 

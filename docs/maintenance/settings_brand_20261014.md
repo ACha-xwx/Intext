@@ -8,7 +8,7 @@
 |B2 实际设置扩充|preferences/settings_ui及对应运行模块|字段分类、校验、自动保存和重启恢复；每项影响对应运行行为，默认兼容|完成|
 |B3 品牌|用户图3、Hero/侧栏/Debug/原生窗口/spec|所有软件品牌用新图，供应商图标保留；透明浅深、小尺寸及打包入口正确|完成|
 |B4 验证与增量审阅|公开Controller/生产DOM/模拟模型/资源|相邻回归、双轴审阅、交接和准确验证边界|完成|
-|B5 发布交付|GitHub、PyInstaller、独立WebView2启动、桌面产物|源码推送成功；EXE离开源码目录可启动并恢复设置；桌面副本哈希一致|进行中|
+|B5 发布交付|GitHub、PyInstaller、独立WebView2启动、桌面产物|源码推送成功；EXE离开源码目录可启动并恢复设置；桌面副本哈希一致|完成|
 
 新增设置范围：启动模型列表自动刷新及并发、AI推荐最低分及简介/任务上下文预算、对话宽度、通知时长、思考输出跟随及打字速度、会话自动保存检查间隔、Debug刷新间隔。参数需实际接线，不恢复已移除字体、试运行或确认按钮，不改变五轮上限/充分即停止原则。
 
@@ -57,3 +57,5 @@
 脱离源码目录，将EXE复制至系统临时独立目录，以空密钥/隔离LOCALAPPDATA启动实际WebView2；两次启动21项全部通过，与源码21项合计42项原生检查。自动保存、重启恢复、品牌、重命名样式和正常退出通过，无自动运行日志。独立Tk构造烟测退出0，无日志文件；它只证明兼容构造，不代替实际WebView2检查。结果分别在`local_artifacts/settings_brand_20261014/native_exe_verified/`和`exe_tk_smoke.json`，首份失败证据保留在`native_exe_final/`。
 
 最终桌面文件为`Intext.exe`，与构建产物SHA-256一致。EXE包含Python运行环境，目标电脑仍需Microsoft Edge WebView2 Runtime；没有声称跨机器或真实API验证。个人配置、会话、缓存、构建产物与本地证据不提交Git。GitHub发布按本轮用户授权执行，提交身份由Git历史及最终交付记录追踪。
+
+实现提交为`99881a9ef5845e1d5a73d0bb45fe3d8cd27556dc`，已推送`ACha-xwx/PromptSmith`的`main`，`git ls-remote origin refs/heads/main`确认远端同SHA。本次功能源码和spec与最终EXE一致；后续发布记录提交仅更新文档。五处生成缓存已可恢复地归档到忽略的本地证据目录，原始失败与测试证据保留，不在GitHub发布。最终交付路径由本地桌面记录和本条产物哈希核对。
