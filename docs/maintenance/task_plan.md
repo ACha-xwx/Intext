@@ -1122,7 +1122,7 @@ S3 (2026-10-14): online Skill discovery sends bounded introductions and task/key
 |R1 保存复诊|现有生产DOM+Controller回归、交付EXE真实双启动|用户确认同学配置重启仍在；本机隔离EXE双启动23项通过|complete：排除保存故障|
 |R2 目录失败|api.py与公开client/本地HTTP|用户确认外部原因；本轮接口修改和测试撤回|cancelled：api.py已恢复f46f127|
 |R3 底部模型箭头|workspace.js/css及生产DOM|旋转轴全程固定，末态可见中心不偏移，不影响思考折叠|complete：6项DOM与原生逐帧通过|
-|R4 发布核对|增量双轴审阅、相邻检查、EXE及GitHub|只含箭头修复的EXE与桌面哈希一致；准确记录远端结果|in_progress：限定范围两轴0待修，最终EXE24项通过、桌面哈希一致；同步GitHub中|
+|R4 发布核对|增量双轴审阅、相邻检查、EXE及GitHub|只含箭头修复的EXE与桌面哈希一致；准确记录远端结果|complete：限定范围两轴0待修，最终EXE24项通过、桌面哈希一致；9172e9a远端核对一致|
 
 安装包/全量逐页审查继续暂停；保留原有仅确切已验证域名的网关兼容，独立记录，不把其当作保存修复。
 

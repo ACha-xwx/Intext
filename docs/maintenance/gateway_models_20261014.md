@@ -6,7 +6,7 @@
 
 保留底部模型按钮居中SVG、50%/50%旋转轴和6项浅深/三档字号逐帧回归。实际WebView2验收脚本仅新增箭头开关逐帧观察；目录/设置脚本继续使用基点原有localhost/v1协议。箭头DOM6项已通过，两个增量审阅轴0待修，恢复接口后最终EXE实际WebView2双启动24/24通过。
 
-最终箭头产物70,411,122字节，SHA256 `94b7912a884f991d58ae87adb2cf2c5efbbca3e9ed365dcf0a45bdceacaac672`。桌面`Intext.exe`与`Intext-修复版.exe`均已覆盖为此产物且哈希一致。构建与原生证据在忽略目录`local_artifacts/model_arrow_20261014/`，运行日志仍无自动写盘。下面的网关26项与旧产物哈希只属历史证据，不能作为最终交付版本结论。安装包和逐页审查仍暂停；源码同步进行中。
+最终箭头产物70,411,122字节，SHA256 `94b7912a884f991d58ae87adb2cf2c5efbbca3e9ed365dcf0a45bdceacaac672`。桌面`Intext.exe`与`Intext-修复版.exe`均已覆盖为此产物且哈希一致。构建与原生证据在忽略目录`local_artifacts/model_arrow_20261014/`，运行日志仍无自动写盘。下面的网关26项与旧产物哈希只属历史证据，不能作为最终交付版本结论。安装包和逐页审查仍暂停；实现提交9172e9a已通过GitHub API原SHA同步并核对远端main一致。
 
 ## 取消前的诊断记录（历史，不属于最终实现）
 
@@ -62,3 +62,10 @@ Spec首轮指出按OpenAI/Anthropic/xAI类别给所有根地址加前缀会破�
 产物70,411,782字节，SHA256 `3f636fd5d73edc081a8219cb76a503e0a9620adea51d9f8fc135478fdc5379cf`。桌面`Intext.exe`及既有`Intext-修复版.exe`均更新为此产物并核对一致；未结束用户运行的进程。仓库旧`dist/Intext.exe`仍被进程占用，保留原文件，不能将其当本批交付；请以桌面或本批独立输出为准。
 
 build、.pytest_cache及src/tests/docs中的4处Python生成缓存移入忽略目录的`cleanup/`，含恢复清单。移动前逐项验证路径位于仓库并无Git跟踪文件；源码、个人配置/会话、验证证据与正在使用的旧产物保留。构建输出、证据及缓存不入Git。
+
+
+## 最终发布记录
+
+仅箭头实现提交`9172e9aa0d4483b049c2fb09613171d2862a3f6f`已同步GitHub main，远端API读回精确一致。普通Git push直连443和本机旧代理不可用；改用现有Git凭据在内存中调用GitHub Git Data API，增量上传blob/tree/commit逐一核对原Git SHA，最后以force=false快进并再次读回。没有修改全局代理、打印/保存凭据或推送取消的1395cae。此前a6d0d1a保存修复及f46f127交付记录一起原SHA同步。API两次全树提交502后改为基点增量树成功；失败未更新分支。详细同步证据在忽略目录github_api_sync_result.json，最终发布文档提交不改变已验收应用/EXE。
+
+R1完成、R2按用户取消、R3/R4完成。最终有效验证为箭头DOM6项、最终EXE实际WebView2双启动24项、限定范围两轴0待修；此前网关与12相邻旧失败只属取消前历史。
