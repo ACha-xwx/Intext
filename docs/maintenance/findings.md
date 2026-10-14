@@ -752,3 +752,5 @@ Intext Hero参考：加载组件是40px圆角方块，2秒easeInOut旋转并变�
 2026-10-14 I1：公开冻结EXE --smoke-test启动测得_MEI解包，回归1红（临时盘解包）。Windows依赖已包含；onedir构建开始。选择官方Evergreen bootstrapper（1.77MB，Microsoft签名）减小包和临时空间，缺Runtime时需联网；不再强制离线178MB依赖。Inno页面旧链接返回HTML，改明确6.7.3 GitHub下载。首次计划apply_patch未匹配标题，无写入，随后正确追加。
 
 官方WebView2分发：HKLM32/HKCU pv版本检测，/silent /install，非提升为当前用户。来源https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/distribution。Bootstrapper已验证有效Microsoft Corporation签名。安装器空间检查覆盖Windows/LocalAppData/临时目录。
+
+2026-10-14 安装发布核对：GitHub已发布v2026.10.14-setup，标签=648ea1d31ada6c2a3d1ae3c032e2efce0db68d9c；56,558,711字节安装包SHA256 d3149e2ff12ebbac0019337559294d0789d206942694ec9d4bc78844aaac8fde，GitHub资产/桌面/本地一致。第二次只读验证两项最终下载URL、标签与发布状态通过；私有仓库需有权限账号。98MB不足，建议C盘腾出1GB，即使安装到其他盘也需临时/用户数据空间。

@@ -138,10 +138,10 @@
 - [x] B5a 修复EXE打包资源遗漏，独立验收及桌面复制
 - [x] B5b GitHub提交推送和远端身份确认
 
-- [ ] I1 官方WebView2分发与环境要求
-- [ ] I2 Intext当前用户安装包/依赖闭环
-- [ ] I3 实际安装与WebView2启动/定向回归/双轴复审
-- [ ] I4 GitHub Release及桌面安装包
+- [x] I1 官方WebView2分发与环境要求
+- [x] I2 Intext当前用户安装包/依赖闭环
+- [x] I3 实际安装与WebView2启动/定向回归/双轴复审（CLI5/原生22/包内8，两轴0待修）
+- [x] I4 GitHub Release及桌面安装包（v2026.10.14-setup/648ea1d，两项资产与桌面SHA256一致）
 
 
 - [x] P1 生产DOM/真实schema复现首次供应商不写盘、教程禁用
