@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
@@ -11,7 +12,7 @@ from typing import Any, Mapping
 from jsonschema import Draft202012Validator
 
 from .paths import m1_asset_dir
-from .model_output import json_text, string_list, object_list, normalize_shape, log_repairs, extra_notes, reference_contribution
+from .model_output import json_text, string_list, object_list, normalize_shape, log_repairs, reference_contribution
 
 
 class M4ValidationError(ValueError):
@@ -110,6 +111,35 @@ def _validate_input(payload: dict[str, Any]) -> None:
     _id_map(payload["suggestion_decisions"], "suggestion_id", "建议决策")
 
 
+def _structured_response_text(text: str) -> bool:
+    return text.lstrip("\ufeff \t\r\n").startswith(("{", "[", "```")) or bool(re.search(
+        r"[\"'](?:schema_version|request_id|task_id|contributions|proposed_changes|binding_id)[\"']\s*:", text,
+    ))
+
+
+def _recovery_notes(report: list[dict[str, Any]]) -> list[str]:
+    """Keep task prose; response metadata belongs only in run evidence."""
+    notes = []
+    for event in list(report):
+        action = event["action"]
+        if action == "model_advisory_error":
+            value = event.get("value")
+            values = [value.get(key) for key in ("code", "message", "recovery_action")] if isinstance(value, dict) else [value]
+            prefix = "模型整合尚待核对："
+        elif action in {"extra_field", "unstructured_guidance"}:
+            values = string_list(event.get("value"))
+            prefix = "模型补充内容（尚未核对）：" if action == "extra_field" else "模型整合尚待核对："
+        else:
+            continue
+        readable = [value for value in string_list(values) if not _structured_response_text(value)]
+        notes.extend(prefix + value for value in readable)
+        if event.get("value") and not readable:
+            report.append({"action": "structured_note_omitted", "path": event["path"]})
+    if any(event["action"] == "structured_response_omitted" for event in report):
+        notes.append("模型整合响应格式无法解析；已保留所选 Skill 的引用指导，使用时请读取其入口核对具体用法。")
+    return notes
+
+
 def parse_m4_response(
     raw: str,
     payload: dict[str, Any],
@@ -120,13 +150,23 @@ def parse_m4_response(
     _schema_error(payload, M4Assets.load().input_schema, "M4输入")
     _validate_input(payload)
     repairs = normalization_report if normalization_report is not None else []
+    text = json_text(raw).lstrip("\ufeff")
+    # Strip only an outer explanation/code fence around one complete object.
+    # The enclosed JSON still goes through strict parsing and identity checks.
+    wrapped = re.fullmatch(r"[^{}\[\]]*(\{.*\})[^{}\[\]]*", text, re.DOTALL)
+    if wrapped and wrapped.group(1) != text:
+        text = wrapped.group(1)
+        repairs.append({"action": "unwrap_json", "path": "$"})
     try:
-        parsed = _strict_json_loads(json_text(raw))
+        parsed = _strict_json_loads(text)
     except M4ValidationError as exc:
         if not raw.strip() or "重复键" in str(exc) or "非法数值" in str(exc):
             raise
         parsed = {"contributions": [], "proposed_changes": []}
-        repairs.append({"action": "unstructured_guidance", "path": "$", "value": raw})
+        if _structured_response_text(text) or _structured_response_text(raw):
+            repairs.append({"action": "structured_response_omitted", "path": "$", "reason": str(exc)})
+        else:
+            repairs.append({"action": "unstructured_guidance", "path": "$", "value": raw})
     for key in ("request_id", "task_id"):
         if key in parsed and parsed[key] != payload[key]:
             raise M4ValidationError(f"模型返回的{key}与请求不一致。")
@@ -187,8 +227,7 @@ def parse_m4_response(
         if key not in represented:
             contributions.append(reference_contribution(binding, works[binding["key_work_id"]]))
             repairs.append({"action": "reference_default", "binding_id": key})
-    notes = extra_notes(repairs)
-    notes.extend(f"模型整合尚待核对：{event['value']}" for event in repairs if event["action"] in {"unstructured_guidance", "model_advisory_error"})
+    notes = _recovery_notes(repairs)
     if notes and contributions:
         contributions[0]["fallback_actions"].extend(notes)
     for item in contributions:

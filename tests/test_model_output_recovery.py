@@ -1,15 +1,18 @@
 """Prompt handoff recovery, tested with synthetic responses and no paid API."""
 import json
 from copy import deepcopy
+from pathlib import Path
 
 import pytest
 
 from promptsmith.api import ApiResult
 from promptsmith.delivery_workflow import DeliveryWorkflow, DeliveryStaleResponseError
+from promptsmith.exporter import export_markdown
 from promptsmith.finalization import build_final_draft, stage_final_draft, validate_current_final
 from promptsmith.m1 import M1Assets, M1ValidationError, apply_m1_response, build_m1_input, parse_m1_response
 from promptsmith.m4 import M4Assets, M4ValidationError, parse_m4_response
 from promptsmith.storage import save_session, load_session
+from promptsmith.skill_catalog import SkillCatalog
 from promptsmith.ui import generation_failure_message
 from tests.test_delivery_workflow import make_session, DeliveryHandler
 from tests.test_m1_incremental_retry import answered_session, delta_result
@@ -36,6 +39,148 @@ class ResponseClient:
     def complete_json(self, *args):
         self.calls += 1
         return ApiResult(self.response, "offline-model", None, None, 1)
+
+
+def test_m4_malformed_json_never_reaches_final_prompt_or_export(tmp_path, caplog):
+    session = persisted_selected_session()
+    workflow = DeliveryWorkflow(session, evidence_root=tmp_path / "runs")
+    payload = workflow.prepare_m4("malformed-integration", connection_version=1)
+    original_bindings = deepcopy(session.skill_state["bindings"])
+    # A missing closing delimiter exercises the same compatibility branch as
+    # the reported raw response in the final prompt, without a paid model call.
+    raw = json.dumps(DeliveryHandler._m4_output(payload), ensure_ascii=False)[:-1]
+    client = ResponseClient(raw)
+    outcome = workflow.invoke_m4(payload, client, protocol="offline", configured_model="offline-model")
+    workflow.apply_m4(payload, outcome, connection_version=1)
+    validate_current_final(session)
+    body = session.final_result["canonical_body"]
+    assert '"schema_version"' not in body
+    assert '"contributions"' not in body
+    assert '"proposed_changes"' not in body
+    assert "to-spec" in body and "仓库结构尚未提供" in body
+    assert session.skill_state["bindings"] == original_bindings
+    assert client.calls == 1
+    exported = export_markdown(session, tmp_path / "prompt.md", mode="draft").read_text(encoding="utf-8")
+    assert body in exported
+    assert '"schema_version"' not in exported
+    restored = load_session(save_session(session, tmp_path / "saved.json"))
+    validate_current_final(restored)
+    assert restored.final_result["canonical_body"] == body
+    assert (outcome.evidence_dir / "response.raw.txt").read_text(encoding="utf-8") == raw
+    check = json.loads((outcome.evidence_dir / "check.json").read_text(encoding="utf-8"))
+    assert check["normalization"] and check["valid"]
+    assert "compatibility repairs" in caplog.text
+    assert raw not in caplog.text
+
+
+def test_m4_wrapped_json_preserves_model_guidance_without_exporting_envelope(tmp_path):
+    session = persisted_selected_session()
+    workflow = DeliveryWorkflow(session, evidence_root=tmp_path / "runs")
+    payload = workflow.prepare_m4("wrapped-integration", connection_version=1)
+    response = DeliveryHandler._m4_output(payload)
+    response["contributions"][0]["method_actions"] = ["先逐项核对需求，再整理验收标准。"]
+    raw = "整合结果如下：\n```json\n" + json.dumps(response, ensure_ascii=False) + "\n```\n以上是整合结果。"
+    client = ResponseClient(raw)
+    outcome = workflow.invoke_m4(payload, client, protocol="offline", configured_model="offline-model")
+    assert outcome.parsed["contributions"][0]["method_actions"] == ["先逐项核对需求，再整理验收标准。"]
+    workflow.apply_m4(payload, outcome, connection_version=1)
+    body = session.final_result["canonical_body"]
+    assert "先逐项核对需求，再整理验收标准。" in body
+    assert '"schema_version"' not in body
+    assert "整合结果如下" not in body
+    assert "以上是整合结果" not in body
+    assert client.calls == 1
+    exported = export_markdown(session, tmp_path / "prompt.md", mode="draft").read_text(encoding="utf-8")
+    assert body in exported and '"schema_version"' not in exported
+
+
+@pytest.mark.parametrize("mode", ["extra_object", "advisory_error", "malformed_explanation", "single_quote_wrapped", "single_quote_incomplete"])
+def test_m4_recovery_keeps_readable_notes_without_serialized_technical_fields(tmp_path, mode):
+    session = persisted_selected_session()
+    workflow = DeliveryWorkflow(session, evidence_root=tmp_path / "runs")
+    payload = workflow.prepare_m4("readable-notes-" + mode, connection_version=1)
+    response = DeliveryHandler._m4_output(payload)
+    useful_note = "使用时核对交付文档的目录结构。"
+    if mode == "extra_object":
+        response["diagnostics"] = {"schema_version": "m4.v0.1", "contributions": response["contributions"]}
+        response["notes"] = [useful_note]
+    elif mode == "advisory_error":
+        response.update(status="error", contributions=[], error={
+            "code": "constraint_conflict", "message": "所选方法与当前约束有冲突。",
+            "recovery_action": useful_note,
+            "details": {"schema_version": "m4.v0.1", "proposed_changes": []},
+        })
+    raw = json.dumps(response, ensure_ascii=False)
+    if mode == "malformed_explanation":
+        raw = "整合结果如下：\n" + raw[:-1]
+    elif mode in {"single_quote_wrapped", "single_quote_incomplete"}:
+        raw = "整合结果如下：\n" + repr(response)
+        if mode == "single_quote_incomplete":
+            raw = raw[:-1]
+    client = ResponseClient(raw)
+    outcome = workflow.invoke_m4(payload, client, protocol="offline", configured_model="offline-model")
+    workflow.apply_m4(payload, outcome, connection_version=1)
+    body = session.final_result["canonical_body"]
+    assert "schema_version" not in body
+    assert '"binding_id"' not in body
+    assert '"proposed_changes"' not in body
+    assert '{"code":' not in body
+    assert "to-spec" in body
+    if mode in {"extra_object", "advisory_error"}:
+        assert useful_note in body
+    if mode == "advisory_error":
+        assert "constraint_conflict" in body
+        assert "所选方法与当前约束有冲突。" in body
+    exported = export_markdown(session, tmp_path / "prompt.md", mode="draft").read_text(encoding="utf-8")
+    assert body in exported and '"schema_version"' not in exported
+    assert client.calls == 1
+
+
+@pytest.mark.parametrize("mode", ["valid", "wrapped", "malformed", "plain_text"])
+def test_m4_multiple_selected_skills_survive_clean_export_and_reload(tmp_path, mode):
+    session = persisted_selected_session()
+    root = Path(__file__).resolve().parents[1]
+    catalog = SkillCatalog.load(root / "resources/skill_catalog/catalog_v0.1.json", source_root=root, verify_sources=True)
+    bindings = []
+    for record in catalog.records:
+        binding = deepcopy(session.skill_state["bindings"][0])
+        binding.update(
+            binding_id="selected-" + record["skill_id"], skill_id=record["skill_id"],
+            record_hash=record["record_hash"], record_snapshot=record,
+            capability_ids=[row["capability_id"] for row in record["capabilities"]],
+            precondition_assessments=[],
+        )
+        bindings.append(binding)
+    session.set_skill_state(status="selected", basis=session.skill_state["basis"], bindings=bindings)
+    workflow = DeliveryWorkflow(session, evidence_root=tmp_path / "runs")
+    payload = workflow.prepare_m4("multiple-skills-" + mode, connection_version=1)
+    response = DeliveryHandler._m4_output(payload)
+    raw = json.dumps(response, ensure_ascii=False)
+    if mode == "wrapped":
+        raw = "整合如下：\n```json\n" + raw + "\n```"
+    elif mode == "malformed":
+        raw = raw[:-1]
+    elif mode == "plain_text":
+        raw = "请先核对术语定义，再逐项整理验收标准。"
+    client = ResponseClient(raw)
+    outcome = workflow.invoke_m4(payload, client, protocol="offline", configured_model="offline-model")
+    workflow.apply_m4(payload, outcome, connection_version=1)
+    validate_current_final(session)
+    body = session.final_result["canonical_body"]
+    assert {row["binding_id"] for row in outcome.parsed["contributions"]} == {row["binding_id"] for row in bindings}
+    for name in ("to-spec", "domain-modeling", "goal-prompt"):
+        assert name in body
+    assert '"schema_version"' not in body
+    if mode == "plain_text":
+        assert raw in body
+    else:
+        assert raw not in body
+    assert client.calls == 1 and session.skill_state["bindings"] == bindings
+    restored = load_session(save_session(session, tmp_path / "saved.json"))
+    validate_current_final(restored)
+    assert restored.final_result["canonical_body"] == body
+    exported = export_markdown(restored, tmp_path / "prompt.md", mode="draft").read_text(encoding="utf-8")
+    assert body in exported and '"schema_version"' not in exported
 
 
 def test_historical_gap_answer_is_applied_and_preserved_after_reload(tmp_path, caplog):
@@ -125,19 +270,27 @@ def test_recovered_m4_still_rejects_cancelled_or_stale_request(tmp_path, mutatio
 
 
 @pytest.mark.parametrize("key", ["request_id", "task_id"])
-def test_m4_other_request_identity_remains_rejected(key):
+@pytest.mark.parametrize("wrapped", [False, True])
+def test_m4_other_request_identity_remains_rejected(key, wrapped):
     payload = fixture("m4_normal.manual_fixture.input.json")
     response = fixture("m4_normal.manual_fixture.output.json")
     response[key] = "another-task-or-request"
+    raw = json.dumps(response)
+    if wrapped:
+        raw = "结果：\n```json\n" + raw + "\n```"
     with pytest.raises(M4ValidationError, match=key):
-        parse_m4_response(json.dumps(response), payload, M4Assets.load().output_schema)
+        parse_m4_response(raw, payload, M4Assets.load().output_schema)
 
 
-def test_m4_duplicate_identity_and_empty_response_remain_errors():
+@pytest.mark.parametrize("raw", [
+    '{"request_id":"other","request_id":"current"}', "",
+    '结果：\n```json\n{"request_id":"other","request_id":"current"}\n```',
+    '结果：\n```json\n{"contributions": NaN}\n```',
+])
+def test_m4_duplicate_identity_and_empty_response_remain_errors(raw):
     payload = fixture("m4_normal.manual_fixture.input.json")
-    for raw in ('{"request_id":"other","request_id":"current"}', ""):
-        with pytest.raises(M4ValidationError):
-            parse_m4_response(raw, payload, M4Assets.load().output_schema)
+    with pytest.raises(M4ValidationError):
+        parse_m4_response(raw, payload, M4Assets.load().output_schema)
 
 
 @pytest.mark.parametrize("stage,action", [("m1", "重试分析"), ("m2", "重新生成方案"), ("m3", "直接选用"), ("m4", "直接生成提示词"), ("m5", "直接回答")])
