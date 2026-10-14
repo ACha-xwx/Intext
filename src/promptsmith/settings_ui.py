@@ -334,7 +334,7 @@ class SettingsMixin:
             self.skill_search_url_var.set(values["skill_search_url"])
         self._apply_visual_preferences()
         self.runtime_log.set_history_limit(values["debug_history"])
-        if self.debug_console is not None and any(key.startswith("debug_") for key in changed):
+        if self.debug_console is not None and any(key.startswith("debug_") or key == "notification_seconds" for key in changed):
             self.debug_console.apply_preferences(values)
         if not model_only:
             self.set_debug_console_enabled(persist=False)
@@ -382,7 +382,9 @@ class SettingsMixin:
     @staticmethod
     def _skill_review_options(values):
         return {"shortlist_limit": values["shortlist_limit"], "review_limit": values["review_limit"],
-                "input_budget_chars": values["input_budget"], "excerpt_chars": values["excerpt_chars"]}
+                "input_budget_chars": values["input_budget"], "excerpt_chars": values["excerpt_chars"],
+                "min_score": values["skill_min_score"], "description_chars": values["skill_description_chars"],
+                "brief_chars": values["skill_brief_chars"], "task_chars": values["skill_task_chars"]}
 
     def _new_preferred_session(self):
         from .session import SessionState

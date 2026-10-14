@@ -420,6 +420,8 @@ class WorkspaceController:
             status=app.status_var.get(), theme=app.preferences["composer_theme"],
             window_width=app.preferences["window_width"],
             font_size=app.preferences["font_size"], model=app.api_model_var.get(),
+            display_preferences={key: app.preferences[key] for key in
+                ("conversation_width", "notification_seconds", "thinking_autoscroll", "thinking_speed")},
             active_service=app.provider_var.get(),
             model_info=asdict(find_model(app.api_model_var.get())) if find_model(app.api_model_var.get()) else None,
             models=[asdict(m) for m in app.available_picker_models()],
@@ -801,7 +803,9 @@ def run_web_workspace(logs, *, automatic_close=None):
                 if not window.events.closed.is_set():
                     window.destroy()
             LOG.info("Web workspace starting: animation=browser scrolling=browser backend=native")
-            webview.start(watch_shutdown, gui="edgechromium", storage_path=profile, private_mode=True, http_server=True)
+            from .branding import brand_path
+            webview.start(watch_shutdown, gui="edgechromium", storage_path=profile,
+                          private_mode=True, http_server=True, icon=str(brand_path()))
     finally:
         api._closing.set()
         thread.join()

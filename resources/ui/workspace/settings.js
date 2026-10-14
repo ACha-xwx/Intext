@@ -127,9 +127,9 @@ class SettingsPage {
       if(control.type==="checkbox")control.checked=Boolean(value);else if(control.value!==String(value??""))control.value=value??"";
     }
     this.keyInput.placeholder=settings.has_key?"已配置；留空保留原密钥":"输入 API Key";
-    this.keyNote.textContent=this.keyAction==="clear"?"正在清空密钥。":settings.has_key?"已有密钥由 Windows 加密保护；这里不会显示原值。":"尚未配置密钥。";
-    this.confirmation.textContent=settings.confirmed?"模型配置可直接使用。测试连接只检查接口。":"填写有效的模型配置后即可使用。";
-    this.logDirectory.textContent="日志目录："+settings.log_directory+"。运行日志只在 Debug 控制台点击“保存日志”后写入文件。";
+    this.keyNote.textContent=this.keyAction==="clear"?"正在清空密钥。":settings.has_key?"":"尚未配置密钥。";
+    this.confirmation.textContent=settings.confirmed?"":"填写有效的模型配置后即可使用。";
+    this.logDirectory.textContent="日志目录："+settings.log_directory;
     this.refreshEnabled();
   }
   hideKey(){if(this.keyInput)this.keyInput.type="password";if(this.showKey){this.showKey.textContent="显示密钥";this.showKey.setAttribute("aria-pressed","false");}}
@@ -227,7 +227,6 @@ class SettingsPage {
     this.keyInput.addEventListener("input",event=>{this.key=this.keyInput.value;this.keyAction=this.key?"replace":this.keyAction==="clear"?"clear":"keep";this.refreshEnabled();if(!event.isComposing)this.scheduleSave();});
     this.keyInput.addEventListener("compositionend",()=>this.scheduleSave());
     this.keyInput.addEventListener("change",()=>this.scheduleSave(0));
-    modelForm.append(node("p","settings-full settings-profile-note","各供应商独立保存接口、密钥和模型列表。修改自动保存，密钥由 Windows 加密保护。"));
     const actions=node("div","settings-full settings-model-actions");this.modelButtons=[];
     for(const [label,action] of [["获取模型","settings_models"],["测试连接","settings_test"]]){const b=button(label,()=>this.submit(action));this.modelButtons.push(b);actions.append(b);}
     this.confirmation=node("p","settings-full settings-status");modelForm.append(actions,this.confirmation);
@@ -253,7 +252,7 @@ class SettingsPage {
     diagnostic("debug","settings fields rendered","choice_arrows="+this.element.querySelectorAll(".settings-choice").length+" full_width_actions="+this.element.querySelectorAll(".settings-full.settings-model-actions,.settings-full.settings-provider-actions").length);
   }
   groupFields(){
-    const descriptions={模型:"管理调用服务与模型参数。修改自动保存，有效配置即可使用。","Skill 搜索":"调整本地与联网搜索范围，以及模型筛选预算。",界面:"调整主题、字号和启动窗口。","会话与导出":"设置新会话偏好和本地保存位置。",诊断:"调整 Debug 控制台。日志由你点击保存后写入文件。"};
+    const descriptions={模型:"管理调用服务与模型参数","Skill 搜索":"调整本地与联网搜索范围，以及模型筛选预算",界面:"调整显示、交互和启动行为","会话与导出":"设置新会话偏好和本地保存位置",诊断:"调整 Debug 控制台"};
     for(const [category,form] of this.forms){
       const children=[...form.children];form.replaceChildren();
       const heading=node("div","settings-category-heading");heading.append(node("h2","",category),node("p","",descriptions[category]||"修改自动保存。"));form.append(heading);
@@ -265,6 +264,9 @@ class SettingsPage {
           const controlId=child.htmlFor,name=[...this.controls].find(([,c])=>c.id===controlId)?.[0];
           if(category==="模型"&&name&&!name.startsWith("connection."))group="生成参数";
           if(category==="Skill 搜索")group=["extra_skill_roots","skill_search_url","web_search_url","search_timeout","network_candidates","network_cache_seconds"].includes(name)?"检索来源":"筛选与预算";
+          if(category==="界面")group=["model_directory_autorefresh","model_directory_workers","window_width"].includes(name)?"启动行为":["thinking_autoscroll","thinking_speed"].includes(name)?"思考内容":"显示与通知";
+          if(category==="会话与导出")group=["history_save_interval","session_directory"].includes(name)?"会话保存":["export_directory","default_tone"].includes(name)?"提示词导出":"新会话";
+          if(category==="诊断")group=["debug_history","debug_lines","debug_refresh_ms"].includes(name)?"显示缓存与刷新":"控制台偏好";
           const box=node("div","settings-field"),content=children[++i];box.append(child,content);
           if(this.controls.get(name)?.type==="checkbox"){box.classList.add("settings-switch-row");this.controls.get(name).setAttribute("role","switch");}
           section(group).append(box);
@@ -357,8 +359,8 @@ class SettingsPage {
     if(this.current.providers[target]||!(this.current.saved_providers||[]).includes(target)){this.renaming=false;this.refreshEnabled();return;}
     for(const choice of this.suggestions)choice.close("category");
     const dialog=node("dialog","editor-dialog"),title=node("h2","popup-title","重命名自定义供应商");title.id="settings-rename-title";dialog.setAttribute("aria-labelledby",title.id);
-    const label=node("label","","新的服务名称"),field=node("input");field.id="settings-rename-name";field.value=target;field.maxLength=4095;label.htmlFor=field.id;
-    const note=node("p","notice","保留现有接口、加密密钥、模型参数和模型列表。"),buttons=node("div","actions");
+    const label=node("label","","新的服务名称"),field=node("input","settings-text-input");field.id="settings-rename-name";field.value=target;field.maxLength=4095;label.htmlFor=field.id;
+    const buttons=node("div","actions");
     let saving=false;
     this.renameDialog=dialog;
     const close=(reason="cancel")=>{if(saving)return;dialog.close();dialog.remove();if(this.renameDialog===dialog){this.renameDialog=null;this.renaming=false;this.refreshEnabled();if(this.open)this.renameProvider.focus();diagnostic("debug","custom provider rename dialog closed",reason);}};
@@ -373,7 +375,7 @@ class SettingsPage {
         if(result?.settings&&this.open&&this.renameDialog===dialog){this.clearModelDraft();this.update(result.settings,true);saving=false;close("saved");}
       }finally{saving=false;field.disabled=save.disabled=cancel.disabled=false;}
     });
-    sendOnEnter(field,()=>save.click());buttons.append(cancel,save);dialog.append(title,label,field,note,buttons);this.element.append(dialog);
+    sendOnEnter(field,()=>save.click());buttons.append(cancel,save);dialog.append(title,label,field,buttons);this.element.append(dialog);
     dialog.addEventListener("cancel",event=>{event.preventDefault();close();});dialog.showModal();field.focus();field.select();
     diagnostic("debug","custom provider rename dialog opened","");
   }

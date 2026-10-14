@@ -111,6 +111,35 @@ def test_saved_key_fetches_directory_at_startup_without_click(start_app, directo
     assert "model_list_button" in app.widgets
 
 
+def test_auto_directory_can_be_disabled_without_disabling_manual_fetch(start_app, directory_server, tmp_path):
+    from promptsmith.preferences import save_desktop_preferences
+    save_profile(tmp_path, directory_server, ids=("cached-model",))
+    save_desktop_preferences(tmp_path / "settings.json", {"model_directory_autorefresh": False})
+    app, view = start_app()
+    app.root.update()
+    assert not directory_server.calls
+    assert [m['id'] for m in view.snapshot()['models']] == ['cached-model']
+    snap = view.settings_snapshot()
+    view.settings_action('settings_models', dict(revision=snap['revision'], connection=snap['connection'],
+        values=snap['values'], key_action='keep', key=''))
+    wait_for(app.root, lambda: 'new-private-model' in [m['id'] for m in view.snapshot()['models']])
+    assert directory_server.calls == [('/v1/models', 'Bearer disposable-startup-key')]
+
+
+def test_saved_directory_concurrency_allows_three_simultaneous_requests(start_app, directory_server, tmp_path):
+    from promptsmith.preferences import save_desktop_preferences
+    directory_server.release.clear()
+    for name in ('DeepSeek', 'Relay A', 'Relay B'):
+        save_profile(tmp_path, directory_server, provider=name)
+    save_desktop_preferences(tmp_path / 'settings.json', {'model_directory_workers': 3})
+    app, view = start_app()
+    wait_for(app.root, lambda: len(directory_server.calls) == 3)
+    assert not app.busy
+    directory_server.release.set()
+    wait_for(app.root, lambda: all(profile.model_ids for profile in
+                                  load_settings(tmp_path / 'settings.json').model_profiles.values()))
+
+
 def test_slow_startup_directory_keeps_cached_models_and_settings_usable(start_app, directory_server, tmp_path):
     directory_server.release.clear()
     save_profile(tmp_path, directory_server, ids=("cached-model",))

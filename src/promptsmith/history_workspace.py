@@ -72,7 +72,8 @@ class HistoryWorkspace:
             except Exception:
                 pass  # _completed logs the complete cause and enables a retry.
         self._completed()
-        if not force and (self.future is not None or time.monotonic()-self.last_check < 2 or time.monotonic() < self.retry_after):
+        interval = self.app.preferences.get("history_save_interval", 2.)
+        if not force and (self.future is not None or time.monotonic()-self.last_check < interval or time.monotonic() < self.retry_after):
             return
         self.last_check = time.monotonic()
         data = self.app.session.to_dict()

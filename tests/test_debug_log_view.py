@@ -28,7 +28,7 @@ def test_startup_console_is_concise_but_manual_log_preserves_diagnostics(tmp_pat
     api = DebugApi(WebDebugConsole(logs, DesktopApi()))
     raw = "Browser 启动页加载完成: tutorial_status=completed"
     failure = "Browser 启动按钮使用静态银边: Error: WebGL unavailable\n完整异常位置"
-    wordmark = "Browser 启动标题已就绪: source=local-svg"
+    wordmark = "Browser 启动标题已就绪: source=intext-logo.png"
     logs.record("promptsmith.web_workspace",logging.INFO,raw)
     logs.record("promptsmith.web_workspace",logging.WARNING,failure)
     logs.record("promptsmith.web_workspace",logging.DEBUG,wordmark)

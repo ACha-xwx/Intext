@@ -79,6 +79,9 @@ datas = [
     (str(project / "resources" / "ui" / "workspace"), "resources/ui/workspace"),
 ]
 datas += collect_data_files("webview")
+# jsonschema imports this optional format checker when installed. Its parser
+# reads a grammar at import time, including before a frozen window is created.
+datas += collect_data_files("rfc3987_syntax", includes=["*.lark"])
 
 a = Analysis(
     [str(project / "run_promptsmith.py")],
@@ -102,6 +105,7 @@ exe = EXE(
     a.datas,
     [],
     name="Intext",
+    icon=str(project / "resources/ui/workspace/brand/intext.ico"),
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

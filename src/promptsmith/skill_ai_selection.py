@@ -85,13 +85,13 @@ _REVIEW_SCHEMA: dict[str, Any] = {
 }
 
 
-def _candidate_summary(candidate: Mapping[str, Any]) -> dict[str, Any]:
+def _candidate_summary(candidate: Mapping[str, Any], *, description_chars=1600, brief_chars=2000) -> dict[str, Any]:
     """A bounded introduction; source identity is checked by network discovery."""
     record = candidate.get("record_snapshot") or {}
     record = record if isinstance(record, Mapping) else {}
     bundle = record.get("evidence_bundle") or {}
     bundle = bundle if isinstance(bundle, Mapping) else {}
-    description = str(candidate.get("description") or record.get("description") or bundle.get("description") or "")[:1600]
+    description = str(candidate.get("description") or record.get("description") or bundle.get("description") or "")[:description_chars]
     pieces = [description] if description else []
     for key in ("search_snippet", "repository_description", "readme_excerpt"):
         value = bundle.get(key) or record.get(key)
@@ -101,12 +101,12 @@ def _candidate_summary(candidate: Mapping[str, Any]) -> dict[str, Any]:
         source = record["source_text"].lstrip("\ufeff\r\n ")
         if source.startswith("---") and len(source.split("---", 2)) == 3:
             source = source.split("---", 2)[2].strip()
-        pieces.append(source[:1600])
+        pieces.append(source[:description_chars])
     return {
         "candidate_id": str(candidate["candidate_id"]),
         "name": str(candidate.get("name") or record.get("name") or "")[:160],
         "description": description,
-        "brief": "\n".join(pieces)[:2000],
+        "brief": "\n".join(pieces)[:brief_chars],
         "source_url": str(candidate.get("source_url") or record.get("source_url") or "")[:500],
         "evidence": {"evidence_level": "skill_summary", "evidence_basis": ["Skill 简介与公开摘要"],
                      "limitations": ["AI 按简介评分，未阅读全文；使用时由下游 AI 核对来源与适用条件。"]},
@@ -298,6 +298,10 @@ def select_skill_candidates_with_ai(
     input_budget_chars: int = 60000,
     excerpt_chars: int = 4000,
     summary_only: bool = False,
+    min_score: float = .4,
+    description_chars: int = 1600,
+    brief_chars: int = 2000,
+    task_chars: int = 6000,
 ) -> list[dict[str, Any]]:
     """Score network introductions once, or review local sources with bounded calls."""
 
@@ -319,7 +323,7 @@ def select_skill_candidates_with_ai(
         {key: value for key, value in work.items() if key in {"key_work_id", "title", "goal", "step_ids"}}
         for work in works
     ]}
-    if len(json.dumps(task, ensure_ascii=False)) > 6000:
+    if len(json.dumps(task, ensure_ascii=False)) > task_chars:
         raise SkillAiSelectionError("任务与关键工作超过 Skill 筛选输入预算；已保留本地候选，可缩短任务说明后重试。")
 
     evidence: dict[str, Any] = {}
@@ -403,7 +407,8 @@ def select_skill_candidates_with_ai(
     full_sources = []
     for candidate_id in shortlisted:
         if summary_only:
-            full_sources.append(_candidate_summary(by_id[candidate_id]))
+            full_sources.append(_candidate_summary(by_id[candidate_id],
+                description_chars=description_chars, brief_chars=brief_chars))
             continue
         package = _candidate_evidence(by_id[candidate_id])
         source = str(package.pop("source", ""))
@@ -430,6 +435,10 @@ def select_skill_candidates_with_ai(
             progress(f"AI 正在根据 {len(batch)} 项 Skill 简介评分并推荐（0～1）" if summary_only else
                      f"AI 正在核验 {len(batch)} 项 Skill 内容（{step}；长文使用节选）")
         review_prompt = _SUMMARY_PROMPT if summary_only else _REVIEW_PROMPT.replace("最多返回 8 项", f"最多返回 {review_limit} 项")
+        review_prompt = review_prompt.replace("更低应排除", "更低表示相关性较弱").replace("低于0.4不推荐", "更低表示相关性较弱")
+        review_prompt += f" 当前用户推荐最低分为{min_score:g}；仍请如实评分。"
+        review_prompt += (" 返回每项评分，包括低于门槛的候选，由程序按此门槛展示。" if summary_only else
+                          " 保留达到此门槛的候选，由程序按此门槛展示。")
         cost = lambda: len(review_prompt) + len(json.dumps({**task, "skills": batch}, ensure_ascii=False))
         while batch and input_chars + cost() > input_budget_chars:
             batch.pop()
@@ -442,6 +451,8 @@ def select_skill_candidates_with_ai(
                                reviewed_count=len(batch), input_chars=input_chars)
         logging.getLogger(__name__).info("AI Skill scoring started: mode=%s candidates=%s input_chars=%s",
                                          "summary" if summary_only else "source", len(batch), input_chars)
+        logging.getLogger(__name__).debug("AI Skill scoring preferences: min_score=%s description_chars=%s brief_chars=%s task_chars=%s",
+                                          min_score, description_chars, brief_chars, task_chars)
         result = _model_json(client, review_prompt, {**task, "skills": batch}, _REVIEW_SCHEMA)
         matches = result.get("matches")
         allowed = {item["candidate_id"] for item in batch}
@@ -472,15 +483,15 @@ def select_skill_candidates_with_ai(
             candidate["usage_suggestion"] = parsed["usage"]
             candidate["ai_relevance_score"] = parsed["legacy"]
             normalized = parsed["score"]
-            if normalized < .4:
-                low_score_rejected_count += 1
-                continue
             candidate["match_evidence"] = [{"group_id": "ai_source_review", "label": "AI 综合公开信息", "matched_terms": []}]
             level = evidence[candidate_id].get("evidence_level", "unknown")
             candidate["evidence_level"] = level
             candidate["evidence_basis"] = list(evidence[candidate_id].get("evidence_basis", []))
             candidate["evidence_limitations"] = list(evidence[candidate_id].get("limitations", []))
             candidate["recommendation_score"] = round(normalized if level in {"full_skill", "skill_summary"} else min(normalized, .85) if level == "skill_excerpt" else min(normalized, .69), 3)
+            if candidate["recommendation_score"] < min_score:
+                low_score_rejected_count += 1
+                continue
             candidate["recommendation_basis"] = "AI 简介评分；推荐强度，不是成功概率" if summary_only else "AI 内容核验；推荐强度，不是成功概率"
             candidate["ai_review_status"] = "completed"
             candidate["ai_evidence_note"] = (

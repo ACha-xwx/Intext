@@ -160,3 +160,13 @@ S2 complete: 20 distinct public DOM/Tk/Controller checks passed, including actua
 S3a: public search feedback loop reproduces missing introduction and wrapped JSON fallback; pass bounded actual descriptions/intro excerpts in one AI scoring call with model scores and specific uses. S3b: tolerate partial malformed rows and expose genuine failure/review mode in inline status, candidate details and Debug; preserve source identity/cancel/local paths. S3c: incremental Spec/Standards review, combined S1–S3/adjacent regression, static checks/maintenance/CodeGraph. Baseline local_artifacts/skill_summary_scoring_20261014/before. No personal settings, live paid model requests, EXE build or remote publication.
 
 S3a–S3c complete: empty summary scores explicitly fail while valid low scores remain no-match; cancellation wins over late network exceptions. Broad 323 nodes yielded 322 passed/1 old hidden-control fixture; corrected to public previous-stage→integration, final affected six modules 61 passed. Latest distinct nodes 326 passed; final Spec/Standards each 0 findings. See ../docs/maintenance/skill_summary_scoring_20261014.md. Full project audit remains paused.
+
+
+## 2026-10-14 设置与品牌
+
+B1输入文案、B2实际参数、B3用户LOGO、B4相关验证与双轴审阅，详见 [计划](../docs/maintenance/settings_brand_20261014.md)。
+
+
+2026-10-14 B1–B4完成：输入/文案、12项偏好实际接线、图形LOGO及旧SVG保留；207个不同节点最新通过，实际源码WebView2 21项通过，双轴各0待修。用户已授权B5提交GitHub及桌面EXE，进行中。独立EXE首次启动复现jsonschema可选格式库缺少syntax_rfc3987.lark，spec补收集该资源后重新构建验收；原始失败证据保留。完整逐页审查继续暂停，无真实模型请求。详见settings_brand_20261014.md。
+
+2026-10-14 B5产物完成：补齐可选JSON格式解析语法后重建EXE，独立WebView2双启动21/21、Tk构造退出0，无自动运行日志；70,409,166字节，SHA256 74898acf29a1bfcc342951d162ad782986e99845f6d638b0ae8ad1e80ee3297c，桌面Intext.exe副本一致。准备提交GitHub，EXE/本地证据不入库。

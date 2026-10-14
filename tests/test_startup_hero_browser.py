@@ -93,10 +93,10 @@ def test_hero_group_is_centered_and_the_reference_animations_are_local(hero_page
     assert start.locator("svg").evaluate("e=>[e.getBoundingClientRect().width,e.getBoundingClientRect().height]") == [20,20]
     expect(start.locator("canvas")).to_have_count(1)
     assert not view.evaluate("calls.some(c=>c.action!=='diagnostic')")
-    logo = view.get_by_role("img", name="意织 · Intext", exact=True)
+    logo = view.locator(".startup-wordmark")
     assert logo.evaluate("e=>e.complete&&e.naturalWidth>0")
     assert logo.evaluate("e=>{const r=e.getBoundingClientRect();return Math.abs(r.width/r.height-e.naturalWidth/e.naturalHeight)}") < .02
-    assert logo.bounding_box()["width"] <= 640
+    assert logo.bounding_box()["width"] <= 240
 
 
 def test_lack_of_webgl_keeps_the_start_button_usable_and_logs_the_cause(hero_page):
@@ -151,48 +151,41 @@ def test_product_brand_is_intext_in_main_and_debug_pages(hero_page):
     publish(view,"completed")
     expect(view.locator("#startup-hero")).to_be_hidden()
     assert view.title() == "Intext"
-    expect(view.locator("header .brand")).to_have_text("Intext")
-    expect(view.locator(".sidebar-brand img")).to_have_attribute("alt", "Intext")
+    expect(view.locator("header .brand img")).to_have_attribute("alt", "Intext")
+    expect(view.locator(".sidebar-logo")).to_have_attribute("alt", "Intext")
     assert "PromptSmith" not in view.locator("body").inner_text()
     view.goto((ASSETS/"debug.html").as_uri())
     assert view.title() == "Intext · Debug 控制台"
-    expect(view.locator("header .brand")).to_have_text("Intext")
+    expect(view.locator("header .brand img")).to_have_attribute("alt", "Intext")
 
 
-def test_hero_wordmark_is_one_loaded_vector_and_needs_no_font(hero_page):
+def test_hero_uses_the_user_logo_without_runtime_font_generation(hero_page):
+    from PIL import Image
     from pathlib import Path
-    import xml.etree.ElementTree as ET
-
+    from tests.test_frontend_review_regressions import ASSETS
     view = hero_page
     publish(view)
-    image = view.get_by_role("img", name="意织 · Intext", exact=True)
-    expect(image).to_be_visible()
-    assert image.evaluate("e=>e.complete&&e.naturalWidth>0")
+    expect(view.get_by_role("button", name="开始使用 Intext", exact=True)).to_be_visible()
+    image = view.locator(".startup-wordmark")
+    assert image.evaluate("e=>e.complete&&e.naturalWidth===768")
     source = image.get_attribute("src")
-    assert source.endswith(".svg")
-    svg = ET.parse(Path(ASSETS) / source).getroot()
-    names = {el.tag.rsplit("}", 1)[-1] for el in svg.iter()}
-    assert "path" in names
-    assert not names.intersection({"text", "image", "foreignObject", "script"})
-    assert "意织 · Intext" in "".join(svg.itertext())
-    assert len(view.locator(".startup-title img").all()) == 1
-    assert view.locator(".startup-title").inner_text() == ""
+    assert source == "brand/intext-logo.png"
+    logo = Image.open(Path(ASSETS)/source)
+    assert logo.mode == "RGBA" and logo.getpixel((0,0))[3] == 0
+    assert view.locator(".startup-name").get_attribute("src") == "brand/intext-wordmark.svg"
 
 
-def test_sidebar_uses_a_monochrome_english_only_vector_wordmark(hero_page):
-    from pathlib import Path
-    import xml.etree.ElementTree as ET
-
-    publish(hero_page, "completed")
-    image = hero_page.locator(".sidebar-brand").get_by_role("img", name="Intext", exact=True)
-    expect(image).to_be_visible()
-    assert image.evaluate("e=>e.complete&&e.naturalWidth>0")
-    assert image.bounding_box()["height"] == 20
-    root = ET.parse(Path(ASSETS) / image.get_attribute("src")).getroot()
-    assert root.find("{*}title").text == "Intext"
-    assert "意织" not in "".join(root.itertext())
-    assert not {el.tag.rsplit("}",1)[-1] for el in root.iter()}.intersection({"text", "image", "script"})
-    assert root.find("{*}path").get("fill") == "#18181b"
+def test_sidebar_uses_the_same_color_logo_in_both_themes(hero_page):
+    from playwright.sync_api import expect
+    publish(hero_page,"completed")
+    for theme in ('light','dark'):
+        hero_page.evaluate("theme=>document.documentElement.dataset.theme=theme",theme)
+        image = hero_page.locator('.sidebar-logo')
+        expect(image).to_be_visible()
+        assert image.get_attribute('src') == 'brand/intext-logo.png'
+        assert image.evaluate('e=>e.complete&&e.naturalWidth>0')
+        assert image.evaluate('e=>getComputedStyle(e).filter') == 'none'
+        assert hero_page.locator('.sidebar-wordmark').get_attribute('src') == 'brand/intext-english.svg'
 
 
 def test_glass_composer_buttons_have_no_second_bright_inner_ring(hero_page, tmp_path):
@@ -214,7 +207,7 @@ def test_glass_composer_buttons_have_no_second_bright_inner_ring(hero_page, tmp_
 
 
 @pytest.mark.parametrize("hero_page", [pytest.param(
-    "window.finishWordmark=null;HTMLImageElement.prototype.decode=function(){return new Promise(resolve=>window.finishWordmark=resolve)};",
+    "window.finishWordmark=null;window.waitingWordmark=null;HTMLImageElement.prototype.decode=function(){return window.waitingWordmark??=new Promise(resolve=>window.finishWordmark=resolve)};",
     id="delayed-svg")], indirect=True)
 def test_loading_waits_for_the_local_wordmark_before_entering(hero_page):
     view = hero_page

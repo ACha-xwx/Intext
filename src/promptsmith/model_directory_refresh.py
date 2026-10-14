@@ -39,6 +39,9 @@ class ModelDirectoryRefresh:
             feedback(provider, text)
 
     def start(self):
+        if not self.app.preferences.get("model_directory_autorefresh", True):
+            LOG.info("Startup model directory refresh disabled by preference; cached directories retained")
+            return
         for provider, profile in tuple(self.app._provider_profiles.items()):
             if not profile.api_key.strip():
                 continue
@@ -54,7 +57,9 @@ class ModelDirectoryRefresh:
                 self._set_status(provider, "无法自动获取模型列表，请核对接口配置后点击“获取模型”。")
                 continue
             if self.executor is None:
-                self.executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="model-directory")
+                workers = self.app.preferences.get("model_directory_workers", 2)
+                self.executor = ThreadPoolExecutor(max_workers=workers, thread_name_prefix="model-directory")
+                LOG.info("Startup model directory pool created: workers=%s", workers)
             scope = TaskScope()
             self._set_status(provider, "正在自动获取模型列表，已有列表仍可使用。")
             LOG.info("Startup model directory scheduled: provider=%s cached_count=%s", provider, len(profile.model_ids))

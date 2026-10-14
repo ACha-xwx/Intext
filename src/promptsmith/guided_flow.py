@@ -135,7 +135,9 @@ class GuidedFlowMixin(ConversationWorkspaceMixin, SettingsMixin):
         header.columnconfigure(1, weight=1)
         identity = tk.Frame(header, bg=colors["bg"])
         identity.grid(row=0, column=0, sticky="w")
-        brand = tk.Label(identity, text="Intext", bg=colors["bg"], fg=colors["fg"], font=ui_font(self.root, "title", "bold"))
+        brand_image = getattr(self.root, "_intext_icon", None)
+        brand = tk.Label(identity, image=brand_image, text="" if brand_image else "Intext", bg=colors["bg"])
+        brand.image = brand_image
         brand.pack(side="left")
         flow = tk.Label(identity, textvariable=self._flow_progress, bg=colors["bg"], fg=colors["muted"], font=ui_font(self.root))
         flow.pack(side="left", padx=18)

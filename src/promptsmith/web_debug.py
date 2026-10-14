@@ -38,7 +38,7 @@ def concise_message(message, level):
         return "已进入工作区" + ("；开始新手教程" if entered[1] == "true" else "")
     startup_routines = {"Browser 启动页等待开始: tutorial_pending=true":"等待点击开始",
                         "Browser 启动按钮动画已就绪: engine=WebGL2":"启动按钮动画已就绪",
-                        "Browser 启动标题已就绪: source=local-svg":"启动标题已就绪"}
+                        "Browser 启动标题已就绪: source=intext-logo.png":"启动标题已就绪"}
     if message in startup_routines:
         return startup_routines[message]
     restored = re.fullmatch(r"Answer round restored: task=\S+ questions=(\d+) answers=(\d+) version=\d+ model_requests=0", message)

@@ -1,5 +1,7 @@
 # 开发、检查与打包
 
+2026-10-14 设置与品牌：重命名框统一输入样式，删除指定静态说明，五类简介精简且无句号；新增12项有实际运行接线的偏好并支持自动保存/启动恢复。图形品牌统一用户新LOGO，Hero完整字标和侧栏英文保留原黑白手绘SVG，运行不生成字体/图像。207个不同相关节点最新通过，实际源码WebView2隔离双启动21项通过，Spec/Standards最新各0项待修；完整逐页审查仍暂停，没有真实模型请求。EXE独立WebView2双启动21项及Tk构造烟测通过，最终Intext.exe已放桌面且哈希一致；GitHub发布按用户授权执行，详见[维护](maintenance/settings_brand_20261014.md)。
+
 2026-10-13 Intext 启动：新增启动 Hero，加载就绪后按教程状态分流；本地液态金属 shader 和 Apache 许可随 workspace 整目录打包，运行不需要 Node/CDN。修改入口同时检查 `tests/test_startup_hero_browser.py`、tutorial、Debug/导出/偏好/历史相邻用例；原生隔离验收脚本为 `maintenance/intext_hero_webview_check_20261013.py` 与已适配 Hero 的 `maintenance/tutorial_webview_check_20261013.py`。这些检查不调用真实模型。EXE 名称现为 Intext，包名、旧设置/会话/加密上下文保持兼容；完整标题与侧栏英文SVG已就绪，本轮没有重新构建EXE，见[维护](maintenance/intext_hero_20261013.md)。
 
 2026-10-12 团队启动修复：`run.bat` 固定项目目录、优先 `.venv/Scripts/python.exe`、默认传入 `--renderer web`，并保留参数、失败信息和退出码。缺 pywebview 时错误给出当前解释器的安装命令；不再通过此入口静默退回旧界面。直接 Python 的 auto 模式和显式 `--renderer tk` 仍保留。详见[跨机启动与 GPT 400 修复](maintenance/startup_responses_20261012.md)。

@@ -57,6 +57,7 @@ class DebugConsole:
         self.after_id = None
         self.closed = False
         self.line_limit = 6000
+        self.refresh_ms = 150
         self.enabled_levels = set(LEVEL_COLORS)
         self.entry_tags = {}
         self.window = tk.Toplevel(parent)
@@ -66,6 +67,8 @@ class DebugConsole:
         for name in ("TLabel", "TButton", "TCheckbutton", "TCombobox", "Muted.TLabel"):
             style.configure("DebugConsole."+name, font=font)
         self.window.title("Intext · Debug 控制台")
+        from .branding import apply_window_icon
+        apply_window_icon(self.window)
         width = min(1120, max(400, parent.winfo_screenwidth() - 80))
         height = min(640, max(300, parent.winfo_screenheight() - 140))
         self.window.geometry(f"{width}x{height}")
@@ -261,6 +264,7 @@ class DebugConsole:
         self.level_var.set(values["debug_level"])
         self.autoscroll_var.set(values["debug_autoscroll"])
         self.line_limit = values["debug_lines"]
+        self.refresh_ms = values.get("debug_refresh_ms", 150)
         self.rebuild()
 
     def poll(self) -> None:
@@ -285,7 +289,7 @@ class DebugConsole:
             if entries:
                 self.last_sequence = entries[-1].sequence
         self.directory_button.configure(state="normal" if self.logs.directory.is_dir() else "disabled")
-        self.after_id = self.window.after(150, self.poll)
+        self.after_id = self.window.after(self.refresh_ms, self.poll)
 
     def save(self) -> None:
         try:

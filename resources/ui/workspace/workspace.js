@@ -263,7 +263,8 @@ class TraceView {
     if(!this.el.isConnected){return;}
     this.updateElapsed(now);
     if(now-this.last>=16&&this.pending) {
-      let end=Math.min(this.pending.length,Math.max(1,Math.min(4096,Math.ceil(this.pending.length/18))));
+      const speed=state?.display_preferences?.thinking_speed??1;
+      let end=Math.min(this.pending.length,Math.max(1,Math.min(4096,Math.ceil(this.pending.length*speed/18))));
       if(segmenter) {
         for(const chunk of segmenter.segment(this.pending.slice(0,end+80))) {
           if(chunk.index+chunk.segment.length>=end){end=chunk.index+chunk.segment.length;break;}
@@ -271,7 +272,7 @@ class TraceView {
       } else if(end<this.pending.length&&this.pending.charCodeAt(end-1)>=0xd800&&this.pending.charCodeAt(end-1)<=0xdbff)end++;
       const follow=this.thought.scrollHeight-this.thought.scrollTop-this.thought.clientHeight<24;
       this.text.appendData(this.pending.slice(0,end));this.pending=this.pending.slice(end);this.last=now;
-      if(follow)this.thought.scrollTop=this.thought.scrollHeight;
+      if(follow&&state?.display_preferences?.thinking_autoscroll!==false)this.thought.scrollTop=this.thought.scrollHeight;
     }
     if(this.pending||this.status==="working")this.frame=requestAnimationFrame(t=>this.tick(t));
   }
@@ -360,6 +361,8 @@ function applySnapshot(next) {
   document.documentElement.dataset.theme=state.theme;
   document.documentElement.style.fontSize=Number(state.font_size)*96/72*1.25+"px";
   document.documentElement.style.setProperty("--baseline",Number(state.font_size)*96/72+"px");
+  document.documentElement.style.setProperty("--conversation-width",(state.display_preferences?.conversation_width??1060)+"px");
+  window.promptsmithNotifications.configure(state.display_preferences?.notification_seconds??5);
   const settingsOpen=state.page==="settings";
   viewport.hidden=settingsOpen;$("footer").hidden=settingsOpen;$("#settings-page").hidden=!settingsOpen;
   for(const b of document.querySelectorAll("[data-panel]"))b.hidden=settingsOpen;

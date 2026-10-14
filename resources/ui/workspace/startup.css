@@ -4,10 +4,11 @@
 #startup-hero.leaving{opacity:0;transform:scale(1.025);pointer-events:none}
 .startup-active :is(#sidebar,#workspace-shell,#popup-layer){visibility:hidden}
 .startup-group{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:48px;max-width:calc(100vw - 40px);text-align:center}
-.startup-title{margin:0;line-height:0}
+.startup-title{margin:0;display:flex;flex-direction:column;align-items:center;gap:18px;line-height:1.2}
+.startup-name{display:block;width:min(400px,calc(100vw - 64px));height:auto;user-select:none}
+:root[data-theme=dark] .startup-name{filter:invert(1)}
 .startup-title.wordmark-fallback{font-size:clamp(26px,6vw,82px);line-height:1.2;font-weight:600}
-.startup-wordmark{display:block;width:min(640px,calc(100vw - 64px));height:auto;max-height:40dvh;object-fit:contain;user-select:none}
-:root[data-theme=dark] .startup-wordmark{filter:invert(1)}
+.startup-wordmark{display:block;width:min(240px,30dvh,calc(100vw - 64px));height:auto;object-fit:contain;user-select:none}
 .startup-action{display:grid;place-items:center;width:60px;height:60px;position:relative}
 .startup-loader{width:40px;height:40px;background:currentColor;animation:startup-morph 2s ease-in-out infinite}
 .startup-loader[hidden],.startup-start[hidden]{display:none}
@@ -23,5 +24,5 @@
 .startup-start:focus-visible{outline:2px solid var(--fg);outline-offset:6px}
 .startup-ripple{position:absolute;z-index:3;width:20px;height:20px;border-radius:50%;background:radial-gradient(circle,#ffffff66,transparent 70%);pointer-events:none;animation:startup-ripple .6s ease-out both}
 @keyframes startup-ripple{from{transform:translate(-50%,-50%) scale(0);opacity:.6}to{transform:translate(-50%,-50%) scale(4);opacity:0}}
-@media(max-width:480px){.startup-wordmark{width:calc(100vw - 40px)}.startup-group{gap:36px}}
+@media(max-width:480px){.startup-wordmark{width:min(240px,30dvh,calc(100vw - 64px));border-radius:6%}}
 @media(prefers-reduced-motion:reduce){#startup-hero,.startup-start{transition:none}.startup-loader{animation:none;border-radius:6%}}

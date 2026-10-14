@@ -943,3 +943,11 @@ Q2补证脚本已完成：3个通知遮挡前置重取、教程缩窗/模态快�
 2026-10-14 S3 cancellation: public summary search late-success green, late-error red (cancelled task entered fallback); check_cancelled before exception wrapping made both green. Actual owner→Controller Stop green after correcting fixture to current stop/stop_scope contract. Both incremental review axes cleared cancellation change. Broad 30-module run finished 323 nodes: 322 passed, one old cancellation test used hidden Skill integration after valid result, expected removed inline cancel. Updated it to public back_stage→integrate before cancelling, preserving data/late-result assertions. Final affected six modules are running to cover latest cancel guard and corrected public flow; broad failures are not called full success.
 
 2026-10-14 S1–S3 complete: final affected six modules 61/61 passed; original broad report 322/323 passed remains preserved. Latest-node-results.json merges both reports by classname/name: 326 distinct latest nodes passed, zero skipped/failed. Both axes cleared final public back-stage fixture correction, no outstanding findings. AST12 plus final cancel test AST, workspace.js syntax, final 10-file incremental whitespace and 308 relative documentation links passed. CodeGraph sync succeeded for 9 changed files (1 added/8 modified); status confirmed current. Maintenance, HANDOFF, architecture, ui-handoff, task plan and tasks updated; all earlier work and paused audit preserved. No live model/paid API, personal credentials/session access, actual WebView2/EXE, commit or push. A final output poll after the process had already closed returned Unknown process id; successful XML/result had already been inspected, no test was restarted.
+
+
+2026-10-14 B1–B4开始：完成定位及增量before备份，尚未应用代码修改。继续四技能的公开边界/增量双轴模式，完整逐页审查仍暂停。
+
+
+2026-10-14 B1–B4完成：输入/文案、12项偏好实际接线、图形LOGO及旧SVG保留；207个不同节点最新通过，实际源码WebView2 21项通过，双轴各0待修。用户已授权B5提交GitHub及桌面EXE，进行中。独立EXE首次启动复现jsonschema可选格式库缺少syntax_rfc3987.lark，spec补收集该资源后重新构建验收；原始失败证据保留。完整逐页审查继续暂停，无真实模型请求。详见settings_brand_20261014.md。
+
+2026-10-14 B5产物完成：补齐可选JSON格式解析语法后重建EXE，独立WebView2双启动21/21、Tk构造退出0，无自动运行日志；70,409,166字节，SHA256 74898acf29a1bfcc342951d162ad782986e99845f6d638b0ae8ad1e80ee3297c，桌面Intext.exe副本一致。准备提交GitHub，EXE/本地证据不入库。

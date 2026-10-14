@@ -457,6 +457,8 @@ class PromptSmithApp(GuidedFlowMixin):
     def _configure_root(self) -> None:
         from .display import display_scale
         self.root.title("Intext · 需求引导式提示构建助手")
+        from .branding import apply_window_icon
+        apply_window_icon(self.root)
         # Tk may see a smaller logical desktop under Windows display scaling.
         # Keep the fixed next-step bar on-screen and let page content scroll.
         available_width = max(320, self.root.winfo_screenwidth() - 40)

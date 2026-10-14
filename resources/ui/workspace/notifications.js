@@ -4,7 +4,8 @@ window.promptsmithNotifications=(()=>{
   const region=document.createElement("section");region.id="notifications";
   region.className="notification-region";region.setAttribute("aria-label","消息通知");
   region.setAttribute("popover","manual");document.body.append(region);
-  const cards=new Map(),observed=new Map(),dismissTimers=new Map(),startedAt=new WeakMap(),moving=new WeakMap();let sequence=0;
+  const cards=new Map(),observed=new Map(),dismissTimers=new Map(),startedAt=new WeakMap(),moving=new WeakMap();let sequence=0,durationMs=5000;
+  function configure(seconds){const value=Number(seconds);durationMs=Number.isFinite(value)&&value>=1&&value<=30?value*1000:5000;}
   const variants={success:{title:"操作成功",paths:["m9 12 2 2 4-4"],circle:true},
     info:{title:"消息提示",paths:["M12 8h.01","M12 12v4"],circle:true},
     warning:{title:"请注意",paths:["m10.29 3.86-8.48 14.14A2 2 0 0 0 3.52 21h16.96a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0","M12 9v4","M12 17h.01"]},
@@ -26,7 +27,7 @@ window.promptsmithNotifications=(()=>{
     // Reparenting a popover restarts CSS animations. Continue the elapsed
     // countdown so opening/closing a dialog cannot refill its progress bar.
     if(relocated)for(const card of cards.values())for(const animation of card.querySelector(".notification-countdown").getAnimations())
-      animation.currentTime=Math.min(5000,performance.now()-startedAt.get(card));
+      animation.currentTime=Math.min(Number(card.dataset.durationMs),performance.now()-startedAt.get(card));
   }
   function remove(key,animate=true,reason="removed"){
     const card=cards.get(key);if(!card)return;
@@ -70,14 +71,15 @@ window.promptsmithNotifications=(()=>{
     if(options.action){const action=document.createElement("button");action.type="button";action.className="notification-action";action.textContent=options.action.label;action.addEventListener("click",options.action.run);content.append(action);}
     const close=document.createElement("button");close.type="button";close.className="notification-close";close.setAttribute("aria-label","关闭通知");close.append(glyph("close"));close.addEventListener("click",()=>remove(key,true,"manual"));
     const countdown=document.createElement("div");countdown.className="notification-countdown";countdown.setAttribute("aria-hidden","true");
+    const timeout=durationMs;card.dataset.durationMs=timeout;countdown.style.animationDuration=timeout+"ms";
     card.append(symbol,content,close,countdown);startedAt.set(card,performance.now());cards.set(key,card);region.append(card);host();
-    dismissTimers.set(key,setTimeout(()=>{if(cards.get(key)===card)remove(key,true,"expired");},5000));
-    diagnostic("shown",`key=${key} variant=${variant} timeout_ms=5000`);return key;
+    dismissTimers.set(key,setTimeout(()=>{if(cards.get(key)===card)remove(key,true,"expired");},timeout));
+    diagnostic("shown",`key=${key} variant=${variant} timeout_ms=${timeout}`);return key;
   }
   function sync(key,text,options={}){
     const value=String(text||"");if(observed.get(key)===value)return;
     observed.set(key,value);if(value)show(value,{...options,key});else remove(key);
   }
   new MutationObserver(host).observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:["open"]});
-  return {show,sync,remove,host};
+  return {show,sync,remove,host,configure};
 })();

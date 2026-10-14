@@ -5,9 +5,9 @@ from tests.test_frontend_review_regressions import browser, page, load
 
 
 def working_trace(page, elapsed=5.8, reasoning=""):
-    page.clock.install(time=0)
-    page.clock.pause_at(0)
     state = load(page, "interview")
+    page.clock.install(time=0)
+    page.clock.pause_at(1000)
     record = next(c["trace"] for c in state["cards"] if c["kind"] == "trace")
     record.update(status="working", elapsed=elapsed, reasoning=reasoning)
     page.evaluate("s=>promptsmithView.applySnapshot(s)", state)

@@ -1,10 +1,10 @@
 <!doctype html>
 <html lang="zh-CN">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Intext</title><link rel="stylesheet" href="workspace.css"><link rel="stylesheet" href="notifications.css"><link rel="stylesheet" href="tutorial.css"><link rel="stylesheet" href="startup.css"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Intext</title><link rel="icon" href="brand/intext.ico"><link rel="stylesheet" href="workspace.css"><link rel="stylesheet" href="notifications.css"><link rel="stylesheet" href="tutorial.css"><link rel="stylesheet" href="startup.css"></head>
 <body class="startup-active">
   <section id="startup-hero" aria-label="Intext 启动页">
     <div class="startup-group">
-      <h1 class="startup-title" aria-label="意织 · Intext"><img class="startup-wordmark" src="brand/intext-wordmark.svg" alt="意织 · Intext" draggable="false"></h1>
+      <h1 class="startup-title" aria-label="意织 · Intext"><img class="startup-wordmark" src="brand/intext-logo.png" alt="" draggable="false"><img class="startup-name" src="brand/intext-wordmark.svg" alt="意织 · Intext" draggable="false"></h1>
       <div class="startup-action">
         <div class="startup-loader" role="status" aria-label="正在加载 Intext"></div>
         <button class="startup-start" type="button" aria-label="开始使用 Intext" hidden><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z" opacity="1" pathLength="1" stroke-dashoffset="0px" stroke-dasharray="1px 1px"></path></g></svg></button>
@@ -12,7 +12,7 @@
     </div>
   </section>
   <aside id="sidebar" aria-label="历史会话" inert aria-hidden="true">
-    <span class="brand-mark sidebar-logo" aria-label="Intext">I</span>
+    <img class="brand-mark sidebar-logo" src="brand/intext-logo.png" alt="Intext" draggable="false">
     <div class="sidebar-expanded">
       <div class="sidebar-top"><div class="sidebar-brand"><span class="sidebar-brand-space" aria-hidden="true"></span><img class="sidebar-wordmark" src="brand/intext-english.svg" alt="Intext" draggable="false"></div><div class="sidebar-tools"><button id="history-search" class="sidebar-icon" aria-label="搜索历史会话" title="搜索 Ctrl K"></button><button id="sidebar-toggle" class="sidebar-icon" aria-label="收起边栏" title="收起边栏" aria-expanded="true"></button></div></div>
       <button id="new-chat"><span class="new-chat-icon"></span><span class="new-chat-label">开启新对话</span></button>
@@ -30,7 +30,7 @@
     </div>
   </aside>
   <div id="workspace-shell" inert aria-hidden="true">
-  <header><div class="brand">Intext</div><button id="file-button" aria-haspopup="menu">文件</button><div class="header-actions"><button data-panel="summary">任务摘要</button><button id="settings">设置</button></div></header>
+  <header><div class="brand"><img src="brand/intext-logo.png" alt="Intext"></div><button id="file-button" aria-haspopup="menu">文件</button><div class="header-actions"><button data-panel="summary">任务摘要</button><button id="settings">设置</button></div></header>
   <main id="viewport"><div id="hero">让我们一起把一个目标变成一份完整的提示词吧。</div><div id="timeline"></div></main>
   <section id="settings-page" aria-labelledby="settings-title" hidden></section>
   <footer><div id="composer-actions"></div><div id="composer"><textarea id="message" rows="2" placeholder="描述你想完成的目标…" aria-label="消息输入框"></textarea><div class="toolbar"><button id="model-button"><span>选择模型</span></button><div class="toolbar-right"><button class="glass" id="depth-button">整理深度<span class="chevron"></span></button><button class="glass" id="category-button">任务类型<span class="chevron"></span></button><button class="send" id="send" disabled aria-label="发送消息"></button></div></div></div><div id="recovery"></div></footer>

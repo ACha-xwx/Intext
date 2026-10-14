@@ -1,7 +1,7 @@
 "use strict";
 const query=selector=>document.querySelector(selector);
 const entries=[],level=query("#level"),autoscroll=query("#autoscroll"),scroll=query("#debug-scroll"),lines=query("#log-lines");
-let sequence=0,clearSequence=0,preferenceRevision=-1,historyLimit=1500,lineLimit=6000,polling=false,lastFailure=0,displayedEntries=[],saveStatus="";
+let refreshMs=150,pollTimer=null,sequence=0,clearSequence=0,preferenceRevision=-1,historyLimit=1500,lineLimit=6000,polling=false,lastFailure=0,displayedEntries=[],saveStatus="";
 const errors=new Map();
 const severities=[{key:"debug",name:"DEBUG",minimum:10},{key:"info",name:"INFO",minimum:20},{key:"warning",name:"WARN",minimum:30},{key:"error",name:"ERROR",minimum:40},{key:"critical",name:"CRITICAL",minimum:50}];
 const enabledSeverities=new Set(severities.map(row=>row.key)),legend=query("#log-legend"),legendButtons=new Map();
@@ -67,6 +67,7 @@ async function poll(){
   if(polling||!window.pywebview?.api)return;polling=true;
   try{
     const snapshot=await window.pywebview.api.snapshot(sequence),prefs=snapshot.preferences,root=document.documentElement;
+    refreshMs=prefs.debug_refresh_ms||150;window.promptsmithNotifications.configure(prefs.notification_seconds??5);
     const theme=prefs.composer_theme||"light",fontSize=(Number(prefs.font_size)||12)*96/72+"px",count=snapshot.cached+" 条缓存日志";
     const status=snapshot.error?"保存失败："+snapshot.error:snapshot.path?`已保存 ${snapshot.saved_sequence} 条：${snapshot.path}`:"";
     const countChanged=query("#count").textContent!==count,themeChanged=root.dataset.theme!==theme,fontChanged=root.style.fontSize!==fontSize;
@@ -92,5 +93,7 @@ query("#save").addEventListener("click",async()=>{const b=query("#save");b.disab
 query("#directory").addEventListener("click",async()=>{try{const result=await window.pywebview.api.open_directory();showError("directory",result.ok?"":result.error);}catch(error){showError("directory","日志目录未能打开，请重试。");diagnostic("error","directory failed",error);}});
 window.addEventListener("error",e=>{showError("exception","日志页面处理出现错误，请重试。");diagnostic("error","uncaught exception",e.error||e.message);});
 window.addEventListener("unhandledrejection",e=>{showError("exception","日志页面操作未完成，请重试。");diagnostic("error","unhandled rejection",e.reason);});
-window.addEventListener("pywebviewready",()=>{poll();setInterval(poll,150);diagnostic("info","console ready","Chromium log view; logs remain in memory until manual save");});
+async function pollLoop(){await poll();pollTimer=setTimeout(pollLoop,refreshMs);}
+window.addEventListener("pagehide",()=>clearTimeout(pollTimer));
+window.addEventListener("pywebviewready",()=>{pollLoop();diagnostic("info","console ready","Chromium log view; logs remain in memory until manual save");});
 window.promptsmithDebug={poll};

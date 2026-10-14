@@ -28,7 +28,7 @@ window.promptsmithStartup=(()=>{
     if(entered||entering||ready)return;
     if(!next.stamp||!assetReady)return;
     if(!assetReported){
-      diagnostic(wordmarkError?"warn":"debug",wordmarkError?"启动标题使用文字回退":"启动标题已就绪",wordmarkError||"source=local-svg");
+      diagnostic(wordmarkError?"warn":"debug",wordmarkError?"启动标题使用文字回退":"启动标题已就绪",wordmarkError||"source=intext-logo.png");
       assetReported=true;
     }
     // Legacy snapshots have no tutorial contract and must not start a tutorial.
@@ -75,7 +75,7 @@ window.promptsmithStartup=(()=>{
       event.preventDefault();event.stopImmediatePropagation();
     }
   },true);
-  wordmark.decode().then(()=>{
+  Promise.all([wordmark.decode(),hero.querySelector(".startup-name").decode()]).then(()=>{
     assetReady=true;
     if(snapshot)update(snapshot);
   }).catch(error=>{

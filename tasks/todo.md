@@ -121,3 +121,12 @@
 - [x] S3a One summary scoring pass, 0–1 scores and concrete usage.
 - [x] S3b Partial response recovery, status/details/Debug and cancellation.
 - [x] S3c Incremental two-axis review and S1–S3 combined regression.
+
+
+- [x] B1 重命名输入样式与指定文案
+- [x] B2 运行设置扩充/保存恢复
+- [x] B3 全入口用户品牌
+- [x] B4 定向验证/双轴审阅/交接
+
+- [x] B5a 修复EXE打包资源遗漏，独立验收及桌面复制
+- [ ] B5b GitHub提交推送和远端身份确认
