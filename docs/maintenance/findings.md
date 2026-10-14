@@ -746,3 +746,7 @@ Intext Hero参考：加载组件是40px圆角方块，2秒easeInOut旋转并变�
 
 
 2026-10-14 J4产物完成：独立EXE构建成功，包内实际M4字节码8项通过；排除外部Python的实际WebView2/bridge/退出及依赖12项通过。桌面Intext.exe已更新为70,412,055字节，SHA256 e76a803a42ad3cee135b97cf3c646c1c3cd56522b3fc6c62a9307768bd79e1d0，与新构建一致。未请求真实模型或恢复安装包。Github无代理只读ls-remote已确认当前main=1045489，准备提交本批源码和维护记录。
+
+2026-10-14：errno28表示空间不足；98MB低于单文件归档约139MB解包量。此前包内依赖和隔离WebView2通过，不能解释为缺Python/pywebview。改onedir可消除每次全量临时解包，但系统Runtime/浏览器/应用数据仍需要空间。
+
+2026-10-14 I1：公开冻结EXE --smoke-test启动测得_MEI解包，回归1红（临时盘解包）。Windows依赖已包含；onedir构建开始。选择官方Evergreen bootstrapper（1.77MB，Microsoft签名）减小包和临时空间，缺Runtime时需联网；不再强制离线178MB依赖。Inno页面旧链接返回HTML，改明确6.7.3 GitHub下载。首次计划apply_patch未匹配标题，无写入，随后正确追加。

@@ -1143,3 +1143,7 @@ S3 (2026-10-14): online Skill discovery sends bounded introductions and task/key
 |J4 审阅与交付|双轴 diff、维护交接、最终 EXE|限定范围 Spec/Standards 无待修，产物检查与远端结果如实记录|complete：两轴0待修、包内8项/原生12项、桌面/GitHub一致|
 
 安装包与完整逐页审查继续暂停。
+
+## 2026-10-14 安装交付恢复：errno 28
+
+用户确认同学 C 盘仅剩98 MB，与已核对约139 MB的单文件启动解包需求吻合。按“报错定位后制作安装包”的原授权恢复 I1–I4；先核对分发/官方Runtime，再实现onedir和可选安装目录，编译后实际安装/启动/卸载并审阅，最后GitHub源码/Release与桌面安装包。完整逐页审查仍暂停。安装公开CLI、外部Runtime进程、最终文件和实际WebView2沿用已确认测试边界，隔离配置/不请求模型。审查基点15858f8。

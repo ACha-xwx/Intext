@@ -1009,3 +1009,9 @@ Q2补证脚本已完成：3个通知遮挡前置重取、教程缩窗/模态快�
 
 
 2026-10-14 J4完成：实现7baef43原SHA通过GitHub Git Data API同步main并读回一致，force=false；普通push连接重置，沿用上一批只在内存的Git凭据，不改全局代理/保存token。CodeGraph sync完成5 changed，AST/空白通过；桌面EXE哈希与上述8项包内/12项实际WebView2验收保持。最终仅文档完成状态提交同步，不重建或重复通过检查。安装包/全审保持暂停。
+
+## 2026-10-14 安装交付恢复：errno 28
+
+用户确认同学 C 盘仅剩98 MB，与已核对约139 MB的单文件启动解包需求吻合。按“报错定位后制作安装包”的原授权恢复 I1–I4；先核对分发/官方Runtime，再实现onedir和可选安装目录，编译后实际安装/启动/卸载并审阅，最后GitHub源码/Release与桌面安装包。完整逐页审查仍暂停。安装公开CLI、外部Runtime进程、最终文件和实际WebView2沿用已确认测试边界，隔离配置/不请求模型。审查基点15858f8。
+
+2026-10-14 I1：公开冻结EXE --smoke-test启动测得_MEI解包，回归1红（临时盘解包）。Windows依赖已包含；onedir构建开始。选择官方Evergreen bootstrapper（1.77MB，Microsoft签名）减小包和临时空间，缺Runtime时需联网；不再强制离线178MB依赖。Inno页面旧链接返回HTML，改明确6.7.3 GitHub下载。首次计划apply_patch未匹配标题，无写入，随后正确追加。

@@ -1,5 +1,7 @@
 # 前端审查问题修复计划 · 2026-10-11
 
+2026-10-14 追加安装交付（原审查不恢复）：参见 [当前安装规格](../docs/maintenance/installer_20261014.md)。依赖顺序 I1 官方依赖/139MB解包诊断 → I2 onedir+安装闭环 → I3 真实安装/启动/升级/卸载及两轴审阅 → I4 源码GitHub/Release/桌面。公开测试边界见规格，固定点15858f8。
+
 范围：用户授权修复 FND-001～013，依据 docs/reviews/frontend_20261011/findings.md。保留现有工作区改动；不调用真实模型、不写个人历史、不构建EXE。
 
 测试接口：真实资源的DOM键盘/鼠标/布局及现有DesktopApi/WorkspaceController、PromptSmithApp.save。系统边界可模拟；业务取消/版本保护沿用现有真实会话测试。修复前快照为 verification/frontend_fixes_20261011/before，不用HEAD混入先前改动。

@@ -1,6 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 from pathlib import Path
+import os
 from PyInstaller.utils.hooks import collect_data_files
 
 
@@ -98,13 +99,18 @@ a = Analysis(
 )
 pyz = PYZ(a.pure)
 
+bundle_mode = os.environ.get("INTEXT_BUNDLE_MODE", "onefile")
+if bundle_mode not in {"onefile", "onedir"}:
+    raise ValueError("INTEXT_BUNDLE_MODE must be onefile or onedir")
+
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.datas,
+    a.binaries if bundle_mode == "onefile" else [],
+    a.datas if bundle_mode == "onefile" else [],
     [],
     name="Intext",
+    exclude_binaries=bundle_mode == "onedir",
     icon=str(project / "resources/ui/workspace/brand/intext.ico"),
     debug=False,
     bootloader_ignore_signals=False,
@@ -118,3 +124,6 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
 )
+
+if bundle_mode == "onedir":
+    distribution = COLLECT(exe, a.binaries, a.datas, strip=False, upx=True, name="Intext")
