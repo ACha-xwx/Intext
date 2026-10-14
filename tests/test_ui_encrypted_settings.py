@@ -191,7 +191,7 @@ def test_default_settings_path_uses_application_data_dir(tk_root, tmp_path, monk
     window = tk.Toplevel(tk_root)
     app = PromptSmithApp(window)
     try:
-        assert app._preferences_path == tmp_path / "PromptSmith" / "settings.json"
+        assert app._preferences_path == tmp_path / "Intext" / "settings.json"
         assert app.save_settings()
         assert app._preferences_path.exists()
         assert not app.runtime_log.directory.exists()

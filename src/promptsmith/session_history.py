@@ -12,7 +12,7 @@ import tempfile
 from threading import RLock
 from uuid import uuid4, uuid5, NAMESPACE_URL
 
-from .paths import application_data_dir
+from .paths import application_data_dir, migrate_legacy_application_data
 from .session import SessionState
 
 LOG = logging.getLogger(__name__)
@@ -76,6 +76,8 @@ class SessionHistory:
     retained on disk and marked unavailable instead of silently discarded.
     """
     def __init__(self, directory: str | Path | None = None):
+        if directory is None:
+            migrate_legacy_application_data()
         self.directory = Path(directory) if directory is not None else application_data_dir() / "history"
         self.records = self.directory / "records"
         self.index_path = self.directory / "index.json"

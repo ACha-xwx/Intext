@@ -163,7 +163,7 @@ class SettingsPage {
     }
     else if(typeof spec.default==="boolean"){control=node("input");control.type="checkbox";}
     else if(name==="extra_skill_roots"){control=node("textarea");control.rows=3;}
-    else{control=node("input");control.type=spec.minimum===null||spec.minimum===undefined?"text":"number";if(control.type==="number"){control.min=spec.minimum;control.max=spec.maximum;control.step=Number.isInteger(spec.default)?"1":"any";}}
+    else{control=node("input");control.type=spec.minimum===null||spec.minimum===undefined?"text":"number";if(control.type==="number"){control.min=spec.minimum;control.max=spec.maximum;control.step=spec.step??"any";}}
     control.id=id;const labelNode=node("label","",label);labelNode.htmlFor=id;
     const group=this.forms.get(spec.category||"模型");group.append(labelNode,control);this.controls.set(name,control);
     if(control.readOnly){const values=()=>[...control.choiceLabels.keys()];this.editableChoice(control,label,values,null,name==="connection.model_provider"?value=>value:null);}
@@ -314,6 +314,7 @@ class SettingsPage {
     const family=this.controls.get("connection.model_provider");
     const invalid=[...this.controls.values()].find(c=>!c.checkValidity());
     if(invalid||(!this.current.providers[this.current.connection.provider]&&!family.value)){
+      diagnostic("warn","settings validation blocked",invalid?invalid.id+" stepMismatch="+invalid.validity.stepMismatch:"connection.model_provider missing");
       this.feedback(invalid?"请填写有效的设置值，修正后会自动保存。":"请选择模型供应商，选择后会自动保存。","warning");return false;
     }
     if(!await this.persist())return false;

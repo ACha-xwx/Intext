@@ -121,6 +121,7 @@ def concise_message(message, level):
     if background:
         return "后台任务已启动：" + background[1]
     routine = {
+        "Application data directory migrated; settings, protected credentials and history retained": "应用数据已迁移到 Intext；设置、密钥和历史已保留",
         "Custom provider rename started; encrypted_key=True": "准备迁移服务名称及加密密钥",
         "Custom provider rename started; encrypted_key=False": "准备迁移服务名称",
         "Browser custom provider rename dialog opened: ": "打开服务重命名面板",

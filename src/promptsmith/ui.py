@@ -227,6 +227,14 @@ class PromptSmithApp(GuidedFlowMixin):
             if evidence_root is not None else application_data_dir()
         ))
         self.runtime_log = runtime_log or RuntimeLog(data_root / "logs").start()
+        if evidence_root is None and data_root.resolve() == application_data_dir().resolve():
+            from .paths import migrate_legacy_application_data
+            try:
+                migrate_legacy_application_data()
+            except OSError:
+                if runtime_log is None:
+                    self.runtime_log.close()
+                raise
         self._init_preferences(data_root)
         self.runtime_log.set_history_limit(self.preferences["debug_history"])
         self._owns_runtime_log = runtime_log is None

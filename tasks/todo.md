@@ -130,3 +130,17 @@
 
 - [x] B5a 修复EXE打包资源遗漏，独立验收及桌面复制
 - [x] B5b GitHub提交推送和远端身份确认
+
+- [ ] I1 官方WebView2分发与环境要求
+- [ ] I2 Intext当前用户安装包/依赖闭环
+- [ ] I3 实际安装与WebView2启动/定向回归/双轴复审
+- [ ] I4 GitHub Release及桌面安装包
+
+
+- [x] P1 生产DOM/真实schema复现首次供应商不写盘、教程禁用
+- [x] P2 后端数值类型提供step，最小修复、Debug无值诊断
+- [x] P4 默认Intext目录迁移/冲突保留/隔离根及DPAPI历史恢复
+- [x] P3a 最终EXE原生双启动验收、桌面修复版哈希核对
+- [ ] P3b GitHub源码推送与远端提交核对
+
+相关回归、源码原生及两轴复审已完成；详见[本批计划](../docs/maintenance/provider_onboarding_20261014.md)。安装包/全量审查保持暂停。

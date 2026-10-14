@@ -7,7 +7,7 @@ import platform
 import sys
 import time
 
-from .paths import application_data_dir
+from .paths import application_data_dir, migrate_legacy_application_data
 from .runtime_log import RuntimeLog
 
 
@@ -28,6 +28,7 @@ def main(argv: list[str] | None = None) -> int:
     root = None
     app = None
     try:
+        migrate_legacy_application_data()
         logging.getLogger(__name__).info("Runtime environment: Python=%s platform=%s executable=%s cwd=%s frozen=%s renderer=%s",
                                          platform.python_version(), platform.platform(), sys.executable,
                                          os.getcwd(), bool(getattr(sys, "frozen", False)), args.renderer)

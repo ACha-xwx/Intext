@@ -1,5 +1,7 @@
 # 架构与内在逻辑
 
+2026-10-14 首次供应商自动保存：设置schema明确区分整数/小数步长，隐藏小数字段不再阻止模型配置写盘。默认数据根改为Intext并在读取前迁移旧目录，DPAPI身份不变；显式隔离根不触发默认迁移。实现与验证见[维护](maintenance/provider_onboarding_20261014.md)，下方历史PromptSmith路径记录以第7节现合同为准。
+
 2026-10-14 设置与品牌：重命名框统一输入样式，删除指定静态说明，五类简介精简且无句号；新增12项有实际运行接线的偏好并支持自动保存/启动恢复。图形品牌统一用户新LOGO，Hero完整字标和侧栏英文保留原黑白手绘SVG，运行不生成字体/图像。207个不同相关节点最新通过，实际源码WebView2隔离双启动21项通过，Spec/Standards最新各0项待修；完整逐页审查仍暂停，没有真实模型请求。EXE独立WebView2双启动21项及Tk构造烟测通过，最终Intext.exe已放桌面且哈希一致；实现提交99881a9已推送GitHub main并确认远端一致，详见[维护](maintenance/settings_brand_20261014.md)。
 
 2026-10-13 启动入口：`workspace/startup.js` 是浏览器呈现门，首个有效工作区快照就绪后按已保存 `tutorial_status` 分流；not_started 点开始后打开操作教程，completed/skipped 自动进入。Hero 期间主表面 inert 且隐藏，快捷键和 command 同步阻止操作；SessionState/Tk 业务边界保持。`vendor/liquid-metal.js` 为本地 Paper shader，退出/pagehide 释放，减少动画时速度为零；不读取字体或请求模型。界面/窗口/导出/手动日志/EXE 名称改 Intext，包名/设置路径/DPAPI 身份兼容原数据。完整标题和侧栏英文为静态SVG路径，见[维护](maintenance/intext_hero_20261013.md)。
@@ -204,7 +206,7 @@ Skill 整合内容不再需要先通过完整性审查。内部状态仍保护�
 
 ## 7. 存储与资源
 
-- 默认会话及运行证据分别位于 `%LOCALAPPDATA%/PromptSmith/sessions`、`runs`；无该环境变量时使用用户目录下 `.promptsmith`。
+- 默认设置、历史和运行证据位于 `%LOCALAPPDATA%/Intext/`；无该环境变量时使用用户目录下 `.intext`。首次默认启动把旧 `PromptSmith`（或 `.promptsmith`）目录整体重命名，保持密钥密文和历史记录原样；目标已有数据则使用新目录并保留旧目录，不合并覆盖。显式指定的隔离数据目录不触发默认迁移。
 - `storage.py` 管理会话读取写入，业务迁移和有效性逻辑在 `session.py`。
 - API Key 不随会话序列化；全局设置中的凭据以 Windows 当前用户 DPAPI 密文保存。仓库不带团队共享密钥。
 - 模型配置在独立设置页由用户显式确认；`model_confirmation` 保存版本和公开连接、规范化模型参数、DPAPI 密文记录的指纹，与配置和凭据同次原子写入，不保存明文密钥或其散列。启动核对指纹、恢复密钥、匹配实际连接并通过本地 ApiConfig 验证后，恢复运行时确认快照。普通保存仅延续已有有效确认，非模型/Debug 偏好不使确认失效；旧文件首次明确确认后可恢复。连接测试只探测，获取模型只填充候选，均不确认配置。模型字段编辑清除运行时确认，并继续更新连接版本以隔离迟到响应；环境覆盖或恢复失败提示核对后重新确认。
@@ -215,7 +217,7 @@ Skill 整合内容不再需要先通过完整性审查。内部状态仍保护�
 
 `main.py` 在导入 UI 前建立 `RuntimeLog`，绑定根 logging handler 并将级别设为 DEBUG。日志包括时间、线程、级别和模块；同时采集 stdout/stderr、Python warnings、未捕获进程/线程异常及 unraisable 清理异常。启动记录 Python、系统、解释器、工作目录与冻结状态；后台 `_submit()` 记录操作、任务 ID、耗时和完整异常链，Tk 完成队列与回调错误在主线程记录。现有信息/警告/错误对话框经统一包装写入日志后继续显示。Skill 文件、缓存和网络降级也记录完整错误，API 包装保留底层 cause。
 
-运行记录只驻留内存，构造、启动、采集和退出均不创建或修改运行日志文件。Debug 控制台“保存日志”调用 `RuntimeLog.save()`：先 flush 未换行 stdout/stderr，锁内取得完整记录快照，锁外逐条脱敏写 UTF-8 临时文件，完成后原子更名为 `%LOCALAPPDATA%/PromptSmith/logs/Intext_<时间戳>_<唯一编号>.log`；不存在该环境变量时沿用 `.promptsmith/logs`。每次保存完整快照，不覆盖旧文件；保存后的新增记录留在内存，后续点击再保存。保存故障清理未完成文件，保留错误及完整堆栈供重试。密钥变量和环境 token 注册到脱敏器，凭据字段与 Bearer 形式也统一屏蔽；保存时再次脱敏，不把请求正文另行打印到运行日志。`RunEvidenceWriter` 仍按原有机制保存结构化请求/模型响应证据，并在运行日志记录请求身份、校验结果与文件位置。
+运行记录只驻留内存，构造、启动、采集和退出均不创建或修改运行日志文件。Debug 控制台“保存日志”调用 `RuntimeLog.save()`：先 flush 未换行 stdout/stderr，锁内取得完整记录快照，锁外逐条脱敏写 UTF-8 临时文件，完成后原子更名为 `%LOCALAPPDATA%/Intext/logs/Intext_<时间戳>_<唯一编号>.log`；不存在该环境变量时使用 `.intext/logs`。每次保存完整快照，不覆盖旧文件；保存后的新增记录留在内存，后续点击再保存。保存故障清理未完成文件，保留错误及完整堆栈供重试。密钥变量和环境 token 注册到脱敏器，凭据字段与 Bearer 形式也统一屏蔽；保存时再次脱敏，不把请求正文另行打印到运行日志。`RunEvidenceWriter` 仍按原有机制保存结构化请求/模型响应证据，并在运行日志记录请求身份、校验结果与文件位置。
 
 Windows Web模式由 `WebDebugConsole` / `DebugApi` 向独立WebView2窗口投影脱敏增量日志；JS未捕获异常与操作失败通过窄diagnostic入口记录。`--renderer tk` 回退的 `DebugConsole` 是只读 `Toplevel`，通过 Tk `after(150ms)` 从有序内存日志读取增量；handler 不接触 Tk 控件。显示缓存默认 1,500 条、窗口约 6,000 行；独立完整内存记录用于保存，较早记录不会因显示缓存上限而丢失。筛选、清屏和关窗只影响显示。完整内存记录随日志量增长，未保存内容在进程退出或崩溃后不可恢复，手动文件没有自动轮转/清理。INFO 白色、WARNING 黄色、ERROR 红色、DEBUG 蓝色、CRITICAL 亮红色。开启偏好统一保存于 `settings.json`；关闭窗口取消该偏好，应用正常退出保留偏好用于下次恢复。窗口显示未保存、已保存记录数/文件路径或保存失败。应用关闭先等待后台、恢复 Tk/进程入口，再解除 handler。验证边界见 [运行日志验证](../verification/runtime_log_20261009/results.md)。
 

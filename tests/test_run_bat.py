@@ -74,4 +74,4 @@ def test_explicit_web_without_site_packages_reports_same_python_install_command(
     assert "No module named 'webview'" in result.stderr
     assert f'"{sys.executable}" -m pip install -r requirements.txt' in result.stderr
     assert "Tk renderer" not in result.stdout + result.stderr
-    assert not (tmp_path / "PromptSmith" / "logs").exists()
+    assert not (tmp_path / "Intext" / "logs").exists()

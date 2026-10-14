@@ -702,3 +702,11 @@ Intext Hero参考：加载组件是40px圆角方块，2秒easeInOut旋转并变�
 
 
 2026-10-14 B1–B4完成：输入/文案、12项偏好实际接线、图形LOGO及旧SVG保留；207个不同节点最新通过，实际源码WebView2 21项通过，双轴各0待修。用户已授权B5提交GitHub及桌面EXE，进行中。独立EXE首次启动复现jsonschema可选格式库缺少syntax_rfc3987.lark，spec补收集该资源后重新构建验收；原始失败证据保留。完整逐页审查继续暂停，无真实模型请求。详见settings_brand_20261014.md。
+
+
+2026-10-14 安装包追加：I1官方依赖/分发方案，I2当前用户安装与缺失WebView2自动安装，I3真实安装/启动/模拟依赖/卸载及双轴审阅，I4 GitHub源码/Release与桌面安装包。详见installer_20261014.md。现有EXE本机通过不能证明同学环境原因；保留数据和运行日志手动保存合同。
+
+2026-10-14缺WebView库假设：当前桌面EXE归档已含Python/pywebview/pythonnet及SDK/加载器，子进程排除外部Python路径后实际WebView2启动并正常退出（12项通过）。Python库无需目标机另装；系统WebView2 Runtime和.NET仍是外部依赖，尚无同学报错，根因未确定。只进行诊断，安装包保持暂停；证据与限制见installer_20261014.md。
+
+
+2026-10-14 首次供应商保存根因确认：thinking_speed=1/min=.25、history_save_interval=2/min=.5被JS按整数step=1验证，隐藏分类使全表checkValidity失败，设置确实未写盘；不是API Key前缀或常见长度问题。后端schema提供step解决，旧浏览器静态fixture缺新增字段而漏报。默认路径改Intext，重命名保留DPAPI密文/教程/历史；双目录都有数据时优先新目录且保留旧目录不合并。Standards发现diagnostics_root/runtime_log隔离也触发迁移，已2红→8绿修正。无前缀、sk-ant形状及长token回归通过；实际供应商有效性仍需远端验证，未请求付费API。最终203不同节点及源码/独立EXE各21项实际WebView2通过，桌面修复版就绪；安装包/全量审查暂停。详见[维护](provider_onboarding_20261014.md)。

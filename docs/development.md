@@ -1,5 +1,7 @@
 # 开发、检查与打包
 
+2026-10-14 首次配置回归使用真实WorkspaceController字段schema驱动生产DOM，覆盖空模型ID时先保存服务/密钥以及教程解锁。数值字段step按后端类型提供，不按JSON默认值是否恰为整数猜测。默认数据根迁移为Intext；原生验收脚本为`maintenance/provider_onboarding_webview_check_20261014.py`，支持源码与`--exe`，仅请求localhost模型目录。详见[维护](maintenance/provider_onboarding_20261014.md)。
+
 2026-10-14 设置与品牌：重命名框统一输入样式，删除指定静态说明，五类简介精简且无句号；新增12项有实际运行接线的偏好并支持自动保存/启动恢复。图形品牌统一用户新LOGO，Hero完整字标和侧栏英文保留原黑白手绘SVG，运行不生成字体/图像。207个不同相关节点最新通过，实际源码WebView2隔离双启动21项通过，Spec/Standards最新各0项待修；完整逐页审查仍暂停，没有真实模型请求。EXE独立WebView2双启动21项及Tk构造烟测通过，最终Intext.exe已放桌面且哈希一致；实现提交99881a9已推送GitHub main并确认远端一致，详见[维护](maintenance/settings_brand_20261014.md)。
 
 2026-10-13 Intext 启动：新增启动 Hero，加载就绪后按教程状态分流；本地液态金属 shader 和 Apache 许可随 workspace 整目录打包，运行不需要 Node/CDN。修改入口同时检查 `tests/test_startup_hero_browser.py`、tutorial、Debug/导出/偏好/历史相邻用例；原生隔离验收脚本为 `maintenance/intext_hero_webview_check_20261013.py` 与已适配 Hero 的 `maintenance/tutorial_webview_check_20261013.py`。这些检查不调用真实模型。EXE 名称现为 Intext，包名、旧设置/会话/加密上下文保持兼容；完整标题与侧栏英文SVG已就绪，本轮没有重新构建EXE，见[维护](maintenance/intext_hero_20261013.md)。
@@ -47,7 +49,7 @@ python -m venv .venv
 
 通过右上角“设置”选择服务与协议、填写 Base URL/API Key、获取并选择模型 ID。修改自动保存，有效配置自动生效；“测试连接”仅探测接口，启动后台模型目录刷新仅获取列表。普通启动不调用付费生成 API，真实分析、搜索查询/筛选及生成使用已生效配置。GitHub Token 是搜索增强项，使用者自行配置；不要把账号密码或 Token 写入代码。
 
-环境选项以代码实际读取为准，如 `PROMPTSMITH_GITHUB_TOKEN`、`PROMPTSMITH_RESOURCE_ROOT`；后一项用于资源目录定位，不需要普通用户设置。会话 JSON 和运行记录位于 `%LOCALAPPDATA%/PromptSmith/` 或用户选定位置，可能含用户输入，不作为默认 Git 素材。
+环境选项以代码实际读取为准，如 `PROMPTSMITH_GITHUB_TOKEN`、`PROMPTSMITH_RESOURCE_ROOT`；后一项用于资源目录定位，不需要普通用户设置。会话 JSON 和运行记录位于 `%LOCALAPPDATA%/Intext/` 或用户选定位置，可能含用户输入，不作为默认 Git 素材。首次默认启动整体迁移旧 `PromptSmith` 数据目录；两目录均有内容时使用 `Intext`、保留旧目录且不合并覆盖。旧加密身份保持不变，显式测试目录不会触发默认目录迁移。
 
 ## 按改动范围验证
 

@@ -44,7 +44,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1
 
 `--smoke-test` 仅检查 Tk 构造，不代表 WebView2 启动验收。
 
-构建产物为 `dist/Intext.exe`。EXE、虚拟环境、运行日志和个人会话不提交 Git；分发软件时使用 GitHub Release 或团队共享文件。为兼容原有设置和历史，默认用户数据继续位于 `%LOCALAPPDATA%/PromptSmith/`，运行时密钥不随会话保存。
+构建产物为 `dist/Intext.exe`。EXE、虚拟环境、运行日志和个人会话不提交 Git；分发软件时使用 GitHub Release 或团队共享文件。默认用户数据位于 `%LOCALAPPDATA%/Intext/`，首次启动会把旧 `PromptSmith` 目录整体迁移，保留设置、加密密钥和历史；若两个目录均已有数据，则使用 `Intext` 并保留旧目录，不覆盖合并。运行时密钥不随会话保存。
 
 ## 仓库结构
 

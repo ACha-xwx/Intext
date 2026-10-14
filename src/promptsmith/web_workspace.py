@@ -144,7 +144,8 @@ class WorkspaceController:
         revision = hashlib.sha256(json.dumps([public, app.connection_version], sort_keys=True).encode()).hexdigest()
         return dict(**public, revision=revision,
             fields={key: dict(category=spec.category, label=spec.label, default=spec.default,
-                        minimum=spec.minimum, maximum=spec.maximum, choices=list(spec.choices)) for key, spec in FIELDS.items()},
+                        minimum=spec.minimum, maximum=spec.maximum, choices=list(spec.choices),
+                        step=1 if type(spec.default) is int else "any") for key, spec in FIELDS.items()},
             providers={name: dict(base_url=preset["base_url"], protocol=PROTOCOL_NAMES[preset["protocol"]], model=preset["model"])
                        for name, preset in PROVIDER_PRESETS.items()}, protocols=list(PROTOCOL_LABELS),
             saved_providers=list(app._provider_profiles),
