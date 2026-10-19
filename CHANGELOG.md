@@ -27,28 +27,28 @@
 
 - 已答问题使用独立 `M1_incremental_v0.1` 短提示，只返回本轮变化；旧未决缺口/冲突由程序保留，原 Schema、语义/状态约束及首轮 v0.8 不放宽。
 - 三协议截断继续严格拒收，新增实际部分输出、用量、响应 ID、停止原因留档；M1 的 JSON 格式错误独立记录。用户主动点击“精简重试本轮”才会再发一次，保存重开后仍可操作。
-- 最终全量 **480 passed in 119.02s**；本地 HTTP + 真实 Tk 源码链三次请求 `full → incremental → compact_retry` 通过。本轮无真实模型调用。发行与证据见[本轮交接](<docs/archive/reports/verification/m1_truncation_fix/修复与交接_20261001.md>)。
+- 最终全量 **480 passed in 119.02s**；本地 HTTP + 真实 Tk 源码链三次请求 `full → incremental → compact_retry` 通过。本轮无真实模型调用。发行与证据见[本轮交接](<docs/archive/reports/verification/m1_truncation_fix/修复与交接-20261001.md>)。
 
 ## 2026-09-30：生成超时与显式重试修复
 
 - 生成默认超时由 45 秒改为 120 秒，连接测试/模型列表独立为 15 秒；三协议结构化输出明确限制为 8192 tokens，并记录相应协议字段。
 - M1—M5 超时提示显示具体模块和请求阈值，失败保留回答和已有结果，解除 busy/pending，仅支持用户主动重试；不改提示、Schema 或需求状态规则。
 - 新增 20 个 API/UI 回归实例，全量 439 项通过。真实 Tk + 本地延迟 HTTP 验证两条回答超时保留、连续点击防重入和主动重试成功；M2—M5 也验证失败恢复。未调用真实模型。
-- 详细测试、证据边界及单文件发行结果见[生成超时修复报告](<docs/archive/reports/verification/acceptance_20260930_generation_timeout/生成超时修复报告_20260930.md>)。
+- 详细测试、证据边界及单文件发行结果见[生成超时修复报告](<docs/archive/reports/verification/acceptance_20260930_generation_timeout/生成超时修复报告-20260930.md>)。
 
 ## 2026-09-30：任务输入主按钮同步修复
 
 - 主按钮标签读取任务框可见内容；键盘、粘贴、删除和撤销只刷新标签，不逐字写入会话。补全模型连接后标签及时更新。
 - 点击主按钮时，非空任务先通过既有 `_sync_input()` 同步任务／类别，再按当前状态分派；空输入仅聚焦。旧任务修改沿用需求待复核及下游失效，同文重复点击不增版本。
 - 新增 10 个输入同步回归实例，保留既有流程、协议、右键和滚轮断言。相关 102 项、全量 419 项通过；EXE 首击验证移至所有可能预同步的操作之前。
-- 本轮没有真实模型调用。发行指纹与详细证据见[输入同步修复报告](<docs/archive/reports/verification/acceptance_20260930_task_input_sync/任务输入同步修复报告_20260930.md>)。
+- 本轮没有真实模型调用。发行指纹与详细证据见[输入同步修复报告](<docs/archive/reports/verification/acceptance_20260930_task_input_sync/任务输入同步修复报告-20260930.md>)。
 
 ## 2026-09-30：Skill 匹配语境与发行一致性修复
 
 - 界面与固定案例脚本都将已确认任务文本传给本地 Skill 匹配器，仅明确允许的信号组可借用任务语境；匹配理由区分任务描述与关键工作，旧式信号目录也保留完整依据。
 - 目录更新至 `0.1.1`：`to-spec` 使用高辨识软件词，移除“应用／网站／程序”等宽泛门槛；“范围边界”仅参与评分，不能单独证明规格工作。`domain-modeling`、`goal-prompt` 记录与来源文件未改；旧 `to-spec` 绑定按哈希变化失效，保留快照供重新选择。
 - 补齐单文件发行包的 M1 v0.3 与旧 Schema 资源，保留默认 M1 v0.8 路径和现有动态版本显示。
-- 本轮最终全量 **409 passed in 62.44s**，日志为 `verification/acceptance_20260930_skill_context_fix/pytest_final_catalog.txt`；原 D2 离线复放、6 个反例、来源与旧绑定检查共 14 项通过。当前 EXE 指纹与逐项发行结果见[本轮交接](<docs/archive/reports/verification/acceptance_20260930_skill_context_fix/修复与交接_20260930.md>)。
+- 本轮最终全量 **409 passed in 62.44s**，日志为 `verification/acceptance_20260930_skill_context_fix/pytest_final_catalog.txt`；原 D2 离线复放、6 个反例、来源与旧绑定检查共 14 项通过。当前 EXE 指纹与逐项发行结果见[本轮交接](<docs/archive/reports/verification/acceptance_20260930_skill_context_fix/修复与交接-20260930.md>)。
 - 没有新增真实模型调用；真实有 Skill/M3/M4、D1 后续链、跨机 Windows 和系统 DPI 仍待验证。历史真实 D2 的 `no_match` 记录不改写。
 
 ## 2026-09-29：D2 真实演示链与发行收尾

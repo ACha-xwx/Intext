@@ -29,4 +29,4 @@
 - GitHub 目录旧文件先完整备份并迁出，`.git` 与远程关联保留。旧开发工作副本仍保留，未批量删除。
 - 历史 EXE 留在旧工作副本/备份；协作仓库的本地 `dist/` 只保留最新功能基线及本轮整理构建。
 
-整理细节与当前验证见 [维护记录](../maintenance/repository_cleanup_20261008.md)。
+整理细节与当前验证见 [维护记录](../maintenance/repository-cleanup-20261008.md)。

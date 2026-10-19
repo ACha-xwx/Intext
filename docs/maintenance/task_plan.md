@@ -28,7 +28,7 @@
 - [complete] 实施确认保存和匹配恢复，同步 Debug 与失效提示。
 - [complete] 定向回归、真实 Tk/进程重启验收，更新文档、计划和 CodeGraph；最新去重 166 passed / 0 failed / 0 skipped，5 个独立 Windows Tk 进程 48 项检查通过，源码 smoke 退出 0。索引最新：140 files / 3645 nodes / 11199 edges。
 
-交付为当前源码；未调用真实模型、未构建新版 EXE。旧设置文件首次确认一次后记住。说明及证据见 [模型确认修复](model_confirmation_20261010.md) 与 [验收](../../verification/model_confirmation_20261010/results.md)。
+交付为当前源码；未调用真实模型、未构建新版 EXE。旧设置文件首次确认一次后记住。说明及证据见 [模型确认修复](model-confirmation-20261010.md) 与 [验收](../../verification/model_confirmation_20261010/results.md)。
 
 ## 当前追加：需求未知先澄清、再确认方案（2026-10-10）
 
@@ -42,7 +42,7 @@
 - [complete] 修复未知澄清与逐题呈现、显式暂缓和确认入口，同步 Debug。
 - [complete] 定向回归和实际 Tk 验收，更新当前文档与 CodeGraph。
 
-本次最新去重 222 passed / 0 failed / 0 skipped，26 项实际 Tk/Debug、源码 smoke、编译/空白、71 个相对链接通过。CodeGraph 已同步 13 文件，索引最新。见 [核对修复](unknown_clarification_20261010.md) 与 [验收](../../verification/unknown_clarification_20261010/results.md)。无真实模型/外部服务、EXE 重建、提交或推送。
+本次最新去重 222 passed / 0 failed / 0 skipped，26 项实际 Tk/Debug、源码 smoke、编译/空白、71 个相对链接通过。CodeGraph 已同步 13 文件，索引最新。见 [核对修复](unknown-clarification-20261010.md) 与 [验收](../../verification/unknown_clarification_20261010/results.md)。无真实模型/外部服务、EXE 重建、提交或推送。
 
 用户已授权本批统一回归，替代下方历史延期。1000 节点分批覆盖及定向复验，最新 991 passed / 8 旧测试契约失败 / 1 环境跳过；90 个本批定向与最后 72 个受影响节点通过，41 项实际 Tk 检查、源码 smoke、编译/空白检查通过。完整范围、失败清单与边界见 [统一验收](../../verification/bug_batch_20261009/results.md)。没有真实外部服务或新版 EXE 验收；保留历史实施记录，不将旧阶段的延期作为当前状态。
 
@@ -54,11 +54,11 @@
 - [complete] 实施 HTTP 兼容、失败分类与有界降级，同步 Debug 和用户提示。
 - [complete] 编写延期用例与维护说明，同步交接/CodeGraph，仅静态检查。
 
-本项源码交付完成、运行验证延期：6 个 Python 文件 AST 静态读取、相关空白检查和新交接链接检查通过。CodeGraph 同步 6 文件，136 files / 3574 nodes / 10525 edges，索引最新。详见 [联网访问修复](skill_http_access_20261009.md)；没有回归、真实联网/模型、应用/EXE 运行或 EXE 重建，不能据此声明真实 403 已消除。
+本项源码交付完成、运行验证延期：6 个 Python 文件 AST 静态读取、相关空白检查和新交接链接检查通过。CodeGraph 同步 6 文件，136 files / 3574 nodes / 10525 edges，索引最新。详见 [联网访问修复](skill-http-access-20261009.md)；没有回归、真实联网/模型、应用/EXE 运行或 EXE 重建，不能据此声明真实 403 已消除。
 
 方法：继续 planning-with-files，并使用 diagnosing-bugs 的故障边界与假设记录。用户要求回归延期优先于该 Skill 的立即运行反馈循环，本轮编写可复现用例但不执行，不声称已复现/实测修复。记录错误：首份维护补丁用了不存在的 progress 标题，整份拒绝；改用实际标题并独立登记。
 
-最终提示试运行已移除；新建/打开对话的旧请求隔离、M1 省略引用本地还原及恢复日志分级已实施，等待后续 BUG 合并验证。本轮不运行 pytest、源码/EXE 烟测或真实模型；原已通过设置加密记录保留，不能作为新改动的验证结论。详细当前阶段及检查清单见本文末尾、[会话切换修复](session_switch_cancellation_20261009.md) 和 [M1 引用恢复](m1_quote_recovery_20261009.md)。
+最终提示试运行已移除；新建/打开对话的旧请求隔离、M1 省略引用本地还原及恢复日志分级已实施，等待后续 BUG 合并验证。本轮不运行 pytest、源码/EXE 烟测或真实模型；原已通过设置加密记录保留，不能作为新改动的验证结论。详细当前阶段及检查清单见本文末尾、[会话切换修复](session-switch-cancellation-20261009.md) 和 [M1 引用恢复](m1-quote-recovery-20261009.md)。
 
 # 已完成追加：设置持久化与 API Key 加密（2026-10-09）
 
@@ -73,7 +73,7 @@
 - [complete] 验证真实 Windows 加解密、损坏恢复、原子失败和实际 Tk 重启行为；最新 101 个独立节点通过，35 项跨进程检查和 113 项分类布局检查通过。
 - [complete] 同步文档、安全边界、验证报告与 CodeGraph；129 files / 3425 nodes / 10515 edges，索引最新。
 
-源码交付完成：普通设置和加密 API Key 自动恢复，Debug 开关兼容迁移，失败有重试/重新输入指引。源码隔离 smoke、编译、空白检查通过。验证见 [设置加密](../../verification/settings_encryption_20261009/results.md)，DPAPI 边界见 [凭据保护](settings_security_20261009.md)。没有真实模型调用、EXE 重建、提交或推送。
+源码交付完成：普通设置和加密 API Key 自动恢复，Debug 开关兼容迁移，失败有重试/重新输入指引。源码隔离 smoke、编译、空白检查通过。验证见 [设置加密](../../verification/settings_encryption_20261009/results.md)，DPAPI 边界见 [凭据保护](settings-security-20261009.md)。没有真实模型调用、EXE 重建、提交或推送。
 
 中间验证：首批 preferences/UI 32 passed / 1 旧断言失败；恢复密钥实际成功，旧断言仍要求空值，已按新需求改为恢复临时密钥但保持未确认。已增加原生 DPAPI 身份绑定、篡改、替换/清空、解密失败恢复、原子写入失败及 Debug 密文保留测试。
 
@@ -89,7 +89,7 @@
 
 完成条件：分类页面、合理数值范围、恢复默认、设置持久化且实际生效；密钥不写入普通配置，运行中的请求用快照；模型设置测试与确认分离；错误给出可修改/重试引导；维护和交接文档、验证证据及 CodeGraph 更新。
 
-- [complete] 人工盘点配置入口、默认常量、协议差异与现有偏好；清单见 settings_audit_20261009.md。
+- [complete] 人工盘点配置入口、默认常量、协议差异与现有偏好；清单见 settings-audit-20261009.md。
 - [complete] 实现五类设置、无密钥持久化、模型/搜索/界面/会话/诊断接线。
 - [complete] 定向回归与实际 Tk 验证，266 个当前独立节点通过；113 项实际窗口检查通过。
 - [complete] 同步盘点清单、交接/验证文档和 CodeGraph；46 个链接、编译/源码 smoke/空白及忽略检查通过。
@@ -259,11 +259,11 @@
 - [complete] 核对当前任务工作流与比赛 UI 方向，评估全流程对话化的影响。
 - [complete] 记录设计建议和实现边界，形成向用户说明的可行性与交互方案。
 
-设计记录：[统一对话工作区](unified_conversation_design_20261009.md)。本轮设计分析完成，应用尚未改造；后续按用户确定的方向追加实施阶段。
+设计记录：[统一对话工作区](unified-conversation-design-20261009.md)。本轮设计分析完成，应用尚未改造；后续按用户确定的方向追加实施阶段。
 
 ## 上一任务：M2 未决事项兼容与操作引导（完成）
 
-已完成 [M2 修复计划](m2_recovery_20261008.md)。代码、诊断回放、116 个相关独立检查和新版 EXE 验证完成；功能提交 `e4fc0da` 已推送 `origin/main`。本轮无剩余实施事项。
+已完成 [M2 修复计划](m2-recovery-20261008.md)。代码、诊断回放、116 个相关独立检查和新版 EXE 验证完成；功能提交 `e4fc0da` 已推送 `origin/main`。本轮无剩余实施事项。
 
 ## 上一任务：团队交接与远程发布（完成）
 
@@ -273,7 +273,7 @@
 - [complete] 一次全量离线验证、资源审计、构建和隔离启动；区分已有失败。
 - [complete] Git 候选文件与文档检查，提交和推送，核对远端。
 
-执行记录及恢复信息：`repository_cleanup_20261008.md`。验证进展记录在本目录 `progress.md`。本次用户已明确授权远程提交，无需再询问。
+执行记录及恢复信息：`repository-cleanup-20261008.md`。验证进展记录在本目录 `progress.md`。本次用户已明确授权远程提交，无需再询问。
 
 主体提交 `f87442d` 已上传 `origin/main` 并核对远端。当前交接任务完成；下一阶段为 UI 队员阅读交接、设计预览与团队演示案例准备。
 
@@ -618,7 +618,7 @@
 
 完成标准：等待轮询日志静默，真实操作仍有日志；已答问题及保存恢复不循环，含糊有明确下一步、不伪造充分/答案；访谈请求输入预算有前后对比，完整输出和方案/最终强度保留。已读取目标runs元数据，256431ms主要为54075思考token、无重试；不得将字节降幅换算成真实服务加速率，不承诺固定响应时间。
 
-完成：30项新增及114项最终受影响回归通过；300个不同节点296通过/4既有差异（before模块复现），两轴审查各0待修。8项Python/spec AST、60个提示资源、12文件独立差异/SHA256、9原始快照、12文档155相对链接及差异空白通过。CodeGraph199files/5140nodes/16214edges且current。详见[维护](interview_reliability_20261011.md)与[验收](../../verification/interview_reliability_20261011/results.md)。源码已更新，无新真实调用、EXE或提交推送。
+完成：30项新增及114项最终受影响回归通过；300个不同节点296通过/4既有差异（before模块复现），两轴审查各0待修。8项Python/spec AST、60个提示资源、12文件独立差异/SHA256、9原始快照、12文档155相对链接及差异空白通过。CodeGraph199files/5140nodes/16214edges且current。详见[维护](interview-reliability-20261011.md)与[验收](../../verification/interview_reliability_20261011/results.md)。源码已更新，无新真实调用、EXE或提交推送。
 
 ## 2026-10-12 追加：侧栏收起动画
 
@@ -630,7 +630,7 @@
 
 验收：展开/收起每帧顶部控件不离开顶部，历史从可见平滑退出；快速反向连续、终态命中正确，缩起内容不进入Tab；原功能可操作，无新日志刷屏。仅离线数据，不读个人设置/历史，不调用真实模型或重建EXE。
 
-完成：65项浏览器回归（11新增/54相邻）、25项独立真实WebView2检查通过，浅深阶段图已核对，规范/需求双轴各0待修。四文件差异与before快照保留；语法/链接/差异空白/SHA256通过，CodeGraph200files/5154nodes/16258edges且current。见[维护](sidebar_animation_20261012.md)与[验收](../../verification/sidebar_animation_20261012/results.md)。
+完成：65项浏览器回归（11新增/54相邻）、25项独立真实WebView2检查通过，浅深阶段图已核对，规范/需求双轴各0待修。四文件差异与before快照保留；语法/链接/差异空白/SHA256通过，CodeGraph200files/5154nodes/16258edges且current。见[维护](sidebar-animation-20261012.md)与[验收](../../verification/sidebar_animation_20261012/results.md)。
 
 
 ## 2026-10-12 追加：思考区读秒卡顿
@@ -644,7 +644,7 @@
 验收：无新快照时working耗时仍按0.1秒递增，迟到/重复快照不倒退；终态采用后端最终耗时并停止计时；切换/移除无旧更新，思考文字持续流畅；无个人设置历史读写、收费模型请求或EXE构建。
 
 
-完成：T1/T2/T3全部关闭，8新增＋54前端＋11侧栏=73项浏览器全部通过，13项真实WebView2呈现检查通过，双轴各0发现。无快照/长思考两段数字间隔最大100.1/105.5ms；终态使用后端值，正文排空与切换清理通过。2文件独立差异/SHA256、语法/文档/差异空白及CodeGraphcurrent（201files/5167nodes/16194edges）完成。见[维护](trace_timer_20261012.md)与[验收](../../verification/trace_timer_20261012/results.md)。无收费模型请求/EXE/提交。
+完成：T1/T2/T3全部关闭，8新增＋54前端＋11侧栏=73项浏览器全部通过，13项真实WebView2呈现检查通过，双轴各0发现。无快照/长思考两段数字间隔最大100.1/105.5ms；终态使用后端值，正文排空与切换清理通过。2文件独立差异/SHA256、语法/文档/差异空白及CodeGraphcurrent（201files/5167nodes/16194edges）完成。见[维护](trace-timer-20261012.md)与[验收](../../verification/trace_timer_20261012/results.md)。无收费模型请求/EXE/提交。
 
 
 ## 2026-10-12 需求核对内联、轻量编辑与停止请求
@@ -693,7 +693,7 @@
 验收：五种级别计数准确、独立切换/灰显/再次显示，清空仅清显示；自动滚动开启且用户上翻时保持所读位置，回到底部后跟随，关闭自动滚动不跳；滚动/刷新/计数不新增逐帧日志。
 
 
-完成：D1–D3关闭，52个不同自动化节点及14项真实WebView2隔离检查全部通过；需求/规范双轴0待修。已保留完整手动保存、脱敏、颜色、100% Debug字号和前序未提交工作，交接与索引同步。无个人数据/真实模型/EXE/提交。见[维护](debug_legend_20261012.md)与[验收](../../verification/debug_legend_20261012/results.md)。
+完成：D1–D3关闭，52个不同自动化节点及14项真实WebView2隔离检查全部通过；需求/规范双轴0待修。已保留完整手动保存、脱敏、颜色、100% Debug字号和前序未提交工作，交接与索引同步。无个人数据/真实模型/EXE/提交。见[维护](debug-legend-20261012.md)与[验收](../../verification/debug_legend_20261012/results.md)。
 
 
 ## 2026-10-12 方案核对内联与逐阶段返回
@@ -736,7 +736,7 @@
 
 ## 2026-10-12 Tk 编辑界面迁入 WebView2
 
-W1 真实复现与需求编辑 complete；W2 完整方案/附注 complete；W3 生命周期、审查、回归与交接 complete。146个不同最新自动化节点全绿，真实 WebView2 浅深各16项通过，Spec/Standards 0待修。范围与验收见 [本轮任务](web_editors_20261012.md) 和 [报告](../../verification/web_editors_20261012/results.md)，原始证据仅本地保留。
+W1 真实复现与需求编辑 complete；W2 完整方案/附注 complete；W3 生命周期、审查、回归与交接 complete。146个不同最新自动化节点全绿，真实 WebView2 浅深各16项通过，Spec/Standards 0待修。范围与验收见 [本轮任务](web-editors-20261012.md) 和 [报告](../../verification/web_editors_20261012/results.md)，原始证据仅本地保留。
 
 ## 2026-10-12 项目清理与 GitHub 同步
 
@@ -768,7 +768,7 @@ W1 真实复现与需求编辑 complete；W2 完整方案/附注 complete；W3 �
 
 用户要求检查其它模型。A1 核对五家官方协议与全部19个预设（complete）；A2 Claude/DeepSeek Messages 的结构化约束与公开思考摘要修复（complete）；A3 全预设连接/文本/结构生成、四档参数及三协议流式/错误相邻回归（complete）。不调用付费接口，不以合成服务冒充真实账号验证。
 
-完成：233项定向及相邻回归通过，19预设矩阵包含228次本地合成HTTP请求；默认run.bat实际WebView2烟测退出0且无自动日志。7文件AST、144文档相对链接及diff空白检查通过，规范/需求两轴各0待修，CodeGraph已同步。未构建EXE或提交推送，队员与真实服务未复测。详见[维护报告](startup_responses_20261012.md)。
+完成：233项定向及相邻回归通过，19预设矩阵包含228次本地合成HTTP请求；默认run.bat实际WebView2烟测退出0且无自动日志。7文件AST、144文档相对链接及diff空白检查通过，规范/需求两轴各0待修，CodeGraph已同步。未构建EXE或提交推送，队员与真实服务未复测。详见[维护报告](startup-responses-20261012.md)。
 
 ## 2026-10-12 队员真实接口流式失败复诊
 
@@ -780,7 +780,7 @@ W1 真实复现与需求编辑 complete；W2 完整方案/附注 complete；W3 �
 |S2 修复与诊断|streaming.py、api.py、既有证据/提示边界|失败原因可见且脱敏，取消/原有参数/普通错误单请求保留；不编造远端错误原因|complete|
 |S3 回归与交接|定向相邻、维护与CodeGraph|最终证据/界限明确，无真实收费请求或个人设置读写|complete|
 
-已收到旧stream_error，但仅泛化invalid_request、无param；诊断改动独立收尾，不把本地模拟当作网关已修复。详见[复诊记录](stream_service_error_20261012.md)。
+已收到旧stream_error，但仅泛化invalid_request、无param；诊断改动独立收尾，不把本地模拟当作网关已修复。详见[复诊记录](stream-service-error-20261012.md)。
 
 诊断修复验证：172项定向/相邻通过、双轴各0待修、3文件AST及diff检查通过，CodeGraph已同步。本轮无收费调用、个人设置、EXE或提交推送；原始事件已取得但具体拒绝字段未说明。
 
@@ -803,7 +803,7 @@ W1 真实复现与需求编辑 complete；W2 完整方案/附注 complete；W3 �
 
 S5请求ID诊断已完成：最新4模块109 passed in 28.17s，双轴0待修。真实错误原文已收到，但仅泛化invalid_request，无具体param，不能认定单一远端根因。旧“等待原文”状态已在R3交接中更正。
 
-R1–R3收尾：289个不同节点最新全绿（15模块246通过/2夹具失败→三模块63通过）；双轴各0待修，12文件AST/182相对链接/diff通过，CodeGraph同步。见[请求兼容维护](responses_gateway_20261012.md)。无付费模型、个人Key/设置、EXE或提交推送，真实中转待新版源码复测。
+R1–R3收尾：289个不同节点最新全绿（15模块246通过/2夹具失败→三模块63通过）；双轴各0待修，12文件AST/182相对链接/diff通过，CodeGraph同步。见[请求兼容维护](responses-gateway-20261012.md)。无付费模型、个人Key/设置、EXE或提交推送，真实中转待新版源码复测。
 
 
 ## 2026-10-12 设置下拉箭头与显示
@@ -817,7 +817,7 @@ R1–R3收尾：289个不同节点最新全绿（15模块246通过/2夹具失败
 
 基线为当前工作树（包含已完成Responses未提交修复）；不回退或混入API改动。沿用已授权生产浏览器DOM/公开设置动作测试边界。
 
-完成：5项新增浏览器回归及12项相邻设置检查通过，需求/规范双轴各0待修，JS语法与diff检查通过，CodeGraph已同步。实际Chrome悬停截图确认单箭头居中；本轮未验证真实WebView2/EXE或个人配置，也未调用模型或提交推送。详见[维护](settings_dropdown_20261012.md)。
+完成：5项新增浏览器回归及12项相邻设置检查通过，需求/规范双轴各0待修，JS语法与diff检查通过，CodeGraph已同步。实际Chrome悬停截图确认单箭头居中；本轮未验证真实WebView2/EXE或个人配置，也未调用模型或提交推送。详见[维护](settings-dropdown-20261012.md)。
 
 ### 追加：预设列表无法切换与遮挡协议
 
@@ -839,7 +839,7 @@ R1–R3收尾：289个不同节点最新全绿（15模块246通过/2夹具失败
 |J1 输入可见契约|api.py、公开HTTP回归|复杂Schema及原生格式兼容路径的input有明确JSON指令，原业务输入独立完整；先红后绿|complete|
 |J2 回归与收尾|相邻API/流程、Debug/维护/独立双轴审查|原生strict/文本/供应商/输入去重/服务错误继续通过；无收费请求、个人设置或推送|complete|
 
-完成：D3/D4/J1/J2全部关闭，255个不同本地自动化节点最新通过，实际WebView2鼠标/键盘/真实设置桥接20项通过，Spec/Standards各0待修，CodeGraph已同步。队员报告中真实中转的input原因成立，但本机未发收费请求，保留当前无强制json_object策略；见[本轮维护](settings_choice_interaction_20261012.md)。
+完成：D3/D4/J1/J2全部关闭，255个不同本地自动化节点最新通过，实际WebView2鼠标/键盘/真实设置桥接20项通过，Spec/Standards各0待修，CodeGraph已同步。队员报告中真实中转的input原因成立，但本机未发收费请求，保留当前无强制json_object策略；见[本轮维护](settings-choice-interaction-20261012.md)。
 
 
 ## 2026-10-12 供应商独立配置与获取模型目录
@@ -855,7 +855,7 @@ R1–R3收尾：289个不同节点最新全绿（15模块246通过/2夹具失败
 |V3 供应商菜单|settings.js/CSS及DOM/WebView2|五图标、圆角阴影、.38s弹出与关闭动画；键盘/小窗/外点/忙态/草稿保护|V1|complete|
 |V4 收尾|相邻回归、Debug、双轴审查、交接与CodeGraph|无泄密/自动日志，相关检查通过，边界据实报告|V2/V3|complete|
 
-V1–V4完成：264个不同本地回归节点最新通过，真实WebView2隔离36项通过（仅5次localhost目录请求，零生成/个人配置读写/自动日志），Spec/Standards最终各0待修。4项旧Tk基线失败单列，未声明全套成功或真实服务/EXE质量；维护/交接已同步，见[本轮报告](provider_profiles_20261013.md)。
+V1–V4完成：264个不同本地回归节点最新通过，真实WebView2隔离36项通过（仅5次localhost目录请求，零生成/个人配置读写/自动日志），Spec/Standards最终各0待修。4项旧Tk基线失败单列，未声明全套成功或真实服务/EXE质量；维护/交接已同步，见[本轮报告](provider-profiles-20261013.md)。
 
 
 ## 2026-10-13 自定义供应商的调用类型
@@ -873,7 +873,7 @@ V1–V4完成：264个不同本地回归节点最新通过，真实WebView2隔�
 
 追加：设置页服务下拉按用户显式选择的五家模型类型分组，自定义可确认删除（含加密密钥/目录），五家内置入口保留。修复模型菜单额外custom分类，未知ID按服务类型展示且不臆造能力。C3包含分组/删除/当前及非当前档案恢复与重启验收。
 
-C1–C4完成：263个不同本地自动化节点最新全绿，32项实际WebView2隔离检查通过，独立Spec/Standards最终各0待修。16个Python文件AST、settings.js语法、diff空白及交接相对链接通过；CodeGraph同步17个变更文件并确认current（224files/5683nodes/17890edges）。旧composer替身失败及12项旧模型参数合同已在before复现并单列，不宣称全套通过；无收费模型、个人配置、EXE或提交推送。详见[本轮维护](custom_provider_20261013.md)。
+C1–C4完成：263个不同本地自动化节点最新全绿，32项实际WebView2隔离检查通过，独立Spec/Standards最终各0待修。16个Python文件AST、settings.js语法、diff空白及交接相对链接通过；CodeGraph同步17个变更文件并确认current（224files/5683nodes/17890edges）。旧composer替身失败及12项旧模型参数合同已在before复现并单列，不宣称全套通过；无收费模型、个人配置、EXE或提交推送。详见[本轮维护](custom-provider-20261013.md)。
 
 ## 2026-10-13 历史回答补答入口
 
@@ -885,7 +885,7 @@ C1–C4完成：263个不同本地自动化节点最新全绿，32项实际WebVi
 |R2 图标居中|workspace.css、生产DOM测试|浅深及不同字号/单多行气泡图标中心与按钮重合，保留玻璃动画|complete|
 |R3 收尾|Debug、相邻回归、diff审查、维护/索引|诊断去重且无正文；记录测试边界，不改前轮未提交内容|complete|
 
-R1–R3完成：60个不同定向/相邻节点通过，新增11项，Spec/Standards各0待修；AST/JS/diff及交接链接通过。CodeGraph同步3文件并确认current（225files/5695nodes/17895edges）。仅隔离Session/Controller、真实Tk与离线Chrome DOM，无模型/个人配置/原生WebView2/EXE/提交；见[维护](reanswer_history_20261013.md)。
+R1–R3完成：60个不同定向/相邻节点通过，新增11项，Spec/Standards各0待修；AST/JS/diff及交接链接通过。CodeGraph同步3文件并确认current（225files/5695nodes/17895edges）。仅隔离Session/Controller、真实Tk与离线Chrome DOM，无模型/个人配置/原生WebView2/EXE/提交；见[维护](reanswer-history-20261013.md)。
 
 ## 2026-10-13 思考入口显隐与计时布局
 
@@ -899,7 +899,7 @@ R1–R3完成：60个不同定向/相邻节点通过，新增11项，Spec/Standa
 |T2 计时布局|workspace.css、生产DOM布局回归|浅深/多字号/长计时明确间距且数字变化不移动箭头；红绿|T1|complete|
 |T3 收尾|Debug、相邻回归、双轴审查、交接与索引|仅显隐变化记录无正文，不逐帧日志；据实区分DOM/Tk与原生WebView2|T1/T2|complete|
 
-T1–T3完成：新增15项及相邻共59项全部通过，Spec/Standards各0待修，Chrome浅深截图核对通过。Python AST/JS语法和diff空白通过；CodeGraph同步3文件后确认current（226files/5709nodes/17899edges）。索引首次Python subprocess未解析npm启动器失败，改PowerShell原生调用成功。维护/交接同步，保留前轮未提交工作；无收费模型、个人设置、原生WebView2/EXE或提交推送。见[维护](trace_visibility_20261013.md)。
+T1–T3完成：新增15项及相邻共59项全部通过，Spec/Standards各0待修，Chrome浅深截图核对通过。Python AST/JS语法和diff空白通过；CodeGraph同步3文件后确认current（226files/5709nodes/17899edges）。索引首次Python subprocess未解析npm启动器失败，改PowerShell原生调用成功。维护/交接同步，保留前轮未提交工作；无收费模型、个人设置、原生WebView2/EXE或提交推送。见[维护](trace-visibility-20261013.md)。
 
 ## 2026-10-13 设置页标签与控件错位
 
@@ -911,7 +911,7 @@ T1–T3完成：新增15项及相邻共59项全部通过，Spec/Standards各0待
 |L2 尺寸/相邻检查|设置浏览器/原生隔离检查|内置/自定义、浅深宽窄字段对应正常；既有保存/删除/菜单相邻继续通过|L1|complete|
 |L3 诊断与收尾|Debug、双轴审查、交接/索引|诊断去重/无正文密钥，记录准确验证边界|L1/L2|complete|
 
-L1–L3完成：26项不同生产DOM/相邻检查、10项隔离原生WebView2合成快照检查通过，Spec/Standards独立审查各0待修。AST/JS/diff及交接链接通过；CodeGraph同步2文件后current（227files/5714nodes/17978edges）。仅布局两行增量，未新增设置功能、读取个人设置、调用模型、构建EXE或提交推送；见[维护](settings_layout_20261013.md)。
+L1–L3完成：26项不同生产DOM/相邻检查、10项隔离原生WebView2合成快照检查通过，Spec/Standards独立审查各0待修。AST/JS/diff及交接链接通过；CodeGraph同步2文件后current（227files/5714nodes/17978edges）。仅布局两行增量，未新增设置功能、读取个人设置、调用模型、构建EXE或提交推送；见[维护](settings-layout-20261013.md)。
 
 ## 2026-10-13 启动自动获取模型列表与仓库交付
 
@@ -948,7 +948,7 @@ S1–S5完成：CodeGraph同步25个变化文件并确认current（234files / 58
 
 ## 2026-10-13 Debug内部日志列表
 
-仅复刻用户组件内部行排版：短时间/级别/模块/正文、等宽文字与自动换行，精简高频普通状态；完整异常/归档/手动保存不缩减。保持前轮未提交设置成果，沿用已授权公开RuntimeLog/DebugApi/生产DOM/隔离WebView2边界。详见[本轮规格](debug_log_view_20261013.md)。
+仅复刻用户组件内部行排版：短时间/级别/模块/正文、等宽文字与自动换行，精简高频普通状态；完整异常/归档/手动保存不缩减。保持前轮未提交设置成果，沿用已授权公开RuntimeLog/DebugApi/生产DOM/隔离WebView2边界。详见[本轮规格](debug-log-view-20261013.md)。
 
 |任务|范围|验收|状态|
 |---|---|---|---|
@@ -960,7 +960,7 @@ D1–D3完成：60个不同本地节点最新全部通过，13项隔离原生Web
 
 ## 2026-10-13 右上角统一通知与完整文案清单
 
-目标：按用户组件复刻四类可关闭通知，迁移工作区/设置/历史/编辑/Debug的用户反馈到右上角；列出全部可出现的文案和动态模板供用户修改。保留业务确认、完整日志、密钥脱敏和原草稿/重试，沿用已授权公开边界。[规格与任务](notifications_20261013.md)。
+目标：按用户组件复刻四类可关闭通知，迁移工作区/设置/历史/编辑/Debug的用户反馈到右上角；列出全部可出现的文案和动态模板供用户修改。保留业务确认、完整日志、密钥脱敏和原草稿/重试，沿用已授权公开边界。[规格与任务](notifications-20261013.md)。
 
 - N1 共享卡片组件与右上响应式：complete。
 - N2 消息迁移、去重及Debug覆盖：complete。
@@ -970,12 +970,12 @@ D1–D3完成：60个不同本地节点最新全部通过，13项隔离原生Web
 - N6 用户追加动画底部滚动条：complete。复现进出动画横向溢出，限制横向滚动，保留长通知纵向可达与原动画。
 - N7 用户追加通知上移补位：complete。前条关闭后剩余通知从当前位置平滑上移，连续关闭不中断跳跃，独立计时不重置。
 - N8 用户发现上移时纵向滚动条：complete。稳定通知浮层可视高度，补位不产生临时纵向溢出；真实超出窗口的通知仍可滚动。
-- N9 后续四个问题与统一验收：complete。按用户要求先完成四项，再执行统一回归；275个不同本地节点与22项隔离WebView2检查通过，两轴审查各0待修，详见[联网相关性与本批验收](network_relevance_20261013.md)。
+- N9 后续四个问题与统一验收：complete。按用户要求先完成四项，再执行统一回归；275个不同本地节点与22项隔离WebView2检查通过，两轴审查各0待修，详见[联网相关性与本批验收](network-relevance-20261013.md)。
 
 ## 2026-10-13 问题回答一键批量提交（四项待修的第1项）
 
 - Q1 定位与实现：complete。任意问题回答框Enter或发送，一次提交当前批所有非空未提交回答；保留空题/跳过、Shift+Enter换行、请求版本/忙态保护、仅在整批完成时自动整理一次。涉及生产Web工作区、Controller和现有业务回答入口；同步脱敏Debug。
-- Q2 差异审查/交接：complete。Spec/Standards各0待修，限定本轮batch增量，保留前轮通知和设置成果；见[维护](batch_answers_20261013.md)。
+- Q2 差异审查/交接：complete。Spec/Standards各0待修，限定本轮batch增量，保留前轮通知和设置成果；见[维护](batch-answers-20261013.md)。
 - Q3 回归验收：complete。第四项实现后执行批量/原子/草稿/失败/IME及相邻回归，浅深原生隔离呈现通过；未调用真实模型。
 
 ## 2026-10-13 本批追加：自定义供应商重命名与 Skill 表格工具栏
@@ -985,7 +985,7 @@ D1–D3完成：60个不同本地节点最新全部通过，13项隔离原生Web
 - R3 差异审查、Debug、文案及维护：complete。两轴审查各0待修；原文异常与手动保存不变，文案清单标明搜索进度不弹通知。
 - R4 回归验收：complete。第四项完成后统一执行公开DPAPI/Controller、DOM/隔离原生检查，准确区分真实服务边界。
 
-维护规格与已执行场景见[本批维护](provider_rename_skill_toolbar_20261013.md)。服务字段缩短属于第2项的呈现细化；第4项联网相关性修复与统一验收现已完成。
+维护规格与已执行场景见[本批维护](provider-rename-skill-toolbar-20261013.md)。服务字段缩短属于第2项的呈现细化；第4项联网相关性修复与统一验收现已完成。
 
 ## 2026-10-13 第4项：联网 Skill 相关性与进度通知
 
@@ -1033,7 +1033,7 @@ T5完成：5个Python AST、3个JS语法、9个HTML资源及259项当前相对�
 
 ## 2026-10-13 意织 · Intext 启动 Hero
 
-按用户新要求新增启动页和产品品牌；复刻加载与银边圆形play按钮。初次加载后点开始才进入操作教程，completed/skipped加载后直接进入，教程状态合同保留。公开测试边界与本轮before检查点沿用已授权范围，详见[规格及H1–H5](intext_hero_20261013.md)。当前H1–H5全部完成；下述暂停和恢复为过程记录。内部数据路径/加密/包名保持兼容，不累积前轮diff、不发真实模型请求。
+按用户新要求新增启动页和产品品牌；复刻加载与银边圆形play按钮。初次加载后点开始才进入操作教程，completed/skipped加载后直接进入，教程状态合同保留。公开测试边界与本轮before检查点沿用已授权范围，详见[规格及H1–H5](intext-hero-20261013.md)。当前H1–H5全部完成；下述暂停和恢复为过程记录。内部数据路径/加密/包名保持兼容，不累积前轮diff、不发真实模型请求。
 
 用户后续要求将整个「意织 · Intext」合成一个SVG；确认Orange Juice缺少中文后，用户决定自行找中文字体，并明确暂时搁置整个任务。H1标paused，H2–H5保持pending；用户恢复前不继续实现或验证。应用代码和界面尚未变更。
 
@@ -1058,7 +1058,7 @@ T5完成：5个Python AST、3个JS语法、9个HTML资源及259项当前相对�
 
 用户追加A6：模型思考强度保存不显示启动窗口提醒，仅真实尺寸变更显示；A7：去掉整理深度/任务类型玻璃按钮额外内圈，保留玻璃和键盘焦点。侧栏英文SVG按最新要求改浅黑/深白。第五步取消发送目标前置，直接允许完成；仅点击完成保存completed，旧页面版本拒绝。A6–A7沿用公开Controller/生产DOM，先红再绿。
 
-最终H1–H5、A1–A7完成：199个不同相关本地节点最新全绿、54项实际WebView2检查通过，Spec/Standards各0待修；用户39项文案与改稿一致、原稿bytes未变。AST31、JS7、HTML19引用及spec工作区22文件通过，CodeGraph current为261文件/6417节点/19717边。完整证据及历史失败边界见[intext_hero_20261013.md](intext_hero_20261013.md)。
+最终H1–H5、A1–A7完成：199个不同相关本地节点最新全绿、54项实际WebView2检查通过，Spec/Standards各0待修；用户39项文案与改稿一致、原稿bytes未变。AST31、JS7、HTML19引用及spec工作区22文件通过，CodeGraph current为261文件/6417节点/19717边。完整证据及历史失败边界见[intext-hero-20261013.md](intext-hero-20261013.md)。
 
 ## 2026-10-13 全项目逐页逐组件审查
 
@@ -1082,33 +1082,33 @@ T5完成：5个Python AST、3个JS语法、9个HTML资源及259项当前相对�
 S1: Hide the complete Skill search/selection card after a valid prompt is generated. Preserve candidates, bindings, prompt content and return navigation. Files: conversation.py, focused stage-visibility tests. Completion: result view omits Skill UI; previous-step Skill view restores it; failed generation keeps recovery available; Debug tracks visibility changes without poll spam. Status: complete (5 focused checks passed, Spec/Standards each 0 findings). S2 is recorded below; S3 awaits the user details. Combined regression: deferred until all three fixes are supplied and implemented.
 
 
-S2 (2026-10-14): evenly distribute current requirement/plan/Skill/result action buttons across each complete row using the supplied glass component (including hover/press animation, dark theme, reduced motion). Remove adopt_requirement from conversation controls; result has copy/export/notes only; notes panel has add note and no tone selector. Preserve menu file save and business finalization/old saved tone data. Scope: workspace.js/css, conversation.py, focused public DOM/Controller tests. Completion: equal widths/full row at wide/narrow viewports, removed controls absent, notes action still works and model/confirmation operations unchanged. Full combined regression deferred. Status: complete (20 distinct focused checks passed; incremental Spec/Standards each 0 findings). See [maintenance](action_rows_20261014.md).
+S2 (2026-10-14): evenly distribute current requirement/plan/Skill/result action buttons across each complete row using the supplied glass component (including hover/press animation, dark theme, reduced motion). Remove adopt_requirement from conversation controls; result has copy/export/notes only; notes panel has add note and no tone selector. Preserve menu file save and business finalization/old saved tone data. Scope: workspace.js/css, conversation.py, focused public DOM/Controller tests. Completion: equal widths/full row at wide/narrow viewports, removed controls absent, notes action still works and model/confirmation operations unchanged. Full combined regression deferred. Status: complete (20 distinct focused checks passed; incremental Spec/Standards each 0 findings). See [maintenance](action-rows-20261014.md).
 
-S3 (2026-10-14): online Skill discovery sends bounded introductions and task/key-work context to one AI scoring pass; genuine 0–1 model scores, recommended use and descending recommendation display. The existing warning represents a failed review fallback; the user's exact remote failure cause is not established without its exception. Diagnose reproducible format/budget failures through public search + external HTTP/model boundaries; preserve Skill identity, source/selection integrity, cancellation and local matching. Tolerate harmless JSON wrapping and isolate invalid response rows without losing valid scores. Scope: skill_ai_selection.py, skill_network_discovery.py, UI/Controller detail projection, focused tests/Debug. Completion: summary payload rather than full sources, single scoring pass even above review count, per-candidate scores/uses, true failures visibly unreviewed, no automatic retry loop. Status: complete. Combined S1–S3/adjacent 30-module run 322 passed/1 obsolete reachability fixture failure; corrected public back-stage path and final affected six-module run 61 passed. Latest distinct nodes 326 passed, no outstanding failure; both final review axes clear. Static/link/whitespace checks passed; no live model/WebView2/EXE or commit/push. See [maintenance](skill_summary_scoring_20261014.md). Paused full audit remains paused.
+S3 (2026-10-14): online Skill discovery sends bounded introductions and task/key-work context to one AI scoring pass; genuine 0–1 model scores, recommended use and descending recommendation display. The existing warning represents a failed review fallback; the user's exact remote failure cause is not established without its exception. Diagnose reproducible format/budget failures through public search + external HTTP/model boundaries; preserve Skill identity, source/selection integrity, cancellation and local matching. Tolerate harmless JSON wrapping and isolate invalid response rows without losing valid scores. Scope: skill_ai_selection.py, skill_network_discovery.py, UI/Controller detail projection, focused tests/Debug. Completion: summary payload rather than full sources, single scoring pass even above review count, per-candidate scores/uses, true failures visibly unreviewed, no automatic retry loop. Status: complete. Combined S1–S3/adjacent 30-module run 322 passed/1 obsolete reachability fixture failure; corrected public back-stage path and final affected six-module run 61 passed. Latest distinct nodes 326 passed, no outstanding failure; both final review axes clear. Static/link/whitespace checks passed; no live model/WebView2/EXE or commit/push. See [maintenance](skill-summary-scoring-20261014.md). Paused full audit remains paused.
 
 
 ## 2026-10-14 设置与品牌扩充
 
-使用 planning-with-files 续接五项新要求，B1–B4范围/验收见 [本批计划](settings_brand_20261014.md)。当前B1进行中，B2–B4待完成。全量审查保持暂停；增量before保存，前轮修改不覆盖。
+使用 planning-with-files 续接五项新要求，B1–B4范围/验收见 [本批计划](settings-brand-20261014.md)。当前B1进行中，B2–B4待完成。全量审查保持暂停；增量before保存，前轮修改不覆盖。
 
 
-2026-10-14 B1–B4完成：输入/文案、12项偏好实际接线、图形LOGO及旧SVG保留；207个不同节点最新通过，实际源码WebView2 21项通过，双轴各0待修。用户已授权B5提交GitHub及桌面EXE，进行中。独立EXE首次启动复现jsonschema可选格式库缺少syntax_rfc3987.lark，spec补收集该资源后重新构建验收；原始失败证据保留。完整逐页审查继续暂停，无真实模型请求。详见settings_brand_20261014.md。
+2026-10-14 B1–B4完成：输入/文案、12项偏好实际接线、图形LOGO及旧SVG保留；207个不同节点最新通过，实际源码WebView2 21项通过，双轴各0待修。用户已授权B5提交GitHub及桌面EXE，进行中。独立EXE首次启动复现jsonschema可选格式库缺少syntax_rfc3987.lark，spec补收集该资源后重新构建验收；原始失败证据保留。完整逐页审查继续暂停，无真实模型请求。详见settings-brand-20261014.md。
 
 2026-10-14 B5产物完成：补齐可选JSON格式解析语法后重建EXE，独立WebView2双启动21/21、Tk构造退出0，无自动运行日志；70,409,166字节，SHA256 74898acf29a1bfcc342951d162ad782986e99845f6d638b0ae8ad1e80ee3297c，桌面Intext.exe副本一致。准备提交GitHub，EXE/本地证据不入库。
 
 2026-10-14 B5全部完成：99881a9实现提交已推送GitHub main，远端SHA核对一致；桌面Intext.exe哈希已核对。生成缓存可恢复归档，本地证据/产物/个人数据均未入Git。发布记录的后续提交仅文档，构建源码和spec不再改动。
 
 
-2026-10-14 安装包追加：I1官方依赖/分发方案，I2当前用户安装与缺失WebView2自动安装，I3真实安装/启动/模拟依赖/卸载及双轴审阅，I4 GitHub源码/Release与桌面安装包。详见installer_20261014.md。现有EXE本机通过不能证明同学环境原因；保留数据和运行日志手动保存合同。
+2026-10-14 安装包追加：I1官方依赖/分发方案，I2当前用户安装与缺失WebView2自动安装，I3真实安装/启动/模拟依赖/卸载及双轴审阅，I4 GitHub源码/Release与桌面安装包。详见installer-20261014.md。现有EXE本机通过不能证明同学环境原因；保留数据和运行日志手动保存合同。
 
 
-2026-10-14 P1–P4实现与验收完成：203个不同相关本地节点通过；源码/独立EXE各21项实际WebView2检查通过，迁移恢复与密钥完整性覆盖。Standards初审隔离根问题经2红→8绿修正，两轴复审各0待修。桌面修复版已放置并核对哈希，旧版进程不被中断；实现本地提交a6d0d1a，GitHub直连和原代理均失败，P3b推送待网络恢复。安装包/全量审查保持暂停；详细范围与证据见[本批维护](provider_onboarding_20261014.md)。
+2026-10-14 P1–P4实现与验收完成：203个不同相关本地节点通过；源码/独立EXE各21项实际WebView2检查通过，迁移恢复与密钥完整性覆盖。Standards初审隔离根问题经2红→8绿修正，两轴复审各0待修。桌面修复版已放置并核对哈希，旧版进程不被中断；实现本地提交a6d0d1a，GitHub直连和原代理均失败，P3b推送待网络恢复。安装包/全量审查保持暂停；详细范围与证据见[本批维护](provider-onboarding-20261014.md)。
 
 
-2026-10-14 G1–G4 中转根地址目录：公开无凭据GET区分网站/models与API/v1/models；先外部HTTP红绿，再统一目录/生成路径、真实WebView2、独立EXE与授权GitHub推送。范围/验收见gateway_models_20261014.md，安装包/全审继续暂停。
+2026-10-14 G1–G4 中转根地址目录：公开无凭据GET区分网站/models与API/v1/models；先外部HTTP红绿，再统一目录/生成路径、真实WebView2、独立EXE与授权GitHub推送。范围/验收见gateway-models-20261014.md，安装包/全审继续暂停。
 
 
-2026-10-14 G1红绿完成：localhost网站/models与API/v1/models通过public client复现1红→11绿；G2目录/生成共用内部有效前缀，保存根地址不变，显式路径/官方DeepSeek保持，无重试/额外请求。G3相邻回归和实际WebView2进行中，原生脚本保留显式前缀并新增根地址模式。细节见gateway_models_20261014.md。
+2026-10-14 G1红绿完成：localhost网站/models与API/v1/models通过public client复现1红→11绿；G2目录/生成共用内部有效前缀，保存根地址不变，显式路径/官方DeepSeek保持，无重试/额外请求。G3相邻回归和实际WebView2进行中，原生脚本保留显式前缀并新增根地址模式。细节见gateway-models-20261014.md。
 
 2026-10-14 G3恢复：首轮Spec发现全类别根路径改写范围过大，已改为仅api.fengapi.top根地址内部使用/v1；其他自定义根路径、显式路径与官方接口保持。16项网关/45项相邻通过；接下来最终组合回归、两轴复审、独立EXE原生验收和授权源码推送。沿用公开测试边界，不增加探测或重试，安装包继续暂停。
 
@@ -1148,6 +1148,126 @@ S3 (2026-10-14): online Skill discovery sends bounded introductions and task/key
 
 用户确认同学 C 盘仅剩98 MB，与已核对约139 MB的单文件启动解包需求吻合。按“报错定位后制作安装包”的原授权恢复 I1–I4；先核对分发/官方Runtime，再实现onedir和可选安装目录，编译后实际安装/启动/卸载并审阅，最后GitHub源码/Release与桌面安装包。完整逐页审查仍暂停。安装公开CLI、外部Runtime进程、最终文件和实际WebView2沿用已确认测试边界，隔离配置/不请求模型。审查基点15858f8。
 
+
+## 2026-10-14 意织 Intext 演示视频录制脚本
+
+目标：制作严格3–5分钟的真实操作录屏脚本，从操作式新手教程开始，展示核心功能、实现流程和应用效果。默认成片4分30秒，详细操作留在分镜说明中。
+范围：核对当前交接、教程与实际按钮，编写docs/competition/video中的脚本；不修改程序、不操作私人配置、不调用模型或制作真实效果数据。
+
+|任务|交付/验收|状态|
+|---|---|---|
+|V1 当前功能核对|教程顺序、阶段入口、设置/历史/Debug行为与代码一致|complete|
+|V2 录屏分镜与素材|4分40秒时间线、逐步操作、旁白、固定任务输入与剪辑提示|complete|
+|V3 完整性与交付|时长合计、隐私与赛事导出规范、按钮/引用检查|complete：11段合计280秒，文档检查通过|
+
+视频脚本阶段更新：V1 complete；V2 in_progress。用户补充允许后期剪掉模型等待，原素材不限时；主线预算改为4分40秒，保留20秒安全余量。
+
 I1–I3完成：1红→1绿不解包、最终CLI5项/原生22项/包内M4 8项通过；两轴0待修，桌面安装包已放置并核对SHA。I4源码和Release发布中；编译缓存可恢复归档，私人证据和其他任务文档不入本次提交。
 
-2026-10-14 安装交付 I4 complete：实现648ea1d已原SHA同步GitHub，Release v2026.10.14-setup已发布且标签指向该实现；安装包及校验文件两项资产SHA256与桌面一致。收尾只更新文档，不重建或重复通过检查；全页审查仍暂停，同学机器未验收。详见installer_20261014.md。
+
+## 2026-10-14 演示案例简化与核心价值呈现
+
+目标：将与项目自身相关的长输入替换为一句话、观众易理解的独立场景，让评委看到追问如何补齐条件并形成可交接提示词。范围仅为两份录制文档，保持4:40时间线和真实录屏剪辑边界。
+
+|任务|验收标准|状态|
+|---|---|---|
+|V4 更换案例与精简素材|采用用户指定奖学金答辩PPT；首条目标一句话，回答库四类短句|complete|
+|V5 同步分镜与旁白|输入、追问、Skill和交付均使用同一奖学金答辩PPT案例；强调提示词的前后变化|complete|
+|V6 文档一致性检查|11镜头连续280秒；两文档场景一致，引用与空白检查通过|complete|
+
+2026-10-14 安装交付 I4 complete：实现648ea1d已原SHA同步GitHub，Release v2026.10.14-setup已发布且标签指向该实现；安装包及校验文件两项资产SHA256与桌面一致。收尾只更新文档，不重建或重复通过检查；全页审查仍暂停，同学机器未验收。详见installer-20261014.md。
+
+## 2026-10-18 技术方案：全项目通览与撰写
+
+目标：按用户五部分大纲形成意织 Intext 完整技术方案，全部实现表述可回指当前代码，测试数字可回指证据；采用指定三项主要文风技能及 shuorenhua 辅助复核。
+范围：CodeGraph 索引中的全部生产模块、前端脚本及仓库其他资源/测试/构建/历史材料分类通览，输出正文和依据附录；不修改程序，不请求真实模型，不提交 Git。
+
+|任务|范围与验收|状态|
+|---|---|---|
+|T1 全项目通览|987个已跟踪文件分类；57个生产Python模块、前端与提示资源全部纳入覆盖清单；当前结构及边界有依据|complete：65目标源码职责及全仓分类已列附录|
+|T2 证据整理|实现、历史测试、官方行业来源、团队口述分开记录；缺失数据不推算|complete：市场、测试、研究和团队材料分别归档|
+|T3 技术方案正文|五部分所有子项完整；架构图、代码、用例、部署及案例可读|complete：正文、通览附录、可编辑Word及17页PDF已完成|
+|T4 事实与语言复核|双向核对来源，完整回读，核查链接与措辞，索引和进度更新|complete：事实/文风独立复核、264个本地链接和PDF逐页检查完成；Word未渲染分页|
+
+交付扩展：完成Markdown源码后，另生成可编辑Word及PDF；图和表做排版检查，输出放忽略目录output/doc与output/pdf，源码及依据继续保留在docs/competition/technical。这属于本轮写作交付，不改变程序或调用模型。
+
+团队口述：杨鹏辉任组长负责推进与架构基础，李佳乐负责功能完善，郑又祥负责进度同步、GitHub维护、功能构思拓展与全部UI设计。周期约2026年9月中旬至10月中旬。有用户试用，未保存评价数据。
+
+本轮完成记录见 [技术方案交付与检查](technical-proposal-20261018-delivery.md)。未修改程序、运行产品回归、请求真实模型或提交Git；Word/PDF保存在本地忽略目录，分享时需另附文件。
+
+T5 字体调整 complete：按用户要求将Word标题、正文、表格、代码、链接、页眉页脚及嵌入图文字统一为宋体；文字内容与文档结构保留，字体及内容对比核查完成，Word分页仍未渲染。原PDF不作为本次字体修改的交付。
+
+## 2026-10-18 官方模板填充
+
+目标：将既有技术方案填入用户提供的2026AIC官方.doc模板，保留封面和章节约定、删除格式提示框；不改产品或虚构数据。
+
+|阶段|范围与验收|状态|
+|---|---|---|
+|T6 模板提取|安全复制被占用的原.doc，转换并读全封面/目录/正文，记录模板契约|complete|
+|T7 填充排版|全宋体；目录22pt粗、H1 16pt粗、H2 14pt粗、H3 12pt粗、正文12pt；单倍；A4纵向；上下2.5cm左右3cm；装订0；页眉页脚1.5cm|complete|
+|T8 独立验收|核对正文覆盖、提示框移除、模板保留、字段与链接；渲染并逐页检查图表和分页|complete|
+
+本轮模板读盘遇占用锁，已使用FileShare.ReadWrite只读复制至local_artifacts，未改变或关闭用户原文件。模板魔数确认真实OLE二进制Word格式。已有Word COM阻塞历史，后续转换须限时、记录调用阶段，并仅清理本任务启动的进程。
+
+交付：output/doc/意织Intext_作品方案_模板版_20261018.docx，326215字节。四节模板结构保留，简介299字符，缺失的正式赛题/团队名/参赛编号保留空栏。真实DOCX经隔离LibreOffice渲染20页并逐页检查；最终仅目录及12/13页代码换行相较首版变化，均已重检，38条目录缓存与最终PDF页脚一致。结构独立终验通过；未更新程序、运行产品回归或提交Git。
+
+## 2026-10-19 参考文献国标修订
+
+目标：将官方模板版 Word 的参考文献及正文标注统一为 GB/T 7714 顺序编码格式，并补入用户提供的论文 DOI。范围仅为引文、文末著录及相应目录，不改变产品事实、模板字号和页面设置。
+
+|阶段|验收|状态|
+|---|---|---|
+|T9 著录核对|核对适用标准、已有来源和用户补充论文元数据，区分公开资料与项目内部依据|complete|
+|T10 文献修订|Word与Markdown编号对应、文献类型完整、DOI准确，保留宋体与模板格式|complete|
+|T11 文档核验|核查内容差异、链接、目录，并对最终Word重新渲染检查|complete|
+
+最终交付沿用模板Word路径，327142字节，SHA256 `6b85bf5747d43d9109b150d98b05ee1c305fd38211419979d49c6d2653f8f4d5`。22条参考文献、30处上标引文、38条目录、13个固定版本目标及最终21页渲染核验通过；T9—T11完成，未修改程序或运行产品回归。
+
+## 2026-10-19 技术方案全文语言复核
+
+目标：按no-negative-echo审视面向比赛评委的完整技术方案，以意织Intext当前能力与实现为叙述中心。范围为正文Markdown、模板Word及相应交付记录；实际技术标识、真实研发与测试证据、必要安全说明及参考文献准确性继续保留。
+
+|阶段|验收|状态|
+|---|---|---|
+|T12 全文编辑审查|逐段识别无关历史、工作会话痕迹和多余否定；记录具体修改与事实保留范围|complete|
+|T13 同步修订|Word与Markdown正文对应，宋体、模板、图表、引文和目录保留|complete|
+|T14 交付核验|完整回读成稿及元数据，核对修改差异，重新渲染并逐页检查|complete|
+
+## 2026-10-19 技术方案表述打磨
+
+目标：使用shuorenhua将技术方案中生硬、抽象的表达改顺，保留句意及正式技术语体。范围仍为模板Word、正文Markdown与维护记录。按docs/minimal/in-place处理，保护数字、代码、引文、职责、范围条件、完成状态及限制；不重排章节，不引入新功能或效果。
+
+|阶段|验收|状态|
+|---|---|---|
+|T15 句内审读|按章节记录精确前后文，逐项核对事实、条件及责任主体|complete|
+|T16 同步打磨|Word与Markdown一一对应，保留模板、宋体及参考文献|complete|
+|T17 成稿终验|保真回读、残留表达检查、目录刷新与最终逐页排版验收；一并完成T14|complete|
+
+T14—T17完成：21项保意轻改，17个Word段落/单元格；独立逐项语义复核、完整正文回读、Word/Markdown对应、原字体/段落/字符样式核对、表面扫描及最终21页逐页目视均通过。最终Word326355字节，SHA256 `e7968f683ee0bdf0dd24550de280544f020d502b77465457b45b300349543a6b`。宋体、模板、22条文献、30处上标及38条目录保留；没有程序改动、产品回归或Git操作。
+
+## 2026-10-19 封面保留模板
+
+用户要求第一页由团队自行填写。T18：恢复模板封面文字与格式，隔离封面样式和页眉；核对封面后的正文、引文与目录。状态：complete。原模板在LibreOffice中封面本来占2页，恢复后实际22页，后续编号1—20保持。
+
+## 2026-10-20 参考资料更新与 docs 文件名规范
+
+目标：只读取用户 Word 相对仓库技术方案稿发生变化的段落；Word 正文全部保留，只更新文末参考文献。更新 docs 中与该文献对应的项目证据，记录用户确认的安装包跨设备可用性；统一 docs 内文档文件名，并同步修复仓库引用。
+
+范围与边界：不修改 Word 封面、正文、表格、目录、样式、分页或图表；不改文档正文内容，仅改与文档改名直接相关的路径引用。保留 `README.md` 目录入口及当前维护流程要求的 `task_plan.md`、`findings.md`、`progress.md` 固定名称；不重命名图片、脚本、配置或资料目录。现有未提交改动均保留。
+
+|阶段|完成条件|状态|
+|---|---|---|
+|D1 差异与引文确认|只输出 Word 与现有源稿不一致的段落；确认文末引文及跨设备状态|complete：正文存在多处用户改写，Word 仅允许改参考文献|
+|D2 证据更新|为跨设备结果补有来源和适用范围的记录；替换过时的“未验收”现状|complete：用户确认来源与未留存环境信息均已注明|
+|D3 文件名整理|docs 内文档采用统一连字符分隔；文件移动无覆盖，仓库内路径同步|complete：208 个文档文件名规范为连字符形式；README 与维护流程要求固定保留的 task_plan.md 等名称不变，映射与本地链接已核对|
+|D4 Word 文献更新|只改文末参考文献；文献与被引路径匹配，其余 DOCX 部件不变|complete：同步修订 Word 与 Markdown 文末参考文献的 6 个已改名维护资料链接；[21] 标明 2026-10-20 的组员设备可用性补充|
+|D5 收尾验证|链接可解析、改名数量与路径映射核对、Word 正文/模板部件保真|complete：DOCX 仅 document.xml 与超链接关系表变化；Word 原生渲染 22 页并逐页检查；16 个无法解析的本地链接均为既有缺失验证工件或缺失演示输入，未发现重命名造成的断链|
+
+## 2026-10-20 GitHub 同步
+
+目标：只提交并推送本次 docs 文件名规范、路径/参考文献更新、跨设备安装记录、最终技术方案 Word 及必要忽略规则；保留其他既有工作区改动。
+
+|阶段|验收|状态|
+|---|---|---|
+|D6 暂存审查|核对改名与链接、排除 `docs/reviews` 内容及无关源码/测试/构建产物|complete：200 个重命名；`docs/reviews` 195 项仅索引删除、本机文件保留；无源码/测试/构建产物进入暂存；`git diff --cached --check` 通过|
+|D7 提交推送|提交审查后的文档范围，推送至 `origin/main` 并核对远端提交 SHA|in_progress|

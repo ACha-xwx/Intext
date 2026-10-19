@@ -49,7 +49,7 @@
 - 最终全量 `409 passed in 62.44s`，退出码 0；离线 D2 原输入 k1/k2/k3 均匹配，6 个反例无匹配，14 项证据探针通过；旧 to-spec 绑定按 hash 判过期且保留快照。
 - 最终单文件 EXE 构建于 2026-09-30 20:52:57 +08:00，13,726,490 字节，SHA-256 `7dc3675437504411e1507beedfe123eb35ff3f8f40dbdcf3e8dc35ad7d1c038c`。补齐 legacy M1 三资源；编译、源码、项目内／隔离 EXE 烟测及无 Skill 本地 HTTP stub 链退出 0。
 - 资源审计初次误用 record hash 作为文件 hash 的失败记录保留，纠正审计口径后实读归档校验通过；生产代码未为此修改。
-- 新证据与完整边界：[修复与交接](<../reports/verification/acceptance_20260930_skill_context_fix/修复与交接_20260930.md>)。旧真实响应、观察文件、报告均保留；本轮真实 API 调用为 0，真实有 Skill/M3/M4、D1 后续和跨机／DPI 仍待验证。
+- 新证据与完整边界：[修复与交接](<../reports/verification/acceptance_20260930_skill_context_fix/修复与交接-20260930.md>)。旧真实响应、观察文件、报告均保留；本轮真实 API 调用为 0，真实有 Skill/M3/M4、D1 后续和跨机／DPI 仍待验证。
 
 ## 2026-09-29：M1 v0.6 与发行增量复验
 
