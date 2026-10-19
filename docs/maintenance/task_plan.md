@@ -1270,4 +1270,4 @@ T14—T17完成：21项保意轻改，17个Word段落/单元格；独立逐项�
 |阶段|验收|状态|
 |---|---|---|
 |D6 暂存审查|核对改名与链接、排除 `docs/reviews` 内容及无关源码/测试/构建产物|complete：200 个重命名；`docs/reviews` 195 项仅索引删除、本机文件保留；无源码/测试/构建产物进入暂存；`git diff --cached --check` 通过|
-|D7 提交推送|提交审查后的文档范围，推送至 `origin/main` 并核对远端提交 SHA|in_progress|
+|D7 提交推送|提交审查后的文档范围，推送至 `origin/main` 并核对远端提交 SHA|complete：提交 `758816b` 经 SSH-over-443 推送；GitHub `main` 读回 SHA 与该提交一致|

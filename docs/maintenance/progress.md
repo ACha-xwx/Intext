@@ -1097,4 +1097,4 @@ D4 完成：Word 和技术方案 Markdown 文末参考文献[11]、[12]、[13]�
 
 D5 完成：Word 仅 `word/document.xml` 与 `word/_rels/document.xml.rels` 两个包部件变化，最终 SHA-256 为 `53d03eb8bf784bda521480bd2a93ffae5ff13b430026369b5cf81d879df1f0cb`。本机缺少 LibreOffice，改用隐藏 Microsoft Word 实例导出只读副本，并用 Poppler 渲染 22 页图像，逐页检查通过。当前本地链接扫描发现 16 个未找到目标，均为历史 verification 工件或缺失演示输入，不由本轮改名造成。未提交或推送；GitHub main 链接需待对应文件改名发布后解析。
 
-2026-10-20 GitHub 推送：确认 `main` 与 `origin/main` 同为 `244021b`。本轮仅推送 docs 文件迁移/引用、交接记录、Word 技术方案及忽略规则；项目源码、测试、资源和构建相关的其他未提交改动保留在工作区。`docs/reviews/` 按用户指示本地保留、Git 取消跟踪；暂存后复核文件清单和差异，再创建提交并推送。
+2026-10-20 GitHub 推送完成：内容提交 `758816b98b2797bd7c569da64bc8b37b75fbbcd0` 已推送至 GitHub `main`，远端读回 SHA 一致。HTTPS 受失效本地代理及直连 443 阻断，改用已认证的 GitHub SSH-over-443。文档迁移/引用、交接记录、最终技术方案 Word 和 review 忽略变更已发布；源码、测试、资源及构建相关其他工作区改动仍保留为未提交状态。后续仅同步本条完成记录。
