@@ -1,6 +1,6 @@
 # 前端审查问题修复计划 · 2026-10-11
 
-2026-10-14 追加安装交付（原审查不恢复）：参见 [当前安装规格](../docs/maintenance/installer_20261014.md)。依赖顺序 I1 官方依赖/139MB解包诊断 → I2 onedir+安装闭环 → I3 真实安装/启动/升级/卸载及两轴审阅 → I4 源码GitHub/Release/桌面。公开测试边界见规格，固定点15858f8。
+2026-10-14 追加安装交付（原审查不恢复）：参见 [当前安装规格](../docs/maintenance/installer-20261014.md)。依赖顺序 I1 官方依赖/139MB解包诊断 → I2 onedir+安装闭环 → I3 真实安装/启动/升级/卸载及两轴审阅 → I4 源码GitHub/Release/桌面。公开测试边界见规格，固定点15858f8。
 
 范围：用户授权修复 FND-001～013，依据 docs/reviews/frontend_20261011/findings.md。保留现有工作区改动；不调用真实模型、不写个人历史、不构建EXE。
 
@@ -40,13 +40,13 @@ R3耗时：测当前system/payload/schema实际字节，精简矛盾规则和无
 
 最后按本轮before快照两轴review、相邻回归与CodeGraph同步，真实服务加速仅作为待用户使用观察。
 
-完成记录：30项本轮新增和114项受影响回归通过，300个最新不同节点296通过/4既有差异，before模块已逐一复现4项；Standards/Spec各0待修。访谈system字节减少72.29%/62.38%，未减少用户上下文或模型强度/预算，有限问句归一化的边界及诊断在[本轮维护](../docs/maintenance/interview_reliability_20261011.md)和[验收](../verification/interview_reliability_20261011/results.md)记录。
+完成记录：30项本轮新增和114项受影响回归通过，300个最新不同节点296通过/4既有差异，before模块已逐一复现4项；Standards/Spec各0待修。访谈system字节减少72.29%/62.38%，未减少用户上下文或模型强度/预算，有限问句归一化的边界及诊断在[本轮维护](../docs/maintenance/interview-reliability-20261011.md)和[验收](../verification/interview_reliability_20261011/results.md)记录。
 
 ## 2026-10-12 侧栏动画修复
 
 A1：按钮触发收起逐帧位置/可见性测试，先红灯；A2：消除全高居中重排、保留顶部控件和水平退出，原DOM功能/焦点及事件诊断；A3：浅深/720小窗、反向/减少动画、真实WebView2及相邻回归，两轴diff和交接。主要文件workspace.css/history.js，验收同maintenance/task_plan。本轮前快照独立保存，不混入HEAD未提交UI工作。
 
-完成：A1/A2/A3全部关闭。实际生产范围为resources/ui/workspace/index.html、workspace.css、history.js；新增tests/test_sidebar_animation.py。65浏览器/25真实WebView2通过，两轴0待修、机械检查和索引current。详见[维护](../docs/maintenance/sidebar_animation_20261012.md)与[验收](../verification/sidebar_animation_20261012/results.md)。
+完成：A1/A2/A3全部关闭。实际生产范围为resources/ui/workspace/index.html、workspace.css、history.js；新增tests/test_sidebar_animation.py。65浏览器/25真实WebView2通过，两轴0待修、机械检查和索引current。详见[维护](../docs/maintenance/sidebar-animation-20261012.md)与[验收](../verification/sidebar_animation_20261012/results.md)。
 
 
 ## 2026-10-12 思考区读秒
@@ -113,17 +113,17 @@ C1方案确认后隐藏核对卡，返回方案恢复；C2取消整合移到对�
 
 ## 2026-10-12 Web 编辑窗口迁移
 
-W1 需求/候选真实复现与非阻塞 Web 编辑；W2 方案全字段/步骤/关键工作与附注迁移；W3 Debug、版本隔离、浅深/小窗/键盘/实际 WebView2 与双轴复核。范围和验收见 ../docs/maintenance/web_editors_20261012.md。
+W1 需求/候选真实复现与非阻塞 Web 编辑；W2 方案全字段/步骤/关键工作与附注迁移；W3 Debug、版本隔离、浅深/小窗/键盘/实际 WebView2 与双轴复核。范围和验收见 ../docs/maintenance/web-editors-20261012.md。
 
 ## 2026-10-12 团队启动与全部模型请求
 
-L1 run.bat固定目录/优先.venv/显式Web/失败可见；L2记录实际解释器与同解释器修复命令；G1 GPT400的Schema发送前兼容选择；A1–A2检查五家全部19预设，Claude/DeepSeek Messages独立契约与公开摘要、采样适配；G2/A3公开HTTP及启动边界回归；L3/G3定向相邻、独立规范/需求审查与交接。详见[维护](../docs/maintenance/startup_responses_20261012.md)及[状态](../docs/maintenance/task_plan.md)。无付费请求，不改个人配置，不构建EXE。
+L1 run.bat固定目录/优先.venv/显式Web/失败可见；L2记录实际解释器与同解释器修复命令；G1 GPT400的Schema发送前兼容选择；A1–A2检查五家全部19预设，Claude/DeepSeek Messages独立契约与公开摘要、采样适配；G2/A3公开HTTP及启动边界回归；L3/G3定向相邻、独立规范/需求审查与交接。详见[维护](../docs/maintenance/startup-responses-20261012.md)及[状态](../docs/maintenance/task_plan.md)。无付费请求，不改个人配置，不构建EXE。
 
 完成：L1–L3、G1–G3、A1–A3全部关闭。最终233项定向及相邻回归通过、实际默认WebView2启动烟测退出0且无自动日志、规范/需求双轴各0待修。源码和交接已更新；队员及真实模型服务仍待对应环境验证，本轮未提交推送。
 
 ## 2026-10-12 真实网关流式错误复诊
 
-S1公开客户端→本地HTTP复现服务error/response.failed细节丢失；S2修复ApiError/界面/Debug错误说明与失败元数据传播，保留脱敏/手动日志/取消和单请求；S3定向相邻、独立两轴diff审查、交接和索引。基线f473fd5，远端具体原因等待用户stream_error原文，不调用收费网关。详见[复诊记录](../docs/maintenance/stream_service_error_20261012.md)。
+S1公开客户端→本地HTTP复现服务error/response.failed细节丢失；S2修复ApiError/界面/Debug错误说明与失败元数据传播，保留脱敏/手动日志/取消和单请求；S3定向相邻、独立两轴diff审查、交接和索引。基线f473fd5，远端具体原因等待用户stream_error原文，不调用收费网关。详见[复诊记录](../docs/maintenance/stream-service-error-20261012.md)。
 
 诊断修复S1–S3完成：172项定向/相邻、3文件AST、diff检查通过，双轴各0待修，CodeGraph已同步。真实网关错误原因待用户原文，未宣称远端已修复。
 
@@ -136,11 +136,11 @@ R1–R3全部完成：289个不同节点最新全部通过，Standards/Spec各0�
 
 ## 2026-10-12 设置下拉显示
 
-D1统一select及input+datalist的箭头、间距和焦点；D2验证原生键盘、自定义值、预设联动、草稿/保存并完成Debug、双轴审查和交接。两项均complete，17项检查通过，Spec/Standards各0待修。详见[维护](../docs/maintenance/settings_dropdown_20261012.md)；本轮无真实WebView2/EXE或模型验收，未提交推送。
+D1统一select及input+datalist的箭头、间距和焦点；D2验证原生键盘、自定义值、预设联动、草稿/保存并完成Debug、双轴审查和交接。两项均complete，17项检查通过，Spec/Standards各0待修。详见[维护](../docs/maintenance/settings-dropdown-20261012.md)；本轮无真实WebView2/EXE或模型验收，未提交推送。
 
 追加D3/D4：用户实际要求是预设切换和下方协议可点击。生产DOM测试应从已填DeepSeek展开完整预设、选择另一个服务、再选择协议，覆盖自定义输入/草稿/保存与弹层生命周期；之后用隔离WebView2验证，记录Debug并做增量双轴审查。基线为本轮开始的工作树，依赖D3后完成D4；不改业务确认、密钥、API请求。
 
-追加J1/J2：对照队员旧json_object的param=input修复，在本地复杂契约及strict明确不支持后的兼容路径增加input可见JSON指令，原wire独立；本地HTTP先红后绿，保持模型/强度/预算/单请求/错误详情，相关回归与审查后收尾。D3/D4/J1/J2已完成，255节点最新通过、实际WebView220项通过、双轴0待修。见[维护](../docs/maintenance/settings_choice_interaction_20261012.md)，无收费请求/个人配置/EXE/提交推送。
+追加J1/J2：对照队员旧json_object的param=input修复，在本地复杂契约及strict明确不支持后的兼容路径增加input可见JSON指令，原wire独立；本地HTTP先红后绿，保持模型/强度/预算/单请求/错误详情，相关回归与审查后收尾。D3/D4/J1/J2已完成，255节点最新通过、实际WebView220项通过、双轴0待修。见[维护](../docs/maintenance/settings-choice-interaction-20261012.md)，无收费请求/个人配置/EXE/提交推送。
 
 
 ## 2026-10-14 Targeted stage visibility
@@ -148,25 +148,25 @@ D1统一select及input+datalist的箭头、间距和焦点；D2验证原生键�
 S1 uses the existing public SessionState/conversation_cards, WorkspaceController snapshot and production DOM seams. Add the symptom test before changing the shared projection; verify only this red/green feedback loop now, defer combined regression. Review the incremental working-tree diff against local_artifacts/skill_stage_visibility_20261014/before along Spec and Standards. Keep all preceding work and the paused audit intact.
 
 
-S1 complete: 5 focused checks passed; incremental Standards/Spec reviews each clear. Exact feedback boundaries and fixture corrections: ../docs/maintenance/skill_stage_visibility_20261014.md. Combined regression awaits S2/S3.
+S1 complete: 5 focused checks passed; incremental Standards/Spec reviews each clear. Exact feedback boundaries and fixture corrections: ../docs/maintenance/skill-stage-visibility-20261014.md. Combined regression awaits S2/S3.
 
 
 ## 2026-10-14 S2 action rows and notes
 
 S2a: equal-width glass action row for current requirement/plan/Skill controls, including dynamic 3/5 Skill choices and disabled/hover/reduced motion. S2b: final result copy/export/notes only, notes view drops tone; Tk owner action map and selection update stay consistent. Same authorized public DOM/Controller seams; incremental before stored under local_artifacts/action_rows_20261014/before. Finish focused feedback and dual-axis review, defer combined regression until S3.
 
-S2 complete: 20 distinct public DOM/Tk/Controller checks passed, including actual note editor save and old tone persistence. Incremental Spec/Standards each 0 findings. Detailed red/green and corrected historical adoption test: ../docs/maintenance/action_rows_20261014.md. S3 and combined regression remain pending.
+S2 complete: 20 distinct public DOM/Tk/Controller checks passed, including actual note editor save and old tone persistence. Incremental Spec/Standards each 0 findings. Detailed red/green and corrected historical adoption test: ../docs/maintenance/action-rows-20261014.md. S3 and combined regression remain pending.
 
 ## 2026-10-14 S3 online Skill introduction scoring
 
 S3a: public search feedback loop reproduces missing introduction and wrapped JSON fallback; pass bounded actual descriptions/intro excerpts in one AI scoring call with model scores and specific uses. S3b: tolerate partial malformed rows and expose genuine failure/review mode in inline status, candidate details and Debug; preserve source identity/cancel/local paths. S3c: incremental Spec/Standards review, combined S1–S3/adjacent regression, static checks/maintenance/CodeGraph. Baseline local_artifacts/skill_summary_scoring_20261014/before. No personal settings, live paid model requests, EXE build or remote publication.
 
-S3a–S3c complete: empty summary scores explicitly fail while valid low scores remain no-match; cancellation wins over late network exceptions. Broad 323 nodes yielded 322 passed/1 old hidden-control fixture; corrected to public previous-stage→integration, final affected six modules 61 passed. Latest distinct nodes 326 passed; final Spec/Standards each 0 findings. See ../docs/maintenance/skill_summary_scoring_20261014.md. Full project audit remains paused.
+S3a–S3c complete: empty summary scores explicitly fail while valid low scores remain no-match; cancellation wins over late network exceptions. Broad 323 nodes yielded 322 passed/1 old hidden-control fixture; corrected to public previous-stage→integration, final affected six modules 61 passed. Latest distinct nodes 326 passed; final Spec/Standards each 0 findings. See ../docs/maintenance/skill-summary-scoring-20261014.md. Full project audit remains paused.
 
 
 ## 2026-10-14 设置与品牌
 
-B1输入文案、B2实际参数、B3用户LOGO、B4相关验证与双轴审阅，详见 [计划](../docs/maintenance/settings_brand_20261014.md)。
+B1输入文案、B2实际参数、B3用户LOGO、B4相关验证与双轴审阅，详见 [计划](../docs/maintenance/settings-brand-20261014.md)。
 
 
 2026-10-14 B1–B4完成：输入/文案、12项偏好实际接线、图形LOGO及旧SVG保留；207个不同节点最新通过，实际源码WebView2 21项通过，双轴各0待修。用户已授权B5提交GitHub及桌面EXE，进行中。独立EXE首次启动复现jsonschema可选格式库缺少syntax_rfc3987.lark，spec补收集该资源后重新构建验收；原始失败证据保留。完整逐页审查继续暂停，无真实模型请求。详见settings_brand_20261014.md。
@@ -179,10 +179,10 @@ B1输入文案、B2实际参数、B3用户LOGO、B4相关验证与双轴审阅�
 2026-10-14 安装包追加：I1官方依赖/分发方案，I2当前用户安装与缺失WebView2自动安装，I3真实安装/启动/模拟依赖/卸载及双轴审阅，I4 GitHub源码/Release与桌面安装包。详见installer_20261014.md。现有EXE本机通过不能证明同学环境原因；保留数据和运行日志手动保存合同。
 
 
-2026-10-14 P1–P4首次供应商保存与Intext数据根实现/验收完成：精确红例、数值schema修复、不覆盖迁移及隔离根边界通过；203个不同相关本地节点、源码/独立EXE各21项实际WebView2通过。两轴复审各0待修，桌面修复版已核对哈希，实现提交a6d0d1a；GitHub直连与原代理不可用，P3b推送待网络恢复。详见[本批计划](../docs/maintenance/provider_onboarding_20261014.md)。安装包/全量审查保持暂停。
+2026-10-14 P1–P4首次供应商保存与Intext数据根实现/验收完成：精确红例、数值schema修复、不覆盖迁移及隔离根边界通过；203个不同相关本地节点、源码/独立EXE各21项实际WebView2通过。两轴复审各0待修，桌面修复版已核对哈希，实现提交a6d0d1a；GitHub直连与原代理不可用，P3b推送待网络恢复。详见[本批计划](../docs/maintenance/provider-onboarding-20261014.md)。安装包/全量审查保持暂停。
 
 
-2026-10-14 G1–G4 中转根地址模型目录，任务/依赖/验收见../docs/maintenance/gateway_models_20261014.md。用户已授权修复、原测试边界、桌面EXE和源码推送，继续执行；安装包保持暂停。
+2026-10-14 G1–G4 中转根地址模型目录，任务/依赖/验收见../docs/maintenance/gateway-models-20261014.md。用户已授权修复、原测试边界、桌面EXE和源码推送，继续执行；安装包保持暂停。
 
 
 ## 2026-10-14 同学电脑保存复诊与模型箭头

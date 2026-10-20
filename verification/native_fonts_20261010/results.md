@@ -25,6 +25,6 @@
 
 离线 pytest runner 清理环境凭据、隔离 LOCALAPPDATA 并禁止外部联网。实际窗口脚本也隔离数据、禁网并禁用本机 Skill 索引预热，重点验证字体/恢复路径；并未将该脚本称为真实搜索或模型验收。
 
-JUnit、独立进程 JSON、12 张截图及离线脚本保存在忽略目录 `local_artifacts/native_fonts_20261010/`。旧自定义字体/字形/ClearType报告是之前行为的历史证据，不代表当前实现；当前入口见 [默认字体维护说明](../../docs/maintenance/native_fonts_20261010.md)。
+JUnit、独立进程 JSON、12 张截图及离线脚本保存在忽略目录 `local_artifacts/native_fonts_20261010/`。旧自定义字体/字形/ClearType报告是之前行为的历史证据，不代表当前实现；当前入口见 [默认字体维护说明](../../docs/maintenance/native-fonts-20261010.md)。
 
 工具记录：修改测试时补丁工具拒绝同一路径 delete+add，无部分写入；改用完整覆盖专项测试文件。本轮回归与实际窗口首次运行全部通过，没有产品故障被忽略。

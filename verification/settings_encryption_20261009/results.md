@@ -1,6 +1,6 @@
 # 设置持久化与 API Key 加密验证
 
-日期：2026-10-09。当前源码交付，Windows / Python 3.11.9 / 原生 Tk；没有真实模型请求、EXE 构建、提交或推送。只使用合成 API Key 和隔离临时目录，没有读取生产密钥。安全边界见 [凭据保护](../../docs/maintenance/settings_security_20261009.md)。
+日期：2026-10-09。当前源码交付，Windows / Python 3.11.9 / 原生 Tk；没有真实模型请求、EXE 构建、提交或推送。只使用合成 API Key 和隔离临时目录，没有读取生产密钥。安全边界见 [凭据保护](../../docs/maintenance/settings-security-20261009.md)。
 
 ## 实现范围
 

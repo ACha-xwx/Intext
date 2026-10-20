@@ -150,7 +150,7 @@
 - [x] P3a 最终EXE原生双启动验收、桌面修复版哈希核对
 - [x] P3b a6d0d1a已与本批9172e9a原SHA同步GitHub，远端核对一致
 
-相关回归、源码原生及两轴复审已完成；详见[本批计划](../docs/maintenance/provider_onboarding_20261014.md)。安装包/全量审查保持暂停。
+相关回归、源码原生及两轴复审已完成；详见[本批计划](../docs/maintenance/provider-onboarding-20261014.md)。安装包/全量审查保持暂停。
 
 
 2026-10-14 - [x] G1 根地址中转目录外部HTTP失败复现（1红→11绿）

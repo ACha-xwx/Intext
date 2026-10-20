@@ -38,7 +38,7 @@ v6 中文安全局部 hint 和西文完整 hint 程序已检查，西文/数字/
 
 首次专项曾 28 passed / 1 failed：FontTools 默认 Subsetter 仍删除位图表。明确保留 EBDT/EBLC 并升级 v4 后，包含本节点的最新回归通过。首次实际验收脚本误用了其它项目的级别颜色期望，修正脚本为当前蓝/白/黄/红后通过，没有更改产品颜色。中间失败 XML 和诊断基线保留，不覆盖为成功。
 
-原始 XML、JSON、性能数据、截图、脚本和合成设置均在忽略目录 `local_artifacts/ui_clarity_20261010/`；共享报告不含字体文件、明文密钥或个人会话。实现说明见 [维护记录](../../docs/maintenance/ui_clarity_20261010.md)。
+原始 XML、JSON、性能数据、截图、脚本和合成设置均在忽略目录 `local_artifacts/ui_clarity_20261010/`；共享报告不含字体文件、明文密钥或个人会话。实现说明见 [维护记录](../../docs/maintenance/ui-clarity-20261010.md)。
 
 ## 英文与启动追加验收
 

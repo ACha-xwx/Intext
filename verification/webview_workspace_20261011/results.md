@@ -40,4 +40,4 @@ Tk基线见`before-repeat/metrics.json`，失败实验仅存在本地隔离目�
 
 Python编译、三个JS语法、63个spec资源入口/7个workspace文件及HTML引用、137个当前文档相对链接和差异空白检查通过。CodeGraph已按最终源码同步：172files/4462nodes/14084edges，包含3个JS文件，Index is up to date。spec收集workspace全目录及webview数据与平台依赖声明，但当前只有源码启动证据；新EXE打包、跨机启动、无Python/Node环境及缺Runtime体验须另验。复杂编辑仍可能打开Tk兼容窗，主工作区/设置/Debug的迁移不等于所有编辑窗口重写。
 
-实现与约束见[本轮维护](../../docs/maintenance/webview_workspace_20261011.md)。
+实现与约束见[本轮维护](../../docs/maintenance/webview-workspace-20261011.md)。

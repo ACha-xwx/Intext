@@ -20,6 +20,6 @@ M1 的 `comprehensive_batch` 策略先全面检查相关维度，不再限制一
 
 历史设计说明已归档到 [docs/archive/prompt-design](../../docs/archive/prompt-design/)，原始路径映射见 [迁移清单](../../docs/maintenance/migration_manifest.json)。
 
-2026-10-11 访谈输入精简：当前M1共同契约+首轮/增量直接替换旧基础+补丁叠加，保留来源、三档覆盖、充分即止、跳过语义、五轮授权和完整输出Schema。精简不降低模型接口思考强度、不删用户答案/来源或缩减输出预算。运行诊断增加每次请求字节、耗时和usage；真实服务加速仍须观察。见[维护说明](../../docs/maintenance/interview_reliability_20261011.md)。
+2026-10-11 访谈输入精简：当前M1共同契约+首轮/增量直接替换旧基础+补丁叠加，保留来源、三档覆盖、充分即止、跳过语义、五轮授权和完整输出Schema。精简不降低模型接口思考强度、不删用户答案/来源或缩减输出预算。运行诊断增加每次请求字节、耗时和usage；真实服务加速仍须观察。见[维护说明](../../docs/maintenance/interview-reliability-20261011.md)。
 
-2026-10-12 全流程输入精简：M2 v0.6 合并重复规则，旧 v0.5 保留；M4 根据 ID 合并顶层步骤/工作正文和 baseline.plan 元数据。公共传输只对 M1 历史答案与完整来源精确相同且节省超过说明成本时，省略重复 answer_text 并附 source ID 查找说明；本地验证/证据仍保存完整输入。Schema、思考强度和输出预算不变。见[实现说明](../../docs/maintenance/token_efficiency_20261012.md)与[离线验收](../../verification/token_efficiency_20261012/results.md)。
+2026-10-12 全流程输入精简：M2 v0.6 合并重复规则，旧 v0.5 保留；M4 根据 ID 合并顶层步骤/工作正文和 baseline.plan 元数据。公共传输只对 M1 历史答案与完整来源精确相同且节省超过说明成本时，省略重复 answer_text 并附 source ID 查找说明；本地验证/证据仍保存完整输入。Schema、思考强度和输出预算不变。见[实现说明](../../docs/maintenance/token-efficiency-20261012.md)与[离线验收](../../verification/token_efficiency_20261012/results.md)。
